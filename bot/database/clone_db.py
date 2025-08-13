@@ -2,6 +2,9 @@ import asyncio
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient
 from info import Config
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
 
 # Clone database
 clone_client = AsyncIOMotorClient(Config.DATABASE_URL)
@@ -222,3 +225,62 @@ async def get_total_files_count():
         return await files_collection.count_documents({})
     except:
         return 0
+
+# Missing helper functions for mother admin panel
+async def get_clone_by_id_from_db(clone_id: str):
+    """Get a specific clone by its ID from the database"""
+    try:
+        return await clones.find_one({"_id": clone_id})
+    except Exception as e:
+        logger.error(f"❌ Error getting clone {clone_id}: {e}")
+        return None
+
+async def stop_clone_in_db(clone_id: str):
+    """Update clone status to stopped in the database"""
+    try:
+        await clones.update_one(
+            {"_id": clone_id},
+            {"$set": {"status": "stopped", "stopped_at": datetime.now()}}
+        )
+        logger.info(f"✅ Marked clone {clone_id} as stopped in database")
+    except Exception as e:
+        logger.error(f"❌ Error stopping clone {clone_id} in DB: {e}")
+
+async def start_clone_in_db(clone_id: str):
+    """Update clone status to running in the database"""
+    try:
+        await clones.update_one(
+            {"_id": clone_id},
+            {"$set": {"status": "active", "started_at": datetime.now()}}
+        )
+        logger.info(f"✅ Marked clone {clone_id} as active in database")
+    except Exception as e:
+        logger.error(f"❌ Error starting clone {clone_id} in DB: {e}")
+
+async def get_clone_statistics():
+    """Get comprehensive clone statistics"""
+    try:
+        total_clones = await clones.count_documents({})
+        active_clones = await clones.count_documents({"status": "active"})
+        pending_clones = await clones.count_documents({"status": "pending_payment"})
+        deactivated_clones = await clones.count_documents({"status": "deactivated"})
+        
+        return {
+            "total": total_clones,
+            "active": active_clones,
+            "pending": pending_clones,
+            "deactivated": deactivated_clones
+        }
+    except Exception as e:
+        logger.error(f"❌ Error getting clone statistics: {e}")
+        return {"total": 0, "active": 0, "pending": 0, "deactivated": 0}
+
+async def update_clone_last_seen(clone_id: str):
+    """Update clone's last seen timestamp"""
+    try:
+        await clones.update_one(
+            {"_id": clone_id},
+            {"$set": {"last_seen": datetime.now()}}
+        )
+    except Exception as e:
+        logger.error(f"❌ Error updating last seen for clone {clone_id}: {e}")

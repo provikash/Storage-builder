@@ -11,13 +11,14 @@ import os
 import logging
 from datetime import datetime, timedelta
 from pyrogram import Client
-from pyrogram.errors import AuthKeyUnregistered, UserDeactivated, ApiIdInvalid
+from pyrogram.errors import AuthKeyUnregistered, UserDeactivated, ApiIdInvalid, FloodWait
 from info import Config
 from bot.database.clone_db import *
 from bot.database.subscription_db import *
 from bot.utils.clone_config_loader import clone_config_loader
+from bot.logging import LOGGER
 
-logger = logging.getLogger(__name__)
+logger = LOGGER(__name__)
 
 class BotInstance:
     """Individual bot instance with configuration-driven behavior"""
@@ -117,14 +118,29 @@ class CloneManager:
     async def start_clone(self, bot_id: str):
         """Start a specific clone"""
         try:
+            # Check if already running
+            if bot_id in self.instances and self.instances[bot_id].running:
+                return False, "Clone is already running"
+            
             # Check subscription status
             subscription = await get_subscription(bot_id)
             if not subscription or subscription['status'] != 'active':
+                logger.warning(f"⚠️ Cannot start clone {bot_id}: subscription not active")
                 return False, "Clone subscription is not active"
+                
+            # Check if subscription has expired
+            if subscription['expiry_date'] < datetime.now():
+                logger.warning(f"⚠️ Cannot start clone {bot_id}: subscription expired")
+                await subscriptions.update_one(
+                    {"_id": bot_id},
+                    {"$set": {"status": "expired"}}
+                )
+                return False, "Clone subscription has expired"
                 
             # Get clone data
             clone_data = await get_clone(bot_id)
             if not clone_data:
+                logger.error(f"❌ Clone data not found for {bot_id}")
                 return False, "Clone not found"
                 
             # Get configuration
@@ -136,10 +152,15 @@ class CloneManager:
             
             if success:
                 self.instances[bot_id] = instance
+                logger.info(f"✅ Clone {bot_id} started successfully")
                 return True, f"Clone {bot_id} started successfully"
             else:
+                logger.error(f"❌ Failed to start clone instance {bot_id}")
                 return False, "Failed to start clone"
                 
+        except FloodWait as e:
+            logger.error(f"❌ Telegram flood wait for clone {bot_id}: {e.value}s")
+            return False, f"Telegram rate limit: wait {e.value}s"
         except Exception as e:
             logger.error(f"❌ Error starting clone {bot_id}: {e}")
             return False, str(e)

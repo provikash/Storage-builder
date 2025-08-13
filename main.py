@@ -164,6 +164,17 @@ async def main():
         if subscription_task:
             monitoring_tasks.append(subscription_task)
         
+        # Start system monitoring
+        try:
+            from bot.utils.system_monitor import system_monitor
+            monitoring_task = asyncio.create_task(system_monitor.start_monitoring())
+            monitoring_tasks.append(monitoring_task)
+            logger.info("✅ System monitoring started")
+        except ImportError:
+            logger.warning("⚠️ psutil not available, skipping system monitoring")
+        except Exception as e:
+            logger.error(f"❌ System monitoring failed: {e}")
+        
         # Print startup summary
         logger.info("\n" + "="*60)
         logger.info("🎉 MOTHER BOT + CLONE SYSTEM READY!")
