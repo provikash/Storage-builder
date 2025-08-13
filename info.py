@@ -30,7 +30,10 @@ class Config(object):
         raise ValueError("Missing required environment variables: API_ID, API_HASH, or BOT_TOKEN")
 
     # Convert API_ID to int after validation
-    API_ID = int(API_ID)
+    try:
+        API_ID = int(API_ID)
+    except ValueError:
+        raise ValueError("API_ID must be a valid integer")
 
     # Webhook settings
     WEB_MODE = getenv("WEB_MODE", "False").lower() in ("true", "1", "yes")
@@ -46,9 +49,12 @@ class Config(object):
     if not CHANNEL_ID or not INDEX_CHANNEL_ID or not OWNER_ID:
         raise ValueError("Missing required environment variables: CHANNEL_ID, INDEX_CHANNEL_ID, or OWNER_ID")
 
-    CHANNEL_ID = int(CHANNEL_ID)
-    INDEX_CHANNEL_ID = int(INDEX_CHANNEL_ID)
-    OWNER_ID = int(OWNER_ID)
+    try:
+        CHANNEL_ID = int(CHANNEL_ID)
+        INDEX_CHANNEL_ID = int(INDEX_CHANNEL_ID)
+        OWNER_ID = int(OWNER_ID)
+    except ValueError:
+        raise ValueError("CHANNEL_ID, INDEX_CHANNEL_ID, and OWNER_ID must be valid integers")
 
     # Database - Load from environment
     DATABASE_URL = getenv("DATABASE_URL")
