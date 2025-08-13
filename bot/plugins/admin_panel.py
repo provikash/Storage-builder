@@ -67,6 +67,7 @@ async def mother_admin_panel(client: Client, message: Message):
     panel_text += f"🕐 **Panel Access Time:** {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}"
     
     buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("⏳ Pending Clone Requests", callback_data="mother_pending_requests")],
         [InlineKeyboardButton("🤖 Create Clone", callback_data="mother_create_clone")],
         [InlineKeyboardButton("💰 Manage Subscriptions", callback_data="mother_manage_subscriptions")],
         [InlineKeyboardButton("📢 Manage Global Force Channels", callback_data="mother_global_force_channels")],
@@ -138,7 +139,9 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
     
     callback_data = query.data
     
-    if callback_data == "mother_create_clone":
+    if callback_data == "mother_pending_requests":
+        await handle_mother_pending_requests(client, query)
+    elif callback_data == "mother_create_clone":
         await handle_mother_create_clone(client, query)
     elif callback_data == "mother_manage_subscriptions":
         await handle_mother_manage_subscriptions(client, query)
@@ -459,6 +462,58 @@ async def handle_clone_request_channels(client: Client, query: CallbackQuery):
     text = f"🔔 **Request Channels Management**\n\n"
     text += f"**Current Request Channels:**\n"
     
+
+
+async def handle_mother_pending_requests(client: Client, query: CallbackQuery):
+    """Handle pending clone requests management"""
+    from bot.plugins.clone_request import get_all_pending_requests
+    
+    try:
+        pending_requests = await get_all_pending_requests()
+        
+        if not pending_requests:
+            text = "⏳ **Pending Clone Requests**\n\n❌ No pending requests found."
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Refresh", callback_data="mother_pending_requests")],
+                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+            ])
+        else:
+            text = f"⏳ **Pending Clone Requests ({len(pending_requests)})**\n\n"
+            
+            buttons = []
+            for i, request in enumerate(pending_requests[:10], 1):  # Show first 10
+                requester_name = request['requester_info']['first_name']
+                if request['requester_info']['username']:
+                    requester_name += f" (@{request['requester_info']['username']})"
+                
+                text += f"**{i}. @{request['bot_username']}**\n"
+                text += f"   👤 {requester_name}\n"
+                text += f"   💰 {request['plan_details']['name']} (${request['plan_details']['price']})\n"
+                text += f"   📅 {request['created_at'].strftime('%m-%d %H:%M')}\n"
+                
+                buttons.append([InlineKeyboardButton(
+                    f"📋 {request['bot_username'][:15]}... - Review",
+                    callback_data=f"view_request:{request['request_id']}"
+                )])
+            
+            if len(pending_requests) > 10:
+                text += f"\n... and {len(pending_requests) - 10} more requests"
+                buttons.append([InlineKeyboardButton("📄 View All", callback_data="mother_all_pending_requests")])
+            
+            buttons.extend([
+                [InlineKeyboardButton("🔄 Refresh", callback_data="mother_pending_requests")],
+                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+            ])
+        
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        
+    except Exception as e:
+        text = f"⏳ **Pending Clone Requests**\n\n❌ Error loading requests: {str(e)}"
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+        ])
+        await query.edit_message_text(text, reply_markup=buttons)
+
     if request_channels:
         for i, channel in enumerate(request_channels, 1):
             text += f"{i}. {channel}\n"
