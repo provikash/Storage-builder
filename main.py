@@ -159,9 +159,15 @@ async def main():
         if clone_task:
             monitoring_tasks.append(clone_task)
         
-        # Auto-start all active clones
+        # Auto-start all active clones with better error handling
         logger.info("🔄 Auto-starting active clones...")
-        await clone_manager.start_all_clones()
+        try:
+            await clone_manager.start_all_clones()
+            running_clones = clone_manager.get_running_clones()
+            logger.info(f"✅ Auto-start completed. {len(running_clones)} clones are now running.")
+        except Exception as e:
+            logger.error(f"❌ Error during clone auto-start: {e}")
+            logger.info("🔄 Continuing with Mother Bot startup...")
         
         # Start subscription monitoring
         subscription_task = await start_subscription_monitoring()

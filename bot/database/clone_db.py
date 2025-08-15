@@ -35,7 +35,7 @@ async def create_clone(bot_token: str, admin_id: int, db_url: str):
             clone_db_client = AsyncIOMotorClient(db_url)
             clone_db_instance = clone_db_client[f"clone_{me.id}"]
             # Test connection
-            await clone_db_instance.command("ping")
+            await clone_db_client.admin.command("ping") # Corrected to use admin.command for ping
             clone_db_client.close()
         except Exception as db_e:
             await test_client.stop()
@@ -68,6 +68,7 @@ async def create_clone(bot_token: str, admin_id: int, db_url: str):
         return True, clone_data
 
     except Exception as e:
+        logger.error(f"Error creating clone: {e}") # Added logging for the exception
         return False, str(e)
 
 async def create_clone_config(clone_id: str):
@@ -106,9 +107,14 @@ async def create_clone_config(clone_id: str):
         upsert=True
     )
 
-async def get_clone(clone_id: str):
-    """Get clone details"""
-    return await clones_collection.find_one({"_id": clone_id})
+async def get_clone(bot_id: str):
+    """Get clone data by bot ID"""
+    try:
+        clone = await clones_collection.find_one({"_id": bot_id}) # Corrected collection name
+        return clone
+    except Exception as e:
+        logger.error(f"Error getting clone {bot_id}: {e}") # Added logging
+        return None
 
 async def get_clone_config(clone_id: str):
     """Get clone configuration"""
@@ -184,7 +190,8 @@ async def get_total_subscriptions():
     try:
         from bot.database.premium_db import premium_collection
         return await premium_collection.count_documents({})
-    except:
+    except Exception as e: # Added exception handling
+        logger.error(f"Error getting total subscriptions: {e}")
         return 0
 
 async def get_active_subscriptions():
@@ -198,21 +205,24 @@ async def get_active_subscriptions():
                 {"tokens": -1}  # unlimited
             ]
         })
-    except:
+    except Exception as e: # Added exception handling
+        logger.error(f"Error getting active subscriptions: {e}")
         return 0
 
 async def get_total_clones_count():
     """Get total number of clones"""
     try:
         return await clones_collection.count_documents({})
-    except:
+    except Exception as e: # Added exception handling
+        logger.error(f"Error getting total clones count: {e}")
         return 0
 
 async def get_active_clones_count():
     """Get number of active clones"""
     try:
         return await clones_collection.count_documents({"status": "active"})
-    except:
+    except Exception as e: # Added exception handling
+        logger.error(f"Error getting active clones count: {e}")
         return 0
 
 async def get_total_users_count():
@@ -220,7 +230,8 @@ async def get_total_users_count():
     try:
         from bot.database.users import collection as users_collection
         return await users_collection.count_documents({})
-    except:
+    except Exception as e: # Added exception handling
+        logger.error(f"Error getting total users count: {e}")
         return 0
 
 async def get_total_files_count():
@@ -228,7 +239,8 @@ async def get_total_files_count():
     try:
         from bot.database.index_db import collection as files_collection
         return await files_collection.count_documents({})
-    except:
+    except Exception as e: # Added exception handling
+        logger.error(f"Error getting total files count: {e}")
         return 0
 
 # Missing helper functions for mother admin panel
@@ -290,7 +302,6 @@ async def update_clone_last_seen(clone_id: str):
     except Exception as e:
         logger.error(f"❌ Error updating last seen for clone {clone_id}: {e}")
 
-# Added functions from changes
 async def delete_clone(bot_id: str):
     """Delete a clone completely"""
     try:
@@ -319,4 +330,41 @@ async def delete_clone_config(bot_id: str):
         return result.deleted_count > 0
     except Exception as e:
         logger.error(f"ERROR: Error deleting clone config {bot_id}: {e}")
+        return False
+
+async def get_all_clone_requests(status: str = None):
+    """Get all clone requests, optionally filtered by status"""
+    try:
+        filter_dict = {}
+        if status:
+            filter_dict["status"] = status
+
+        requests = await clone_requests.find(filter_dict).to_list(length=None) # Assuming clone_requests collection exists
+        return requests
+    except Exception as e:
+        logger.error(f"Error getting clone requests: {e}")
+        return []
+
+async def approve_clone_request(request_id: str):
+    """Approve a clone request"""
+    try:
+        result = await clone_requests.update_one( # Assuming clone_requests collection exists
+            {"request_id": request_id},
+            {"$set": {"status": "approved", "approved_at": datetime.now()}}
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        logger.error(f"Error approving request {request_id}: {e}")
+        return False
+
+async def reject_clone_request(request_id: str):
+    """Reject a clone request"""
+    try:
+        result = await clone_requests.update_one( # Assuming clone_requests collection exists
+            {"request_id": request_id},
+            {"$set": {"status": "rejected", "rejected_at": datetime.now()}}
+        )
+        return result.modified_count > 0
+    except Exception as e:
+        logger.error(f"Error rejecting request {request_id}: {e}")
         return False

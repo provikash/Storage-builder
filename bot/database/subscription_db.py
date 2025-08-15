@@ -147,10 +147,10 @@ async def extend_subscription(clone_id: str, months: int, additional_price: floa
 async def get_all_subscriptions():
     """Get all subscriptions"""
     try:
-        subs = await subscriptions.find({}).to_list(None)
-        return subs
+        all_subs = await subscriptions.find({}).to_list(length=None)
+        return all_subs
     except Exception as e:
-        print(f"ERROR: Error getting all subscriptions: {e}")
+        print(f"Error getting all subscriptions: {e}")
         return []
 
 async def delete_subscription(bot_id: str):
