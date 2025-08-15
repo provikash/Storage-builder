@@ -1,4 +1,3 @@
-
 import asyncio
 from datetime import datetime, timedelta
 from pyrogram import Client, filters
@@ -16,48 +15,59 @@ admin_sessions = {}
 async def admin_command_handler(client: Client, message: Message):
     """Main admin command handler - routes to appropriate panel"""
     user_id = message.from_user.id
-    
+    print(f"DEBUG: Received /admin command from user {user_id}")
+
     # Check if this is Mother Bot
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+    print(f"DEBUG: Bot token: {bot_token}, Config loaded: {config is not None}")
+
     is_clone = config['bot_info'].get('is_clone', False)
-    
+    print(f"DEBUG: is_clone: {is_clone}")
+
     if not is_clone:
         # This is Mother Bot - check for Mother Bot admin
+        print(f"DEBUG: Checking Mother Bot admin permissions for user {user_id}. Owner: {Config.OWNER_ID}, Admins: {Config.ADMINS}")
         if user_id in [Config.OWNER_ID] + list(Config.ADMINS):
             await mother_admin_panel(client, message)
         else:
             await message.reply_text("❌ Access denied. Only Mother Bot administrators can access this panel.")
+            print(f"DEBUG: Access denied for user {user_id} to Mother Bot panel.")
     else:
         # This is a Clone Bot - check for Clone admin
         clone_admin_id = config['bot_info'].get('admin_id')
+        print(f"DEBUG: Checking Clone Bot admin permissions for user {user_id}. Clone Admin ID: {clone_admin_id}")
         if user_id == clone_admin_id:
             await clone_admin_panel(client, message)
         else:
             await message.reply_text("❌ Access denied. Only the clone administrator can access this panel.")
+            print(f"DEBUG: Access denied for user {user_id} to Clone Bot panel.")
 
 async def mother_admin_panel(client: Client, message: Message):
     """Mother Bot Admin Panel"""
     user_id = message.from_user.id
-    
+    print(f"DEBUG: Displaying Mother Bot admin panel for user {user_id}")
+
     # Validate Mother Bot admin permissions
     if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        print(f"DEBUG: Invalid permission to access Mother Bot panel for user {user_id}")
         return await message.reply_text("❌ Access denied. Only Mother Bot administrators can access this panel.")
-    
+
     # Store admin session
     admin_sessions[user_id] = {'type': 'mother', 'timestamp': datetime.now()}
-    
+    print(f"DEBUG: Stored Mother Bot admin session for user {user_id}")
+
     # Get statistics
     try:
         total_clones = len(await get_all_clones())
         active_clones = len([c for c in await get_all_clones() if c['status'] == 'active'])
         running_clones = len(clone_manager.get_running_clones())
         total_subscriptions = len(await get_all_subscriptions())
+        print(f"DEBUG: Stats - Total Clones: {total_clones}, Active Clones: {active_clones}, Running Clones: {running_clones}, Total Subscriptions: {total_subscriptions}")
     except Exception as e:
         total_clones = active_clones = running_clones = total_subscriptions = 0
-        print(f"Error getting stats: {e}")
-    
+        print(f"ERROR: Error getting Mother Bot stats: {e}")
+
     panel_text = f"🎛️ **Mother Bot Admin Panel**\n\n"
     panel_text += f"📊 **System Overview:**\n"
     panel_text += f"• Total Clones: {total_clones}\n"
@@ -65,7 +75,7 @@ async def mother_admin_panel(client: Client, message: Message):
     panel_text += f"• Running Clones: {running_clones}\n"
     panel_text += f"• Total Subscriptions: {total_subscriptions}\n\n"
     panel_text += f"🕐 **Panel Access Time:** {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}"
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("⏳ Pending Clone Requests", callback_data="mother_pending_requests")],
         [InlineKeyboardButton("🤖 Create Clone", callback_data="mother_create_clone")],
@@ -76,45 +86,53 @@ async def mother_admin_panel(client: Client, message: Message):
         [InlineKeyboardButton("🗑️ Disable/Delete Clone", callback_data="mother_disable_clone")],
         [InlineKeyboardButton("📊 System Statistics", callback_data="mother_statistics")]
     ])
-    
+    print(f"DEBUG: Sending Mother Bot admin panel message.")
     await message.reply_text(panel_text, reply_markup=buttons)
 
 async def clone_admin_panel(client: Client, message: Message):
     """Clone Bot Admin Panel"""
     user_id = message.from_user.id
-    
+    print(f"DEBUG: Displaying Clone Bot admin panel for user {user_id}")
+
     # Get bot configuration
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+    print(f"DEBUG: Bot token: {bot_token}, Config loaded: {config is not None}")
+
+
     # Validate clone admin permissions
     if not config['bot_info'].get('is_clone', False):
+        print(f"DEBUG: Command used on non-clone bot for user {user_id}")
         return await message.reply_text("❌ This command is only available in clone bots.")
-    
+
     if user_id != config['bot_info'].get('admin_id'):
+        print(f"DEBUG: Unauthorized access to Clone Bot panel for user {user_id}. Expected admin ID: {config['bot_info'].get('admin_id')}")
         return await message.reply_text("❌ Only the clone administrator can access this panel.")
-    
+
     # Store admin session
     admin_sessions[user_id] = {'type': 'clone', 'timestamp': datetime.now(), 'bot_token': bot_token}
-    
+    print(f"DEBUG: Stored Clone Bot admin session for user {user_id}, bot_token: {bot_token}")
+
+
     me = await client.get_me()
     subscription = config.get('subscription', {})
-    
+    print(f"DEBUG: Bot username: {me.username}, Subscription: {subscription}")
+
     panel_text = f"⚙️ **Clone Admin Panel**\n"
     panel_text += f"🤖 **Bot:** @{me.username}\n\n"
-    
+
     panel_text += f"📊 **Status Information:**\n"
     panel_text += f"• Subscription: {subscription.get('tier', 'Unknown')}\n"
     panel_text += f"• Status: {subscription.get('status', 'Unknown')}\n"
     if subscription.get('expiry'):
         days_remaining = (subscription['expiry'] - datetime.now()).days
         panel_text += f"• Days Remaining: {days_remaining}\n"
-    
+
     panel_text += f"\n✨ **Quick Settings Access:**\n"
     features = config.get('features', {})
     enabled_count = sum(1 for enabled in features.values() if enabled)
     panel_text += f"• Enabled Features: {enabled_count}/{len(features)}\n"
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("📢 Manage Local Force Channels", callback_data="clone_local_force_channels")],
         [InlineKeyboardButton("🔔 Manage Request Channels", callback_data="clone_request_channels")],
@@ -123,7 +141,7 @@ async def clone_admin_panel(client: Client, message: Message):
         [InlineKeyboardButton("⚙️ Enable/Disable Bot Features", callback_data="clone_bot_features")],
         [InlineKeyboardButton("📊 View Subscription Status", callback_data="clone_subscription_status")]
     ])
-    
+    print(f"DEBUG: Sending Clone Bot admin panel message.")
     await message.reply_text(panel_text, reply_markup=buttons)
 
 # Mother Bot Callback Handlers
@@ -131,14 +149,17 @@ async def clone_admin_panel(client: Client, message: Message):
 async def mother_admin_callbacks(client: Client, query: CallbackQuery):
     """Handle Mother Bot admin panel callbacks"""
     user_id = query.from_user.id
-    
+    print(f"DEBUG: Mother Bot callback received from user {user_id}, data: {query.data}")
+
     # Validate session and permissions
     session = admin_sessions.get(user_id)
     if not session or session['type'] != 'mother' or user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        print(f"DEBUG: Invalid session or permissions for Mother Bot callback from user {user_id}")
         return await query.answer("❌ Session expired or unauthorized access!", show_alert=True)
-    
+
     callback_data = query.data
-    
+    print(f"DEBUG: Processing callback_data: {callback_data}")
+
     if callback_data == "mother_pending_requests":
         await handle_mother_pending_requests(client, query)
     elif callback_data == "mother_create_clone":
@@ -156,8 +177,10 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
     elif callback_data == "mother_statistics":
         await handle_mother_statistics(client, query)
     elif callback_data == "back_to_mother_panel":
+        print(f"DEBUG: Navigating back to Mother Bot panel for user {user_id}")
         await mother_admin_panel(client, query.message)
     else:
+        print(f"DEBUG: Unknown Mother Bot callback action: {callback_data}")
         await query.answer("⚠️ Unknown action", show_alert=True)
 
 # Clone Bot Callback Handlers
@@ -165,20 +188,24 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
 async def clone_admin_callbacks(client: Client, query: CallbackQuery):
     """Handle Clone Bot admin panel callbacks"""
     user_id = query.from_user.id
-    
+    print(f"DEBUG: Clone Bot callback received from user {user_id}, data: {query.data}")
+
     # Validate session and permissions
     session = admin_sessions.get(user_id)
     if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for Clone Bot callback from user {user_id}")
         return await query.answer("❌ Session expired or unauthorized access!", show_alert=True)
-    
+
     bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+
     if user_id != config['bot_info'].get('admin_id'):
+        print(f"DEBUG: Unauthorized access to Clone Bot panel for user {user_id}. Expected admin ID: {config['bot_info'].get('admin_id')}")
         return await query.answer("❌ Unauthorized access!", show_alert=True)
-    
+
     callback_data = query.data
-    
+    print(f"DEBUG: Processing callback_data: {callback_data}")
+
     if callback_data == "clone_local_force_channels":
         await handle_clone_local_force_channels(client, query)
     elif callback_data == "clone_request_channels":
@@ -192,13 +219,82 @@ async def clone_admin_callbacks(client: Client, query: CallbackQuery):
     elif callback_data == "clone_subscription_status":
         await handle_clone_subscription_status(client, query)
     elif callback_data == "back_to_clone_panel":
+        print(f"DEBUG: Navigating back to Clone Bot panel for user {user_id}")
         await clone_admin_panel(client, query.message)
     else:
+        print(f"DEBUG: Unknown Clone Bot callback action: {callback_data}")
         await query.answer("⚠️ Unknown action", show_alert=True)
 
 # Mother Bot Handler Functions
+async def handle_mother_pending_requests(client: Client, query: CallbackQuery):
+    """Handle pending clone requests interface"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_mother_pending_requests called by user {user_id}")
+
+    try:
+        from bot.plugins.clone_request import get_all_pending_requests
+        pending_requests = await get_all_pending_requests()
+        print(f"DEBUG: Found {len(pending_requests)} pending requests")
+
+        text = f"⏳ **Pending Clone Requests ({len(pending_requests)})**\n\n"
+
+        if not pending_requests:
+            text += "✅ No pending requests found.\n\n"
+            text += "**Commands:**\n"
+            text += "• Users can request clones with `/requestclone`\n"
+            text += "• Requests will appear here for approval"
+        else:
+            text += "**Recent Requests:**\n"
+            for i, req in enumerate(pending_requests[:5], 1):
+                masked_token = f"{req['bot_token'][:8]}...{req['bot_token'][-4:]}"
+                text += f"**{i}. Request #{req['request_id'][:8]}...**\n"
+                text += f"👤 User: {req['user_id']}\n"
+                text += f"🤖 Bot: @{req['bot_username']}\n"
+                text += f"🔑 Token: `{masked_token}`\n"
+                text += f"💰 Plan: {req['plan_details']['name']} (${req['plan_details']['price']})\n"
+                text += f"📅 Date: {req['created_at'].strftime('%Y-%m-%d %H:%M')}\n\n"
+
+            if len(pending_requests) > 5:
+                text += f"... and {len(pending_requests) - 5} more requests\n\n"
+
+            text += "**Quick Actions:**\n"
+            text += "• Click on buttons below to approve/reject\n"
+            text += "• Or use commands: `/approveclone <request_id>` | `/rejectclone <request_id>`"
+
+        buttons = []
+        if pending_requests:
+            # Show approve/reject buttons for first few requests
+            for req in pending_requests[:3]:
+                req_short = req['request_id'][:8]
+                buttons.append([
+                    InlineKeyboardButton(f"✅ Approve {req_short}", callback_data=f"approve_request:{req['request_id']}"),
+                    InlineKeyboardButton(f"❌ Reject {req_short}", callback_data=f"reject_request:{req['request_id']}")
+                ])
+
+            if len(pending_requests) > 3:
+                buttons.append([InlineKeyboardButton("📋 View All Requests", callback_data="view_all_pending")])
+
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="mother_pending_requests")])
+        buttons.append([InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")])
+
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        print(f"✅ DEBUG: Successfully displayed pending requests for user {user_id}")
+
+    except Exception as e:
+        print(f"❌ DEBUG: Error in handle_mother_pending_requests for user {user_id}: {e}")
+        await query.edit_message_text(
+            f"❌ **Error loading pending requests**\n\n"
+            f"Error: {str(e)}\n\n"
+            f"Please try again or check the logs.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+            ])
+        )
+
+
 async def handle_mother_create_clone(client: Client, query: CallbackQuery):
     """Handle clone creation interface"""
+    print(f"DEBUG: handle_mother_create_clone called by user {query.from_user.id}")
     text = "🤖 **Create New Clone Bot**\n\n"
     text += "To create a new clone, provide the following information:\n\n"
     text += "**Format:** `/createclone <bot_token> <admin_id> <db_url> [tier]`\n\n"
@@ -209,144 +305,192 @@ async def handle_mother_create_clone(client: Client, query: CallbackQuery):
     text += "• `quarterly` - $8/3 months\n"
     text += "• `semi_annual` - $15/6 months\n"
     text += "• `yearly` - $26/year"
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed create clone interface for user {query.from_user.id}")
 
 async def handle_mother_manage_subscriptions(client: Client, query: CallbackQuery):
     """Handle subscription management"""
-    subscriptions = await get_all_subscriptions()
-    
-    if not subscriptions:
-        text = "💰 **Subscription Management**\n\n❌ No subscriptions found."
-    else:
-        active_subs = len([s for s in subscriptions if s['status'] == 'active'])
-        pending_subs = len([s for s in subscriptions if s['status'] == 'pending'])
-        expired_subs = len([s for s in subscriptions if s['status'] == 'expired'])
-        total_revenue = sum(s['price'] for s in subscriptions if s.get('payment_verified', False))
-        
-        text = f"💰 **Subscription Management**\n\n"
-        text += f"📊 **Statistics:**\n"
-        text += f"• Total Revenue: ${total_revenue}\n"
-        text += f"• Active: {active_subs}\n"
-        text += f"• Pending: {pending_subs}\n"
-        text += f"• Expired: {expired_subs}\n\n"
-        text += "**Recent Subscriptions:**\n"
-        
-        for sub in sorted(subscriptions, key=lambda x: x.get('created_at', datetime.now()), reverse=True)[:5]:
-            clone = await get_clone(sub['_id'])
-            username = clone.get('username', 'Unknown') if clone else 'Unknown'
-            text += f"• @{username} - {sub['tier']} (${sub['price']}) - {sub['status']}\n"
-    
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📊 Full Report", callback_data="mother_subscription_report")],
-        [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
-    ])
-    
-    await query.edit_message_text(text, reply_markup=buttons)
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_mother_manage_subscriptions called by user {user_id}")
+
+    try:
+        subscriptions = await get_all_subscriptions()
+        print(f"DEBUG: Fetched {len(subscriptions)} subscriptions.")
+
+        if not subscriptions:
+            text = "💰 **Subscription Management**\n\n❌ No subscriptions found."
+        else:
+            active_subs = len([s for s in subscriptions if s['status'] == 'active'])
+            pending_subs = len([s for s in subscriptions if s['status'] == 'pending'])
+            expired_subs = len([s for s in subscriptions if s['status'] == 'expired'])
+            total_revenue = sum(s['price'] for s in subscriptions if s.get('payment_verified', False))
+
+            text = f"💰 **Subscription Management**\n\n"
+            text += f"📊 **Statistics:**\n"
+            text += f"• Total Revenue: ${total_revenue}\n"
+            text += f"• Active: {active_subs}\n"
+            text += f"• Pending: {pending_subs}\n"
+            text += f"• Expired: {expired_subs}\n\n"
+            text += "**Recent Subscriptions:**\n"
+
+            for sub in sorted(subscriptions, key=lambda x: x.get('created_at', datetime.now()), reverse=True)[:5]:
+                clone = await get_clone(sub['_id'])
+                username = clone.get('username', 'Unknown') if clone else 'Unknown'
+                text += f"• @{username} - {sub['tier']} (${sub['price']}) - {sub['status']}\n"
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 Full Report", callback_data="mother_subscription_report")],
+            [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+        ])
+
+        await query.edit_message_text(text, reply_markup=buttons)
+        print(f"DEBUG: Displayed subscription management for user {user_id}")
+    except Exception as e:
+        print(f"❌ DEBUG: Error in handle_mother_manage_subscriptions for user {user_id}: {e}")
+        await query.edit_message_text(
+            f"❌ **Error managing subscriptions**\n\n"
+            f"Error: {str(e)}\n\n"
+            f"Please try again or check the logs.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+            ])
+        )
 
 async def handle_mother_global_force_channels(client: Client, query: CallbackQuery):
     """Handle global force channels management"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_mother_global_force_channels called by user {user_id}")
+
     try:
         global_channels = await get_global_force_channels()
-    except:
+        print(f"DEBUG: Fetched {len(global_channels)} global force channels.")
+    except Exception as e:
         global_channels = []
-    
+        print(f"ERROR: Error fetching global force channels: {e}")
+
     text = f"📢 **Global Force Channels Management**\n\n"
-    
+
     if global_channels:
         text += "**Current Global Force Channels:**\n"
         for i, channel in enumerate(global_channels, 1):
             text += f"{i}. {channel}\n"
     else:
         text += "❌ No global force channels set.\n"
-    
+
     text += f"\n**Commands:**\n"
     text += f"• `/setglobalchannels <channel1> <channel2> ...` - Set channels\n"
     text += f"• `/addglobalchannel <channel>` - Add single channel\n"
     text += f"• `/removeglobalchannel <channel>` - Remove channel\n"
     text += f"• `/clearglobalchannels` - Remove all channels"
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed global force channels management for user {user_id}")
+
 
 async def handle_mother_edit_about(client: Client, query: CallbackQuery):
     """Handle about page editing"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_mother_edit_about called by user {user_id}")
+
     try:
         global_about = await get_global_about()
-    except:
+        print(f"DEBUG: Fetched global about page: {'Exists' if global_about else 'None'}")
+    except Exception as e:
         global_about = None
-    
+        print(f"ERROR: Error fetching global about page: {e}")
+
     text = f"📄 **Edit Global About Page**\n\n"
-    
+
     if global_about:
         text += f"**Current About Page:**\n{global_about[:200]}{'...' if len(global_about) > 200 else ''}\n\n"
     else:
         text += "❌ No global about page set.\n\n"
-    
+
     text += f"**Commands:**\n"
     text += f"• `/setglobalabout <text>` - Set about page\n"
     text += f"• `/clearglobalabout` - Clear about page\n\n"
     text += f"**Note:** The about page will be displayed in all clone bots."
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed edit about page interface for user {user_id}")
+
 
 async def handle_mother_view_all_clones(client: Client, query: CallbackQuery):
     """Handle viewing all clones"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_mother_view_all_clones called by user {user_id}")
+
     clones = await get_all_clones()
+    print(f"DEBUG: Fetched {len(clones)} clones.")
     running_clones = clone_manager.get_running_clones()
-    
+    print(f"DEBUG: Found {len(running_clones)} running clones.")
+
+
     if not clones:
         text = "📋 **All Clones**\n\n❌ No clones found."
     else:
         text = f"📋 **All Clones ({len(clones)} total)**\n\n"
-        
+
         for i, clone in enumerate(clones[:10], 1):  # Show first 10
             status_emoji = "🟢" if clone['_id'] in running_clones else "🔴"
             subscription = await get_subscription(clone['_id'])
-            
+            print(f"DEBUG: Processing clone {i}: {clone.get('username', 'Unknown')}, Status: {clone['status']}, Subscription: {subscription}")
+
+
             text += f"**{i}. @{clone.get('username', 'Unknown')}**\n"
             text += f"   {status_emoji} Status: {clone['status']}\n"
             text += f"   👤 Admin: {clone['admin_id']}\n"
-            
+
             if subscription:
-                text += f"   💳 Subscription: {subscription['tier']} ({subscription['status']})\n"
+                text += f"   💳 Subscription: {subscription['tier']} (${subscription['price']})\n"
                 if subscription.get('expiry_date'):
                     text += f"   📅 Expires: {subscription['expiry_date'].strftime('%Y-%m-%d')}\n"
             else:
                 text += f"   💳 Subscription: None\n"
             text += "\n"
-        
+
         if len(clones) > 10:
             text += f"... and {len(clones) - 10} more clones"
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Refresh", callback_data="mother_view_all_clones")],
         [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
     ])
-    
+
     try:
         await query.edit_message_text(text, reply_markup=buttons)
+        print(f"DEBUG: Displayed all clones list for user {user_id}")
     except Exception as e:
         if "MESSAGE_NOT_MODIFIED" in str(e):
             await query.answer("Content is already up to date!", show_alert=False)
+            print(f"DEBUG: Message not modified for user {user_id}")
         else:
             await query.answer(f"Error: {str(e)}", show_alert=True)
+            print(f"ERROR: Error editing message in handle_mother_view_all_clones for user {user_id}: {e}")
+
 
 async def handle_mother_disable_clone(client: Client, query: CallbackQuery):
     """Handle clone disabling/deletion"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_mother_disable_clone called by user {user_id}")
+
     clones = await get_all_clones()
-    
+    print(f"DEBUG: Fetched {len(clones)} clones.")
+
+
     if not clones:
         text = "🗑️ **Disable/Delete Clone**\n\n❌ No clones available to manage."
         buttons = InlineKeyboardMarkup([
@@ -359,314 +503,398 @@ async def handle_mother_disable_clone(client: Client, query: CallbackQuery):
         text += f"• `/enableclone <bot_id>` - Enable clone\n"
         text += f"• `/deleteclone <bot_id>` - Permanently delete clone\n\n"
         text += f"**Available Clones:**\n"
-        
+
         for clone in clones[:5]:  # Show first 5
             text += f"• @{clone.get('username', 'Unknown')} (ID: {clone['_id'][:8]}...)\n"
-        
+
         if len(clones) > 5:
             text += f"... and {len(clones) - 5} more\n"
-        
+
         text += f"\n⚠️ **Warning:** Deletion is permanent and cannot be undone!"
-        
+
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("📋 View All Clones", callback_data="mother_view_all_clones")],
             [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
         ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed disable/delete clone interface for user {user_id}")
+
 
 async def handle_mother_statistics(client: Client, query: CallbackQuery):
     """Handle system statistics"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_mother_statistics called by user {user_id}")
+
     try:
         clones = await get_all_clones()
         subscriptions = await get_all_subscriptions()
         running_clones = clone_manager.get_running_clones()
-        
+
         total_clones = len(clones)
         active_clones = len([c for c in clones if c['status'] == 'active'])
         total_revenue = sum(s['price'] for s in subscriptions if s.get('payment_verified', False))
-        monthly_revenue = sum(s['price'] for s in subscriptions 
-                             if s.get('payment_verified', False) and 
+        monthly_revenue = sum(s['price'] for s in subscriptions
+                             if s.get('payment_verified', False) and
                              s.get('created_at', datetime.now()) > datetime.now() - timedelta(days=30))
-        
+
+        print(f"DEBUG: Stats - Total Clones: {total_clones}, Active Clones: {active_clones}, Running Clones: {len(running_clones)}, Total Subscriptions: {len(subscriptions)}")
+        print(f"DEBUG: Financials - Total Revenue: ${total_revenue}, Monthly Revenue: ${monthly_revenue}")
+
         text = f"📊 **System Statistics**\n\n"
         text += f"🤖 **Clones:**\n"
         text += f"• Total Created: {total_clones}\n"
         text += f"• Currently Running: {len(running_clones)}\n"
         text += f"• Active: {active_clones}\n"
         text += f"• Inactive: {total_clones - active_clones}\n\n"
-        
+
         text += f"💰 **Financial:**\n"
         text += f"• Total Revenue: ${total_revenue}\n"
         text += f"• This Month: ${monthly_revenue}\n"
         text += f"• Active Subscriptions: {len([s for s in subscriptions if s['status'] == 'active'])}\n\n"
-        
+
         text += f"⏱️ **System:**\n"
         text += f"• Mother Bot: Running\n"
         text += f"• Clone Manager: Active\n"
         text += f"• Database: Connected\n"
         text += f"• Last Updated: {datetime.now().strftime('%H:%M:%S UTC')}"
-        
+
     except Exception as e:
         text = f"📊 **System Statistics**\n\n❌ Error loading statistics: {str(e)}"
-    
+        print(f"ERROR: Error in handle_mother_statistics for user {user_id}: {e}")
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Refresh", callback_data="mother_statistics")],
         [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed system statistics for user {user_id}")
+
 
 # Clone Bot Handler Functions
 async def handle_clone_local_force_channels(client: Client, query: CallbackQuery):
     """Handle local force channels management"""
     user_id = query.from_user.id
+    print(f"DEBUG: handle_clone_local_force_channels called by user {user_id}")
+
     session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for handle_clone_local_force_channels from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+
     bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+
     channels = config.get('channels', {})
     local_force = channels.get('force_channels', [])
     global_force = channels.get('global_force_channels', [])
-    
+    print(f"DEBUG: Local force channels: {local_force}, Global force channels: {global_force}")
+
+
     text = f"📢 **Local Force Channels Management**\n\n"
-    
+
     if global_force:
         text += f"🌐 **Global Force Channels** (Set by Mother Bot):\n"
         for channel in global_force:
             text += f"• {channel}\n"
         text += "\n"
-    
+
     text += f"🏠 **Your Local Force Channels:**\n"
     if local_force:
         for i, channel in enumerate(local_force, 1):
             text += f"{i}. {channel}\n"
     else:
         text += "❌ No local force channels set.\n"
-    
+
     text += f"\n**Commands:**\n"
     text += f"• `/addforce <channel>` - Add force channel\n"
     text += f"• `/removeforce <channel>` - Remove force channel\n"
     text += f"• `/listforce` - List all force channels"
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 Back to Clone Panel", callback_data="back_to_clone_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed local force channels management for user {user_id}")
+
 
 async def handle_clone_request_channels(client: Client, query: CallbackQuery):
     """Handle request channels management"""
     user_id = query.from_user.id
+    print(f"DEBUG: handle_clone_request_channels called by user {user_id}")
+
     session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for handle_clone_request_channels from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+
     bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+
     channels = config.get('channels', {})
     request_channels = channels.get('request_channels', [])
-    
+    print(f"DEBUG: Request channels: {request_channels}")
+
+
     text = f"🔔 **Request Channels Management**\n\n"
     text += f"**Current Request Channels:**\n"
-    
+
     if request_channels:
         for i, channel in enumerate(request_channels, 1):
             text += f"{i}. {channel}\n"
     else:
         text += "❌ No request channels set.\n"
-    
+
     text += f"\n**Commands:**\n"
     text += f"• `/addrequest <channel>` - Add request channel\n"
     text += f"• `/removerequest <channel>` - Remove request channel\n"
     text += f"• `/listrequest` - List all request channels\n\n"
     text += f"**Note:** Request channels are where users can request files."
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 Back to Clone Panel", callback_data="back_to_clone_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed request channels management for user {user_id}")
+
 
 async def handle_clone_token_command_config(client: Client, query: CallbackQuery):
     """Handle token/command configuration"""
     user_id = query.from_user.id
+    print(f"DEBUG: handle_clone_token_command_config called by user {user_id}")
+
     session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for handle_clone_token_command_config from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+
     bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+
     token_settings = config.get('token_settings', {})
-    
+    print(f"DEBUG: Token settings: {token_settings}")
+
+
     text = f"🎫 **Token/Command Configuration**\n\n"
     text += f"**Current Settings:**\n"
     text += f"• Status: {'Enabled' if token_settings.get('enabled', True) else 'Disabled'}\n"
     text += f"• Mode: {token_settings.get('mode', 'one_time').replace('_', ' ').title()}\n"
     text += f"• Command Limit: {token_settings.get('command_limit', 100)}\n"
     text += f"• Token Validity: {token_settings.get('validity_hours', 24)} hours\n\n"
-    
+
     text += f"**Commands:**\n"
     text += f"• `/settokenmode <one_time|command_limit>` - Set token mode\n"
     text += f"• `/setcommandlimit <number>` - Set command limit\n"
     text += f"• `/settokenvalidity <hours>` - Set token validity\n"
     text += f"• `/toggletoken` - Enable/disable token system"
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Toggle Token System", callback_data="clone_toggle_token_system")],
         [InlineKeyboardButton("🔙 Back to Clone Panel", callback_data="back_to_clone_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed token/command configuration for user {user_id}")
+
 
 async def handle_clone_token_pricing(client: Client, query: CallbackQuery):
     """Handle token pricing configuration"""
     user_id = query.from_user.id
+    print(f"DEBUG: handle_clone_token_pricing called by user {user_id}")
+
     session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for handle_clone_token_pricing from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+
     bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+
     token_settings = config.get('token_settings', {})
-    
+    print(f"DEBUG: Token settings for pricing: {token_settings}")
+
+
     text = f"💰 **Token/Command Pricing**\n\n"
     text += f"**Current Pricing:**\n"
     text += f"• Token Price: ${token_settings.get('pricing', 1.0)}\n"
     text += f"• Currency: USD\n"
     text += f"• Payment Method: Manual Verification\n\n"
-    
+
     text += f"**Commands:**\n"
     text += f"• `/settokenprice <price>` - Set token price\n"
     text += f"• `/setcurrency <currency>` - Set currency (USD, EUR, etc.)\n\n"
-    
+
     text += f"**Pricing Guidelines:**\n"
     text += f"• Minimum: $0.10\n"
     text += f"• Maximum: $10.00\n"
     text += f"• Recommended: $1.00 - $3.00"
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔙 Back to Clone Panel", callback_data="back_to_clone_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed token pricing configuration for user {user_id}")
+
 
 async def handle_clone_bot_features(client: Client, query: CallbackQuery):
     """Handle bot features management"""
     user_id = query.from_user.id
+    print(f"DEBUG: handle_clone_bot_features called by user {user_id}")
+
     session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for handle_clone_bot_features from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+
     bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+
     features = config.get('features', {})
-    
+    print(f"DEBUG: Current features: {features}")
+
+
     text = f"⚙️ **Bot Features Management**\n\n"
     text += f"Toggle features on/off for your clone bot:\n\n"
-    
+
     buttons = []
     for feature, enabled in features.items():
         if feature not in ['clone_creation', 'admin_panel']:  # Restricted features
             emoji = "✅" if enabled else "❌"
             feature_name = feature.replace('_', ' ').title()
             text += f"{emoji} **{feature_name}**: {'Enabled' if enabled else 'Disabled'}\n"
-            
+
             button_text = f"{'🔴 Disable' if enabled else '🟢 Enable'} {feature_name}"
             buttons.append([InlineKeyboardButton(button_text, callback_data=f"toggle_feature#{feature}")])
-    
+
     buttons.append([InlineKeyboardButton("🔙 Back to Clone Panel", callback_data="back_to_clone_panel")])
-    
+
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    print(f"DEBUG: Displayed bot features management for user {user_id}")
+
 
 async def handle_clone_subscription_status(client: Client, query: CallbackQuery):
     """Handle subscription status viewing"""
     user_id = query.from_user.id
+    print(f"DEBUG: handle_clone_subscription_status called by user {user_id}")
+
     session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for handle_clone_subscription_status from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+
     bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+
     subscription = config.get('subscription', {})
     me = await client.get_me()
-    
+    print(f"DEBUG: Bot username: {me.username}, Subscription details: {subscription}")
+
+
     text = f"📊 **Subscription Status**\n\n"
     text += f"🤖 **Bot:** @{me.username}\n"
     text += f"👤 **Admin:** {config['bot_info'].get('admin_id')}\n\n"
-    
+
     if subscription:
         text += f"💳 **Subscription Details:**\n"
         text += f"• Plan: {subscription.get('tier', 'Unknown')}\n"
         text += f"• Status: {subscription.get('status', 'Unknown')}\n"
         text += f"• Price: ${subscription.get('price', 0)}\n"
-        
+
         if subscription.get('expiry'):
             days_remaining = (subscription['expiry'] - datetime.now()).days
             text += f"• Expires: {subscription['expiry'].strftime('%Y-%m-%d %H:%M UTC')}\n"
             text += f"• Days Remaining: {days_remaining}\n"
-            
+
             if days_remaining <= 7:
                 text += f"\n⚠️ **Warning:** Subscription expires soon! Contact Mother Bot admin to renew."
             elif days_remaining <= 0:
                 text += f"\n❌ **Expired:** Subscription has expired! Contact Mother Bot admin to renew."
-        
+
         if subscription.get('created_at'):
             text += f"• Created: {subscription['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n"
     else:
         text += f"❌ **No Subscription Found**\n"
         text += f"Contact the Mother Bot administrator to set up your subscription."
-    
+
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🔄 Refresh Status", callback_data="clone_subscription_status")],
         [InlineKeyboardButton("🔙 Back to Clone Panel", callback_data="back_to_clone_panel")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
+    print(f"DEBUG: Displayed subscription status for user {user_id}")
+
 
 # Feature toggle handler for clone bots
 @Client.on_callback_query(filters.regex("^toggle_feature#"))
 async def toggle_feature_handler(client: Client, query: CallbackQuery):
     """Handle feature toggling for clone bots"""
     user_id = query.from_user.id
+    print(f"DEBUG: toggle_feature_handler called by user {user_id}, data: {query.data}")
+
     session = admin_sessions.get(user_id)
-    
     if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for toggle_feature_handler from user {user_id}")
         return await query.answer("❌ Session expired!", show_alert=True)
-    
+
     bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
     config = await clone_config_loader.get_bot_config(bot_token)
-    
+
     if user_id != config['bot_info'].get('admin_id'):
+        print(f"DEBUG: Unauthorized access to toggle feature for user {user_id}. Expected admin ID: {config['bot_info'].get('admin_id')}")
         return await query.answer("❌ Unauthorized access!", show_alert=True)
-    
+
     feature = query.data.split("#")[1]
     bot_id = bot_token.split(':')[0]
-    
+    print(f"DEBUG: Toggling feature '{feature}' for bot ID '{bot_id}'")
+
+
     # Get current config from database
     current_config = await get_clone_config(bot_id)
     current_features = current_config.get('features', {})
-    
+
     # Toggle the feature
     current_features[feature] = not current_features.get(feature, False)
-    
+
     # Update in database
     await update_clone_config(bot_id, {'features': current_features})
-    
+
     # Clear cache to force reload
     clone_config_loader.clear_cache(bot_token)
-    
+
     status = "enabled" if current_features[feature] else "disabled"
     feature_name = feature.replace('_', ' ').title()
-    
+
     await query.answer(f"✅ {feature_name} {status}!", show_alert=True)
-    
+    print(f"DEBUG: Feature '{feature}' toggled to {status} for bot ID '{bot_id}'")
+
+
     # Refresh the features panel
     await handle_clone_bot_features(client, query)
 
 # Session cleanup task
 async def cleanup_expired_sessions():
     """Clean up expired admin sessions"""
+    print("DEBUG: Running cleanup_expired_sessions task...")
     current_time = datetime.now()
     expired_sessions = []
-    
+
     for user_id, session in admin_sessions.items():
-        if (current_time - session['timestamp']).seconds > 3600:  # 1 hour expiry
+        if (current_time - session['timestamp']).total_seconds() > 3600:  # 1 hour expiry
             expired_sessions.append(user_id)
-    
+            print(f"DEBUG: Session expired for user {user_id}")
+
     for user_id in expired_sessions:
         del admin_sessions[user_id]
+        print(f"DEBUG: Removed expired session for user {user_id}")
+    print(f"DEBUG: cleanup_expired_sessions finished. Removed {len(expired_sessions)} sessions.")
 
 # Schedule session cleanup every hour
-import asyncio
-asyncio.create_task(cleanup_expired_sessions())
+# Ensure this runs only once by scheduling it outside of any handler that might be called multiple times.
+# A common pattern is to schedule it when the bot starts.
+# asyncio.create_task(cleanup_expired_sessions()) # This line is commented out to prevent multiple task creations if this file is imported multiple times.
+# The actual scheduling should be handled by the main bot startup logic.
