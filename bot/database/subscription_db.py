@@ -1,4 +1,3 @@
-
 import asyncio
 from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -38,9 +37,9 @@ async def create_subscription(clone_id: str, admin_id: int, tier: str, payment_v
     """Create a new subscription for a clone"""
     try:
         tier_data = PRICING_TIERS.get(tier, PRICING_TIERS["monthly"])
-        
+
         expiry_date = datetime.now() + timedelta(days=tier_data["duration_days"])
-        
+
         subscription_data = {
             "_id": clone_id,
             "admin_id": admin_id,
@@ -53,16 +52,16 @@ async def create_subscription(clone_id: str, admin_id: int, tier: str, payment_v
             "auto_renewal": False,
             "total_paid": tier_data["price"] if payment_verified else 0
         }
-        
+
         await subscriptions.update_one(
             {"_id": clone_id},
             {"$set": subscription_data},
             upsert=True
         )
-        
+
         logger.info(f"✅ Created subscription for clone {clone_id}: {tier} - ${tier_data['price']}")
         return subscription_data
-        
+
     except Exception as e:
         logger.error(f"❌ Error creating subscription for clone {clone_id}: {e}")
         return None
@@ -97,7 +96,7 @@ async def check_expired_subscriptions():
             "expiry_date": {"$lt": datetime.now()},
             "status": "active"
         }).to_list(None)
-        
+
         expired_ids = []
         for sub in expired_subs:
             await subscriptions.update_one(
@@ -105,12 +104,12 @@ async def check_expired_subscriptions():
                 {"$set": {"status": "expired", "expired_at": datetime.now()}}
             )
             expired_ids.append(sub["_id"])
-        
+
         if expired_ids:
             logger.info(f"⚠️ Expired {len(expired_ids)} subscriptions: {expired_ids}")
-        
+
         return expired_ids
-        
+
     except Exception as e:
         logger.error(f"❌ Error checking expired subscriptions: {e}")
         return []
@@ -121,14 +120,14 @@ async def extend_subscription(clone_id: str, months: int, additional_price: floa
         subscription = await get_subscription(clone_id)
         if not subscription:
             raise Exception("Subscription not found")
-        
+
         # Extend from current expiry date or now (whichever is later)
         current_expiry = subscription.get('expiry_date', datetime.now())
         if current_expiry < datetime.now():
             current_expiry = datetime.now()
-        
+
         new_expiry = current_expiry + timedelta(days=months * 30)
-        
+
         await subscriptions.update_one(
             {"_id": clone_id},
             {"$set": {
@@ -138,20 +137,30 @@ async def extend_subscription(clone_id: str, months: int, additional_price: floa
             },
             "$inc": {"total_paid": additional_price}}
         )
-        
+
         logger.info(f"✅ Extended subscription for clone {clone_id} by {months} months (+${additional_price})")
-        
+
     except Exception as e:
         logger.error(f"❌ Error extending subscription for clone {clone_id}: {e}")
         raise
 
 async def get_all_subscriptions():
-    """Get all subscriptions for admin panel"""
+    """Get all subscriptions"""
     try:
-        return await subscriptions.find({}).to_list(None)
+        subs = await subscriptions.find({}).to_list(None)
+        return subs
     except Exception as e:
-        logger.error(f"❌ Error getting all subscriptions: {e}")
+        print(f"ERROR: Error getting all subscriptions: {e}")
         return []
+
+async def delete_subscription(bot_id: str):
+    """Delete a subscription"""
+    try:
+        result = await subscriptions.delete_one({"_id": bot_id})
+        return result.deleted_count > 0
+    except Exception as e:
+        print(f"ERROR: Error deleting subscription {bot_id}: {e}")
+        return False
 
 async def get_subscription_stats():
     """Get subscription statistics"""
@@ -160,7 +169,7 @@ async def get_subscription_stats():
         active = await subscriptions.count_documents({"status": "active"})
         pending = await subscriptions.count_documents({"status": "pending"})
         expired = await subscriptions.count_documents({"status": "expired"})
-        
+
         # Calculate total revenue
         revenue_pipeline = [
             {"$match": {"payment_verified": True}},
@@ -168,7 +177,7 @@ async def get_subscription_stats():
         ]
         revenue_result = await subscriptions.aggregate(revenue_pipeline).to_list(None)
         total_revenue = revenue_result[0]["total"] if revenue_result else 0
-        
+
         return {
             "total": total,
             "active": active,

@@ -9,9 +9,10 @@ logger = LOGGER(__name__)
 # Clone database
 clone_client = AsyncIOMotorClient(Config.DATABASE_URL)
 clone_db = clone_client[Config.DATABASE_NAME]
-clones = clone_db.clones
-clone_configs = clone_db.clone_configs
-global_settings = clone_db.global_settings
+clones_collection = clone_db.clones # Renamed to avoid conflict with the import
+clone_configs_collection = clone_db.clone_configs # Renamed for clarity
+global_settings_collection = clone_db.global_settings # Renamed for clarity
+
 
 async def create_clone(bot_token: str, admin_id: int, db_url: str):
     """Create a new clone entry with separate database"""
@@ -32,9 +33,9 @@ async def create_clone(bot_token: str, admin_id: int, db_url: str):
         # Test clone's database connection
         try:
             clone_db_client = AsyncIOMotorClient(db_url)
-            clone_db = clone_db_client[f"clone_{me.id}"]
+            clone_db_instance = clone_db_client[f"clone_{me.id}"]
             # Test connection
-            await clone_db.command("ping")
+            await clone_db_instance.command("ping")
             clone_db_client.close()
         except Exception as db_e:
             await test_client.stop()
@@ -54,7 +55,7 @@ async def create_clone(bot_token: str, admin_id: int, db_url: str):
             "last_seen": datetime.now()
         }
 
-        await clones.update_one(
+        await clones_collection.update_one(
             {"_id": str(me.id)},
             {"$set": clone_data},
             upsert=True
@@ -99,7 +100,7 @@ async def create_clone_config(clone_id: str):
         "updated_at": datetime.now()
     }
 
-    await clone_configs.update_one(
+    await clone_configs_collection.update_one(
         {"_id": clone_id},
         {"$set": default_config},
         upsert=True
@@ -107,34 +108,39 @@ async def create_clone_config(clone_id: str):
 
 async def get_clone(clone_id: str):
     """Get clone details"""
-    return await clones.find_one({"_id": clone_id})
+    return await clones_collection.find_one({"_id": clone_id})
 
 async def get_clone_config(clone_id: str):
     """Get clone configuration"""
-    return await clone_configs.find_one({"_id": clone_id})
+    return await clone_configs_collection.find_one({"_id": clone_id})
 
 async def update_clone_config(clone_id: str, config_updates: dict):
     """Update clone configuration"""
     config_updates["updated_at"] = datetime.now()
-    await clone_configs.update_one(
+    await clone_configs_collection.update_one(
         {"_id": clone_id},
         {"$set": config_updates}
     )
 
 async def get_all_clones():
-    """Get all clones for admin panel"""
-    return await clones.find({}).to_list(None)
+    """Get all clones"""
+    try:
+        clones_list = await clones_collection.find({}).to_list(None)
+        return clones_list
+    except Exception as e:
+        logger.error(f"ERROR: Error getting all clones: {e}")
+        return []
 
 async def deactivate_clone(clone_id: str):
     """Deactivate a clone"""
-    await clones.update_one(
+    await clones_collection.update_one(
         {"_id": clone_id},
         {"$set": {"status": "deactivated", "deactivated_at": datetime.now()}}
     )
 
 async def activate_clone(clone_id: str):
     """Activate a clone"""
-    await clones.update_one(
+    await clones_collection.update_one(
         {"_id": clone_id},
         {"$set": {"status": "active"}}
     )
@@ -142,7 +148,7 @@ async def activate_clone(clone_id: str):
 # Global settings
 async def set_global_setting(key: str, value):
     """Set a global setting"""
-    await global_settings.update_one(
+    await global_settings_collection.update_one(
         {"_id": key},
         {"$set": {"value": value, "updated_at": datetime.now()}},
         upsert=True
@@ -150,7 +156,7 @@ async def set_global_setting(key: str, value):
 
 async def get_global_setting(key: str, default=None):
     """Get a global setting"""
-    setting = await global_settings.find_one({"_id": key})
+    setting = await global_settings_collection.find_one({"_id": key})
     return setting["value"] if setting else default
 
 async def get_global_force_channels():
@@ -167,11 +173,7 @@ async def get_global_about():
 
 async def set_global_about(about_text: str):
     """Set global about page content"""
-    await set_global_setting("global_about", about_text)
-
-async def set_global_about(about_text: str):
-    """Set global about page content"""
-    await global_settings.update_one(
+    await global_settings_collection.update_one(
         {"_id": "global_about"},
         {"$set": {"about_text": about_text, "updated_at": datetime.now()}},
         upsert=True
@@ -202,14 +204,14 @@ async def get_active_subscriptions():
 async def get_total_clones_count():
     """Get total number of clones"""
     try:
-        return await clones.count_documents({})
+        return await clones_collection.count_documents({})
     except:
         return 0
 
 async def get_active_clones_count():
     """Get number of active clones"""
     try:
-        return await clones.count_documents({"status": "active"})
+        return await clones_collection.count_documents({"status": "active"})
     except:
         return 0
 
@@ -233,7 +235,7 @@ async def get_total_files_count():
 async def get_clone_by_id_from_db(clone_id: str):
     """Get a specific clone by its ID from the database"""
     try:
-        return await clones.find_one({"_id": clone_id})
+        return await clones_collection.find_one({"_id": clone_id})
     except Exception as e:
         logger.error(f"❌ Error getting clone {clone_id}: {e}")
         return None
@@ -241,7 +243,7 @@ async def get_clone_by_id_from_db(clone_id: str):
 async def stop_clone_in_db(clone_id: str):
     """Update clone status to stopped in the database"""
     try:
-        await clones.update_one(
+        await clones_collection.update_one(
             {"_id": clone_id},
             {"$set": {"status": "stopped", "stopped_at": datetime.now()}}
         )
@@ -252,7 +254,7 @@ async def stop_clone_in_db(clone_id: str):
 async def start_clone_in_db(clone_id: str):
     """Update clone status to running in the database"""
     try:
-        await clones.update_one(
+        await clones_collection.update_one(
             {"_id": clone_id},
             {"$set": {"status": "active", "started_at": datetime.now()}}
         )
@@ -263,11 +265,11 @@ async def start_clone_in_db(clone_id: str):
 async def get_clone_statistics():
     """Get comprehensive clone statistics"""
     try:
-        total_clones = await clones.count_documents({})
-        active_clones = await clones.count_documents({"status": "active"})
-        pending_clones = await clones.count_documents({"status": "pending_payment"})
-        deactivated_clones = await clones.count_documents({"status": "deactivated"})
-        
+        total_clones = await clones_collection.count_documents({})
+        active_clones = await clones_collection.count_documents({"status": "active"})
+        pending_clones = await clones_collection.count_documents({"status": "pending_payment"})
+        deactivated_clones = await clones_collection.count_documents({"status": "deactivated"})
+
         return {
             "total": total_clones,
             "active": active_clones,
@@ -281,9 +283,40 @@ async def get_clone_statistics():
 async def update_clone_last_seen(clone_id: str):
     """Update clone's last seen timestamp"""
     try:
-        await clones.update_one(
+        await clones_collection.update_one(
             {"_id": clone_id},
             {"$set": {"last_seen": datetime.now()}}
         )
     except Exception as e:
         logger.error(f"❌ Error updating last seen for clone {clone_id}: {e}")
+
+# Added functions from changes
+async def delete_clone(bot_id: str):
+    """Delete a clone completely"""
+    try:
+        result = await clones_collection.delete_one({"_id": bot_id})
+        return result.deleted_count > 0
+    except Exception as e:
+        logger.error(f"ERROR: Error deleting clone {bot_id}: {e}")
+        return False
+
+async def update_clone_status(bot_id: str, status: str):
+    """Update clone status"""
+    try:
+        await clones_collection.update_one(
+            {"_id": bot_id},
+            {"$set": {"status": status, "updated_at": datetime.now()}}
+        )
+        return True
+    except Exception as e:
+        logger.error(f"ERROR: Error updating clone status {bot_id}: {e}")
+        return False
+
+async def delete_clone_config(bot_id: str):
+    """Delete clone configuration"""
+    try:
+        result = await clone_configs_collection.delete_one({"_id": bot_id})
+        return result.deleted_count > 0
+    except Exception as e:
+        logger.error(f"ERROR: Error deleting clone config {bot_id}: {e}")
+        return False

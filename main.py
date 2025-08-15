@@ -159,6 +159,10 @@ async def main():
         if clone_task:
             monitoring_tasks.append(clone_task)
         
+        # Auto-start all active clones
+        logger.info("🔄 Auto-starting active clones...")
+        await clone_manager.start_all_clones()
+        
         # Start subscription monitoring
         subscription_task = await start_subscription_monitoring()
         if subscription_task:

@@ -293,3 +293,192 @@ async def toggle_token_system(client: Client, message: Message):
     
     status_text = "enabled" if new_status else "disabled"
     await message.reply_text(f"✅ Token system {status_text}!")
+import asyncio
+from datetime import datetime
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from info import Config
+from bot.database.clone_db import *
+from bot.database.subscription_db import *
+from clone_manager import clone_manager
+
+@Client.on_message(filters.command("approveclone") & filters.private)
+async def approve_clone_command(client: Client, message: Message):
+    """Approve a clone request"""
+    user_id = message.from_user.id
+    
+    # Check admin permissions
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await message.reply_text("❌ Only Mother Bot administrators can approve clones.")
+    
+    if len(message.command) < 2:
+        return await message.reply_text("❌ Usage: `/approveclone <request_id>`")
+    
+    request_id = message.command[1]
+    
+    try:
+        from bot.plugins.clone_request import get_pending_request, approve_request
+        request = await get_pending_request(request_id)
+        
+        if not request:
+            return await message.reply_text("❌ Request not found or already processed.")
+        
+        # Approve the request
+        success, result = await approve_request(request_id)
+        
+        if success:
+            await message.reply_text(
+                f"✅ **Clone Approved Successfully!**\n\n"
+                f"🤖 **Bot:** @{result['username']}\n"
+                f"👤 **Admin:** {result['admin_id']}\n"
+                f"💰 **Plan:** {result['tier']}\n"
+                f"📅 **Expires:** {result['expiry'].strftime('%Y-%m-%d')}\n\n"
+                f"The user has been notified."
+            )
+        else:
+            await message.reply_text(f"❌ Failed to approve clone: {result}")
+            
+    except Exception as e:
+        await message.reply_text(f"❌ Error approving clone: {str(e)}")
+
+@Client.on_message(filters.command("rejectclone") & filters.private)
+async def reject_clone_command(client: Client, message: Message):
+    """Reject a clone request"""
+    user_id = message.from_user.id
+    
+    # Check admin permissions
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await message.reply_text("❌ Only Mother Bot administrators can reject clones.")
+    
+    if len(message.command) < 2:
+        return await message.reply_text("❌ Usage: `/rejectclone <request_id> [reason]`")
+    
+    request_id = message.command[1]
+    reason = " ".join(message.command[2:]) if len(message.command) > 2 else "No reason provided"
+    
+    try:
+        from bot.plugins.clone_request import get_pending_request, reject_request
+        request = await get_pending_request(request_id)
+        
+        if not request:
+            return await message.reply_text("❌ Request not found or already processed.")
+        
+        # Reject the request
+        success, result = await reject_request(request_id, reason)
+        
+        if success:
+            await message.reply_text(
+                f"❌ **Clone Rejected**\n\n"
+                f"🆔 **Request ID:** {request_id[:8]}...\n"
+                f"👤 **User:** {request['user_id']}\n"
+                f"📝 **Reason:** {reason}\n\n"
+                f"The user has been notified."
+            )
+        else:
+            await message.reply_text(f"❌ Failed to reject clone: {result}")
+            
+    except Exception as e:
+        await message.reply_text(f"❌ Error rejecting clone: {str(e)}")
+
+@Client.on_message(filters.command("deleteclone") & filters.private)
+async def delete_clone_command(client: Client, message: Message):
+    """Delete a clone permanently"""
+    user_id = message.from_user.id
+    
+    # Check admin permissions
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await message.reply_text("❌ Only Mother Bot administrators can delete clones.")
+    
+    if len(message.command) < 2:
+        return await message.reply_text("❌ Usage: `/deleteclone <bot_id>`")
+    
+    bot_id = message.command[1]
+    
+    try:
+        # Get clone info before deletion
+        clone = await get_clone(bot_id)
+        if not clone:
+            return await message.reply_text("❌ Clone not found.")
+        
+        # Stop the clone if running
+        if bot_id in clone_manager.instances:
+            await clone_manager.stop_clone(bot_id)
+        
+        # Delete from database
+        await delete_clone(bot_id)
+        await delete_subscription(bot_id)
+        await delete_clone_config(bot_id)
+        
+        await message.reply_text(
+            f"🗑️ **Clone Deleted Successfully**\n\n"
+            f"🤖 **Bot:** @{clone.get('username', 'Unknown')}\n"
+            f"🆔 **ID:** {bot_id}\n\n"
+            f"⚠️ **This action is permanent and cannot be undone.**"
+        )
+        
+    except Exception as e:
+        await message.reply_text(f"❌ Error deleting clone: {str(e)}")
+
+@Client.on_message(filters.command("enableclone") & filters.private)
+async def enable_clone_command(client: Client, message: Message):
+    """Enable a disabled clone"""
+    user_id = message.from_user.id
+    
+    # Check admin permissions
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await message.reply_text("❌ Only Mother Bot administrators can enable clones.")
+    
+    if len(message.command) < 2:
+        return await message.reply_text("❌ Usage: `/enableclone <bot_id>`")
+    
+    bot_id = message.command[1]
+    
+    try:
+        # Update status to active
+        await update_clone_status(bot_id, 'active')
+        
+        # Start the clone
+        success, result = await clone_manager.start_clone(bot_id)
+        
+        if success:
+            await message.reply_text(
+                f"✅ **Clone Enabled & Started**\n\n"
+                f"🆔 **Bot ID:** {bot_id}\n"
+                f"📊 **Status:** Active & Running"
+            )
+        else:
+            await message.reply_text(f"⚠️ Clone enabled but failed to start: {result}")
+            
+    except Exception as e:
+        await message.reply_text(f"❌ Error enabling clone: {str(e)}")
+
+@Client.on_message(filters.command("disableclone") & filters.private)
+async def disable_clone_command(client: Client, message: Message):
+    """Disable a clone"""
+    user_id = message.from_user.id
+    
+    # Check admin permissions
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await message.reply_text("❌ Only Mother Bot administrators can disable clones.")
+    
+    if len(message.command) < 2:
+        return await message.reply_text("❌ Usage: `/disableclone <bot_id>`")
+    
+    bot_id = message.command[1]
+    
+    try:
+        # Stop the clone if running
+        if bot_id in clone_manager.instances:
+            await clone_manager.stop_clone(bot_id)
+        
+        # Update status to inactive
+        await update_clone_status(bot_id, 'inactive')
+        
+        await message.reply_text(
+            f"🛑 **Clone Disabled**\n\n"
+            f"🆔 **Bot ID:** {bot_id}\n"
+            f"📊 **Status:** Inactive & Stopped"
+        )
+        
+    except Exception as e:
+        await message.reply_text(f"❌ Error disabling clone: {str(e)}")

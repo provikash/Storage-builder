@@ -384,15 +384,19 @@ async def handle_mother_manage_subscriptions(client: Client, query: CallbackQuer
         await query.edit_message_text(text, reply_markup=buttons)
         print(f"DEBUG: Displayed subscription management for user {user_id}")
     except Exception as e:
-        print(f"❌ DEBUG: Error in handle_mother_manage_subscriptions for user {user_id}: {e}")
-        await query.edit_message_text(
-            f"❌ **Error managing subscriptions**\n\n"
-            f"Error: {str(e)}\n\n"
-            f"Please try again or check the logs.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
-            ])
-        )
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await query.answer("Content is already up to date!", show_alert=False)
+            print(f"DEBUG: Message not modified for user {user_id}")
+        else:
+            print(f"❌ DEBUG: Error in handle_mother_manage_subscriptions for user {user_id}: {e}")
+            await query.edit_message_text(
+                f"❌ **Error managing subscriptions**\n\n"
+                f"Error: {str(e)}\n\n"
+                f"Please try again or check the logs.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+                ])
+            )
 
 async def handle_mother_global_force_channels(client: Client, query: CallbackQuery):
     """Handle global force channels management"""
@@ -550,8 +554,16 @@ async def handle_mother_disable_clone(client: Client, query: CallbackQuery):
             [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
         ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
-    print(f"DEBUG: Displayed disable/delete clone interface for user {user_id}")
+    try:
+        await query.edit_message_text(text, reply_markup=buttons)
+        print(f"DEBUG: Displayed disable/delete clone interface for user {user_id}")
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await query.answer("Content is already up to date!", show_alert=False)
+            print(f"DEBUG: Message not modified for user {user_id}")
+        else:
+            print(f"ERROR: Error in handle_mother_disable_clone for user {user_id}: {e}")
+            await query.answer(f"Error: {str(e)}", show_alert=True)
 
 
 async def handle_mother_statistics(client: Client, query: CallbackQuery):
@@ -601,8 +613,16 @@ async def handle_mother_statistics(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
     ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
-    print(f"DEBUG: Displayed system statistics for user {user_id}")
+    try:
+        await query.edit_message_text(text, reply_markup=buttons)
+        print(f"DEBUG: Displayed system statistics for user {user_id}")
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await query.answer("Content is already up to date!", show_alert=False)
+            print(f"DEBUG: Message not modified for user {user_id}")
+        else:
+            print(f"ERROR: Error in handle_mother_statistics for user {user_id}: {e}")
+            await query.answer(f"Error: {str(e)}", show_alert=True)
 
 async def handle_mother_subscription_report(client: Client, query: CallbackQuery):
     """Handle detailed subscription report"""
