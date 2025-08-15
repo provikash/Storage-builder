@@ -163,8 +163,11 @@ async def set_global_force_channels(channels: list):
 
 async def get_global_about():
     """Get global about page content"""
-    result = await global_settings.find_one({"_id": "global_about"})
-    return result.get('about_text', '') if result else ''
+    return await get_global_setting("global_about", "")
+
+async def set_global_about(about_text: str):
+    """Set global about page content"""
+    await set_global_setting("global_about", about_text)
 
 async def set_global_about(about_text: str):
     """Set global about page content"""

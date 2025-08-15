@@ -335,7 +335,13 @@ async def handle_mother_view_all_clones(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
     ])
     
-    await query.edit_message_text(text, reply_markup=buttons)
+    try:
+        await query.edit_message_text(text, reply_markup=buttons)
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await query.answer("Content is already up to date!", show_alert=False)
+        else:
+            await query.answer(f"Error: {str(e)}", show_alert=True)
 
 async def handle_mother_disable_clone(client: Client, query: CallbackQuery):
     """Handle clone disabling/deletion"""
@@ -462,58 +468,6 @@ async def handle_clone_request_channels(client: Client, query: CallbackQuery):
     text = f"🔔 **Request Channels Management**\n\n"
     text += f"**Current Request Channels:**\n"
     
-
-
-async def handle_mother_pending_requests(client: Client, query: CallbackQuery):
-    """Handle pending clone requests management"""
-    from bot.plugins.clone_request import get_all_pending_requests
-    
-    try:
-        pending_requests = await get_all_pending_requests()
-        
-        if not pending_requests:
-            text = "⏳ **Pending Clone Requests**\n\n❌ No pending requests found."
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 Refresh", callback_data="mother_pending_requests")],
-                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
-            ])
-        else:
-            text = f"⏳ **Pending Clone Requests ({len(pending_requests)})**\n\n"
-            
-            buttons = []
-            for i, request in enumerate(pending_requests[:10], 1):  # Show first 10
-                requester_name = request['requester_info']['first_name']
-                if request['requester_info']['username']:
-                    requester_name += f" (@{request['requester_info']['username']})"
-                
-                text += f"**{i}. @{request['bot_username']}**\n"
-                text += f"   👤 {requester_name}\n"
-                text += f"   💰 {request['plan_details']['name']} (${request['plan_details']['price']})\n"
-                text += f"   📅 {request['created_at'].strftime('%m-%d %H:%M')}\n"
-                
-                buttons.append([InlineKeyboardButton(
-                    f"📋 {request['bot_username'][:15]}... - Review",
-                    callback_data=f"view_request:{request['request_id']}"
-                )])
-            
-            if len(pending_requests) > 10:
-                text += f"\n... and {len(pending_requests) - 10} more requests"
-                buttons.append([InlineKeyboardButton("📄 View All", callback_data="mother_all_pending_requests")])
-            
-            buttons.extend([
-                [InlineKeyboardButton("🔄 Refresh", callback_data="mother_pending_requests")],
-                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
-            ])
-        
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
-        
-    except Exception as e:
-        text = f"⏳ **Pending Clone Requests**\n\n❌ Error loading requests: {str(e)}"
-        buttons = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
-        ])
-        await query.edit_message_text(text, reply_markup=buttons)
-
     if request_channels:
         for i, channel in enumerate(request_channels, 1):
             text += f"{i}. {channel}\n"

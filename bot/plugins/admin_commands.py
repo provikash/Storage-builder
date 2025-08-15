@@ -77,10 +77,11 @@ async def set_global_about(client: Client, message: Message):
         return await message.reply_text("❌ Access denied.")
     
     if len(message.command) < 2:
-        return await message.reply_text("Usage: `/setglobalabout <about_text>`")
+        return await message.reply_text("Usage: /setglobalabout <about_text>")
     
     about_text = " ".join(message.command[1:])
-    await set_global_about(about_text)
+    from bot.database.clone_db import set_global_setting
+    await set_global_setting("global_about", about_text)
     
     await message.reply_text(f"✅ **Global about page updated!**\n\nPreview:\n{about_text[:200]}{'...' if len(about_text) > 200 else ''}")
 
