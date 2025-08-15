@@ -5,16 +5,18 @@ from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from info import Config
 
-@Client.on_callback_query(filters.regex(".*"))
+@Client.on_callback_query(filters.regex(".*"), group=99)
 async def handle_all_callbacks(client: Client, query: CallbackQuery):
-    """Catch-all handler for unhandled callbacks"""
+    """Catch-all handler for unhandled callbacks - lowest priority"""
     callback_data = query.data
     
     # Skip if already handled by other handlers
     handled_patterns = [
         "mother_", "clone_", "back_to_", "manage_", "start_", "stop_",
         "verify_", "deactivate_", "extend_", "toggle_", "settings_",
-        "subscription_", "statistics_", "global_", "force_", "request_"
+        "subscription_", "statistics_", "global_", "force_", "request_",
+        "approve_request", "reject_request", "rand_", "about", "help",
+        "close", "get_token", "show_premium_plans", "buy_premium"
     ]
     
     if any(callback_data.startswith(pattern) for pattern in handled_patterns):

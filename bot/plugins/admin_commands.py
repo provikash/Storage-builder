@@ -92,7 +92,7 @@ async def disable_clone_command(client: Client, message: Message):
         return await message.reply_text("❌ Access denied.")
     
     if len(message.command) < 2:
-        return await message.reply_text("Usage: `/disableclone <bot_id>`")
+        return await message.reply_text("Usage: /disableclone <bot_id>")
     
     bot_id = message.command[1]
     

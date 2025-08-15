@@ -144,6 +144,33 @@ async def clone_admin_panel(client: Client, message: Message):
     print(f"DEBUG: Sending Clone Bot admin panel message.")
     await message.reply_text(panel_text, reply_markup=buttons)
 
+# Handle approval/rejection callbacks
+@Client.on_callback_query(filters.regex("^(approve_request|reject_request):"))
+async def handle_clone_approval_callbacks(client: Client, query: CallbackQuery):
+    """Handle clone request approval/rejection"""
+    user_id = query.from_user.id
+    print(f"DEBUG: Clone approval callback received from user {user_id}, data: {query.data}")
+
+    # Validate Mother Bot admin permissions
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        print(f"DEBUG: Unauthorized approval attempt from user {user_id}")
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    try:
+        action, request_id = query.data.split(":", 1)
+        print(f"DEBUG: Processing {action} for request {request_id}")
+
+        if action == "approve_request":
+            from bot.plugins.clone_approval import approve_clone_request
+            await approve_clone_request(client, query, request_id)
+        elif action == "reject_request":
+            from bot.plugins.clone_approval import reject_clone_request
+            await reject_clone_request(client, query, request_id)
+
+    except Exception as e:
+        print(f"ERROR: Error in clone approval callback: {e}")
+        await query.answer("❌ Error processing request!", show_alert=True)
+
 # Mother Bot Callback Handlers
 @Client.on_callback_query(filters.regex("^mother_"))
 async def mother_admin_callbacks(client: Client, query: CallbackQuery):
@@ -176,6 +203,10 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
         await handle_mother_disable_clone(client, query)
     elif callback_data == "mother_statistics":
         await handle_mother_statistics(client, query)
+    elif callback_data == "mother_subscription_report":
+        await handle_mother_subscription_report(client, query)
+    elif callback_data == "view_all_pending":
+        await handle_view_all_pending_requests(client, query)
     elif callback_data == "back_to_mother_panel":
         print(f"DEBUG: Navigating back to Mother Bot panel for user {user_id}")
         await mother_admin_panel(client, query.message)
@@ -218,6 +249,8 @@ async def clone_admin_callbacks(client: Client, query: CallbackQuery):
         await handle_clone_bot_features(client, query)
     elif callback_data == "clone_subscription_status":
         await handle_clone_subscription_status(client, query)
+    elif callback_data == "clone_toggle_token_system":
+        await handle_clone_toggle_token_system(client, query)
     elif callback_data == "back_to_clone_panel":
         print(f"DEBUG: Navigating back to Clone Bot panel for user {user_id}")
         await clone_admin_panel(client, query.message)
@@ -570,6 +603,125 @@ async def handle_mother_statistics(client: Client, query: CallbackQuery):
 
     await query.edit_message_text(text, reply_markup=buttons)
     print(f"DEBUG: Displayed system statistics for user {user_id}")
+
+async def handle_mother_subscription_report(client: Client, query: CallbackQuery):
+    """Handle detailed subscription report"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_mother_subscription_report called by user {user_id}")
+
+    try:
+        subscriptions = await get_all_subscriptions()
+        
+        text = f"📊 **Detailed Subscription Report**\n\n"
+        
+        if not subscriptions:
+            text += "❌ No subscriptions found."
+        else:
+            for sub in subscriptions:
+                clone = await get_clone(sub['_id'])
+                username = clone.get('username', 'Unknown') if clone else 'Unknown'
+                
+                text += f"**@{username}**\n"
+                text += f"• Plan: {sub['tier']} (${sub['price']})\n"
+                text += f"• Status: {sub['status']}\n"
+                text += f"• Payment Verified: {'✅' if sub.get('payment_verified', False) else '❌'}\n"
+                text += f"• Created: {sub.get('created_at', 'Unknown')}\n"
+                if sub.get('expiry_date'):
+                    text += f"• Expires: {sub['expiry_date'].strftime('%Y-%m-%d')}\n"
+                text += "\n"
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Subscriptions", callback_data="mother_manage_subscriptions")]
+        ])
+
+        await query.edit_message_text(text, reply_markup=buttons)
+        print(f"DEBUG: Displayed subscription report for user {user_id}")
+    
+    except Exception as e:
+        print(f"ERROR: Error in handle_mother_subscription_report for user {user_id}: {e}")
+        await query.answer("❌ Error loading report!", show_alert=True)
+
+async def handle_view_all_pending_requests(client: Client, query: CallbackQuery):
+    """Handle viewing all pending requests with pagination"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_view_all_pending_requests called by user {user_id}")
+
+    try:
+        from bot.plugins.clone_request import get_all_pending_requests
+        pending_requests = await get_all_pending_requests()
+        
+        text = f"📋 **All Pending Clone Requests ({len(pending_requests)})**\n\n"
+        
+        if not pending_requests:
+            text += "✅ No pending requests found."
+        else:
+            for i, req in enumerate(pending_requests, 1):
+                masked_token = f"{req['bot_token'][:8]}...{req['bot_token'][-4:]}"
+                text += f"**{i}. Request #{req['request_id'][:8]}...**\n"
+                text += f"👤 User: {req['user_id']}\n"
+                text += f"🤖 Bot: @{req['bot_username']}\n"
+                text += f"🔑 Token: `{masked_token}`\n"
+                text += f"💰 Plan: {req['plan_details']['name']}\n"
+                text += f"📅 Date: {req['created_at'].strftime('%Y-%m-%d %H:%M')}\n\n"
+
+        buttons = []
+        
+        # Add approve/reject buttons for first 3 requests
+        for req in pending_requests[:3]:
+            req_short = req['request_id'][:8]
+            buttons.append([
+                InlineKeyboardButton(f"✅ Approve {req_short}", callback_data=f"approve_request:{req['request_id']}"),
+                InlineKeyboardButton(f"❌ Reject {req_short}", callback_data=f"reject_request:{req['request_id']}")
+            ])
+        
+        buttons.append([InlineKeyboardButton("🔙 Back to Pending Requests", callback_data="mother_pending_requests")])
+
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        print(f"DEBUG: Displayed all pending requests for user {user_id}")
+    
+    except Exception as e:
+        print(f"ERROR: Error in handle_view_all_pending_requests for user {user_id}: {e}")
+        await query.answer("❌ Error loading requests!", show_alert=True)
+
+async def handle_clone_toggle_token_system(client: Client, query: CallbackQuery):
+    """Handle toggling token system for clone bot"""
+    user_id = query.from_user.id
+    print(f"DEBUG: handle_clone_toggle_token_system called by user {user_id}")
+
+    session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        print(f"DEBUG: Invalid session for token toggle from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+
+    bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
+    config = await clone_config_loader.get_bot_config(bot_token)
+
+    if user_id != config['bot_info'].get('admin_id'):
+        print(f"DEBUG: Unauthorized token toggle attempt from user {user_id}")
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    try:
+        bot_id = bot_token.split(':')[0]
+        current_config = await get_clone_config(bot_id)
+        token_settings = current_config.get('token_settings', {})
+        
+        current_status = token_settings.get('enabled', True)
+        new_status = not current_status
+        token_settings['enabled'] = new_status
+        
+        await update_clone_config(bot_id, {'token_settings': token_settings})
+        clone_config_loader.clear_cache(bot_token)
+        
+        status_text = "enabled" if new_status else "disabled"
+        await query.answer(f"✅ Token system {status_text}!", show_alert=True)
+        print(f"DEBUG: Token system toggled to {status_text} for bot {bot_id}")
+        
+        # Refresh the token config panel
+        await handle_clone_token_command_config(client, query)
+        
+    except Exception as e:
+        print(f"ERROR: Error toggling token system for user {user_id}: {e}")
+        await query.answer("❌ Error toggling token system!", show_alert=True)
 
 
 # Clone Bot Handler Functions
