@@ -1,4 +1,3 @@
-
 import uvloop
 import asyncio
 import logging
@@ -18,16 +17,16 @@ uvloop.install()
 
 class GracefulShutdown:
     """Handle graceful shutdown of the application"""
-    
+
     def __init__(self):
         self.shutdown = False
         self.tasks = set()
-    
+
     def signal_handler(self, sig, frame):
         """Handle shutdown signals"""
         logger.info(f"Received signal {sig}. Initiating graceful shutdown...")
         self.shutdown = True
-    
+
     def setup_signal_handlers(self):
         """Setup signal handlers for graceful shutdown"""
         signal.signal(signal.SIGINT, self.signal_handler)
@@ -36,16 +35,16 @@ class GracefulShutdown:
 async def check_requirements():
     """Check if all requirements are met before starting"""
     logger.info("🔍 Checking requirements...")
-    
+
     # Check if .env file exists
     if not Path(".env").exists():
         logger.error("❌ .env file not found. Please create one based on .env.example")
         return False
-    
+
     # Check logs directory
     logs_dir = Path("logs")
     logs_dir.mkdir(exist_ok=True)
-    
+
     logger.info("✅ Requirements check passed")
     return True
 
@@ -53,13 +52,13 @@ async def initialize_databases():
     """Initialize all database components"""
     try:
         logger.info("🗄️ Initializing databases...")
-        
+
         from bot.database.subscription_db import init_pricing_tiers
         from bot.database.clone_db import set_global_force_channels, get_global_about, set_global_about
-        
+
         await init_pricing_tiers()
         logger.info("✅ Pricing tiers initialized")
-        
+
         # Set default global settings if not exist
         global_about = await get_global_about()
         if not global_about:
@@ -80,10 +79,10 @@ async def initialize_databases():
             )
             await set_global_about(default_about)
             logger.info("✅ Default global about page set")
-        
+
         logger.info("✅ Database initialization completed")
         return True
-        
+
     except Exception as e:
         logger.error(f"❌ Database initialization failed: {e}")
         return False
@@ -94,11 +93,11 @@ async def start_mother_bot():
         logger.info("📡 Initializing Mother Bot...")
         app = Bot()
         await app.start()
-        
+
         me = await app.get_me()
         logger.info(f"✅ Mother Bot @{me.username} started successfully!")
         return app
-        
+
     except Exception as e:
         logger.error(f"❌ Failed to start Mother Bot: {e}")
         raise
@@ -109,13 +108,13 @@ async def start_clone_system():
         logger.info("🔄 Starting Clone Manager...")
         await clone_manager.start_all_clones()
         logger.info("✅ Clone manager initialized")
-        
+
         # Start subscription monitoring in background
         logger.info("⏱️ Starting subscription monitoring...")
         task = asyncio.create_task(clone_manager.check_subscriptions())
         logger.info("✅ Subscription monitoring started")
         return task
-        
+
     except Exception as e:
         logger.error(f"❌ Clone manager initialization failed: {e}")
         return None
@@ -135,30 +134,30 @@ async def main():
     """Main function for Mother Bot + Clone System"""
     shutdown_handler = GracefulShutdown()
     shutdown_handler.setup_signal_handlers()
-    
+
     app = None
     monitoring_tasks = []
-    
+
     try:
         logger.info("🚀 Starting Mother Bot + Clone System...")
-        
+
         # Check requirements
         if not await check_requirements():
             return
-        
+
         # Initialize databases
         if not await initialize_databases():
             return
-        
+
         # Start mother bot
         app = await start_mother_bot()
         me = await app.get_me()
-        
+
         # Start clone system
         clone_task = await start_clone_system()
         if clone_task:
             monitoring_tasks.append(clone_task)
-        
+
         # Auto-start all active clones with better error handling
         logger.info("🔄 Auto-starting active clones...")
         try:
@@ -168,12 +167,12 @@ async def main():
         except Exception as e:
             logger.error(f"❌ Error during clone auto-start: {e}")
             logger.info("🔄 Continuing with Mother Bot startup...")
-        
+
         # Start subscription monitoring
         subscription_task = await start_subscription_monitoring()
         if subscription_task:
             monitoring_tasks.append(subscription_task)
-        
+
         # Start system monitoring
         try:
             from bot.utils.system_monitor import system_monitor
@@ -184,7 +183,7 @@ async def main():
             logger.warning("⚠️ psutil not available, skipping system monitoring")
         except Exception as e:
             logger.error(f"❌ System monitoring failed: {e}")
-        
+
         # Print startup summary
         logger.info("\n" + "="*60)
         logger.info("🎉 MOTHER BOT + CLONE SYSTEM READY!")
@@ -194,14 +193,14 @@ async def main():
         logger.info(f"🎛️ Admin Panel: /motheradmin")
         logger.info(f"🆕 Create Clone: /createclone")
         logger.info("="*60)
-        
+
         # Keep the application running
         while not shutdown_handler.shutdown:
             try:
                 await asyncio.sleep(1)
             except asyncio.CancelledError:
                 break
-        
+
     except KeyboardInterrupt:
         logger.info("⚠️ Received keyboard interrupt")
     except Exception as e:
@@ -210,7 +209,7 @@ async def main():
     finally:
         # Graceful shutdown
         logger.info("🛑 Initiating graceful shutdown...")
-        
+
         # Cancel monitoring tasks
         for task in monitoring_tasks:
             if not task.done():
@@ -219,7 +218,7 @@ async def main():
                     await task
                 except asyncio.CancelledError:
                     pass
-        
+
         # Stop all clones
         try:
             for bot_id in list(clone_manager.instances.keys()):
@@ -227,7 +226,7 @@ async def main():
             logger.info("✅ All clones stopped")
         except Exception as e:
             logger.error(f"❌ Error stopping clones: {e}")
-        
+
         # Stop mother bot
         if app:
             try:
@@ -235,14 +234,17 @@ async def main():
                 logger.info("✅ Mother Bot stopped")
             except Exception as e:
                 logger.error(f"❌ Error stopping Mother Bot: {e}")
-        
+
         logger.info("✅ Graceful shutdown completed")
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        logger.info("⚠️ Application interrupted by user")
-    except Exception as e:
-        logger.error(f"❌ Fatal application error: {e}")
-        sys.exit(1)
+    async def main():
+        """Main function to start bot and clone manager"""
+        # Start clone manager
+        from start_clones import startup_clones
+        await startup_clones()
+
+        # Start main bot
+        await Bot().start()
+
+    asyncio.run(main())

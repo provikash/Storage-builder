@@ -332,6 +332,9 @@ async def delete_clone_config(bot_id: str):
         logger.error(f"ERROR: Error deleting clone config {bot_id}: {e}")
         return False
 
+# Create clone requests collection
+clone_requests_collection = clone_db.clone_requests
+
 async def get_all_clone_requests(status: str = None):
     """Get all clone requests, optionally filtered by status"""
     try:
@@ -339,7 +342,7 @@ async def get_all_clone_requests(status: str = None):
         if status:
             filter_dict["status"] = status
 
-        requests = await clone_requests.find(filter_dict).to_list(length=None) # Assuming clone_requests collection exists
+        requests = await clone_requests_collection.find(filter_dict).to_list(length=None)
         return requests
     except Exception as e:
         logger.error(f"Error getting clone requests: {e}")
@@ -348,7 +351,7 @@ async def get_all_clone_requests(status: str = None):
 async def approve_clone_request(request_id: str):
     """Approve a clone request"""
     try:
-        result = await clone_requests.update_one( # Assuming clone_requests collection exists
+        result = await clone_requests_collection.update_one(
             {"request_id": request_id},
             {"$set": {"status": "approved", "approved_at": datetime.now()}}
         )
@@ -360,7 +363,7 @@ async def approve_clone_request(request_id: str):
 async def reject_clone_request(request_id: str):
     """Reject a clone request"""
     try:
-        result = await clone_requests.update_one( # Assuming clone_requests collection exists
+        result = await clone_requests_collection.update_one(
             {"request_id": request_id},
             {"$set": {"status": "rejected", "rejected_at": datetime.now()}}
         )
@@ -368,3 +371,32 @@ async def reject_clone_request(request_id: str):
     except Exception as e:
         logger.error(f"Error rejecting request {request_id}: {e}")
         return False
+
+async def create_clone_request(request_data: dict):
+    """Create a new clone request in database"""
+    try:
+        await clone_requests_collection.insert_one(request_data)
+        return True
+    except Exception as e:
+        logger.error(f"Error creating clone request: {e}")
+        return False
+
+async def get_clone_request_by_id(request_id: str):
+    """Get clone request by ID"""
+    try:
+        request = await clone_requests_collection.find_one({"request_id": request_id})
+        return request
+    except Exception as e:
+        logger.error(f"Error getting request by ID {request_id}: {e}")
+        return None
+
+async def get_pending_clone_request(user_id: int):
+    """Get pending clone request for user"""
+    try:
+        return await clone_requests_collection.find_one({
+            "user_id": user_id,
+            "status": "pending"
+        })
+    except Exception as e:
+        logger.error(f"Error getting pending request for user {user_id}: {e}")
+        return None

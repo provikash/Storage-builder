@@ -243,7 +243,15 @@ async def handle_request_confirmation(client: Client, query: CallbackQuery):
             }
         }
 
-        await create_clone_request(request_data)
+        from bot.database.clone_db import create_clone_request
+        success = await create_clone_request(request_data)
+        
+        if not success:
+            await query.edit_message_text(
+                "❌ **Error submitting request!**\n\n"
+                "Please try again later or contact support."
+            )
+            return
 
         # Clean up session
         del request_sessions[user_id]
@@ -315,12 +323,7 @@ async def notify_admins_new_request(client: Client, request_data):
         except Exception as e:
             logger.error(f"Failed to notify admin {admin_id}: {e}")
 
-# Database functions for clone requests
-async def create_clone_request(request_data):
-    """Create a new clone request in database"""
-    from bot.database.clone_db import clone_db
-    clone_requests = clone_db.clone_requests
-    await clone_requests.insert_one(request_data)
+# Database functions for clone requests are now in clone_db.py
 
 async def get_pending_clone_request(user_id: int):
     """Get pending clone request for user"""

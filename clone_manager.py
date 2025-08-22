@@ -1,258 +1,198 @@
-#!/usr/bin/env python3
-"""
-Advanced Clone Manager for Mother Bot + Clone Bot Architecture
-This script manages multiple bot instances with configuration-driven behavior
-"""
 
 import asyncio
-import json
 import os
-import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from pyrogram import Client
-from pyrogram.errors import AuthKeyUnregistered, UserDeactivated, ApiIdInvalid, FloodWait
+from pyrogram.errors import AuthKeyUnregistered, AccessTokenExpired, AccessTokenInvalid
 from info import Config
 from bot.database.clone_db import *
-from bot.database.subscription_db import *
-from bot.utils.clone_config_loader import clone_config_loader
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
-class BotInstance:
-    """Individual bot instance with configuration-driven behavior"""
+class CloneManager:
+    def __init__(self):
+        self.active_clones = {}
+        self.clone_tasks = {}
 
-    def __init__(self, bot_token: str, clone_config: dict):
-        self.bot_token = bot_token
-        self.bot_id = bot_token.split(':')[0]
-        self.config = clone_config
-        self.client = None
-        self.running = False
-
-    async def start(self):
-        """Start the bot instance"""
+    async def start_clone(self, bot_id: str):
+        """Start a clone bot"""
         try:
-            self.client = Client(
-                name=f"clone_{self.bot_id}",
+            clone_data = await get_clone(bot_id)
+            if not clone_data:
+                return False, "Clone not found"
+
+            if bot_id in self.active_clones:
+                return True, "Clone already running"
+
+            # Create bot instance
+            bot_token = clone_data['token']
+            clone_bot = Client(
+                f"clone_{bot_id}",
                 api_id=Config.API_ID,
                 api_hash=Config.API_HASH,
-                bot_token=self.bot_token,
+                bot_token=bot_token,
                 plugins=dict(root="bot/plugins")
             )
 
-            # Set bot configuration for dynamic behavior
-            self.client.clone_config = self.config
-            self.client.is_clone = True
-            self.client.bot_token = self.bot_token
-
-            await self.client.start()
-            me = await self.client.get_me()
-
-            self.running = True
-            logger.info(f"✅ Clone bot @{me.username} ({self.bot_id}) started successfully")
-
-            return True
-
-        except Exception as e:
-            logger.error(f"❌ Error starting clone {self.bot_id}: {e}")
-            return False
-
-    async def stop(self):
-        """Stop the bot instance"""
-        try:
-            if self.client and self.running:
-                await self.client.stop()
-                self.running = False
-                logger.info(f"✅ Clone bot {self.bot_id} stopped successfully")
-
-        except Exception as e:
-            logger.error(f"❌ Error stopping clone {self.bot_id}: {e}")
-
-class CloneManager:
-    """Advanced clone manager with subscription and configuration support"""
-
-    def __init__(self):
-        self.instances = {}  # bot_id -> BotInstance
-        self.subscription_check_interval = 3600  # 1 hour
-
-    async def create_clone(self, bot_token: str, admin_id: int, db_url: str, tier: str = "monthly"):
-        """Create a new clone with subscription"""
-        try:
-            # Validate bot token
-            test_client = Client(
-                name=f"test_{bot_token[:10]}",
-                api_id=Config.API_ID,
-                api_hash=Config.API_HASH,
-                bot_token=bot_token
-            )
-
-            await test_client.start()
-            me = await test_client.get_me()
-            bot_id = str(me.id)
-
-            # Store in database
-            success, clone_data = await create_clone(bot_token, admin_id, db_url)
-            if not success:
-                await test_client.stop()
-                return False, clone_data
-
-            # Create subscription
-            await create_subscription(bot_id, admin_id, tier, payment_verified=False)
-
-            await test_client.stop()
-
-            logger.info(f"✅ Clone created: @{me.username} ({bot_id})")
-            return True, {
-                'bot_id': bot_id,
-                'username': me.username,
-                'first_name': me.first_name,
-                'admin_id': admin_id,
-                'tier': tier
+            # Start the bot
+            await clone_bot.start()
+            
+            # Store in active clones
+            self.active_clones[bot_id] = {
+                'client': clone_bot,
+                'data': clone_data,
+                'status': 'running',
+                'started_at': datetime.now()
             }
 
-        except Exception as e:
-            logger.error(f"❌ Error creating clone: {e}")
-            return False, str(e)
+            # Update database status
+            await start_clone_in_db(bot_id)
+            
+            # Create background task to keep it running
+            task = asyncio.create_task(self._keep_clone_running(bot_id))
+            self.clone_tasks[bot_id] = task
 
-    async def start_clone(self, bot_id: str):
-        """Start a specific clone"""
-        try:
-            # Check if already running
-            if bot_id in self.instances and self.instances[bot_id].running:
-                return False, "Clone is already running"
+            logger.info(f"✅ Clone {bot_id} started successfully")
+            return True, f"Clone @{clone_bot.me.username} started successfully"
 
-            # Check subscription status
-            subscription = await get_subscription(bot_id)
-            if not subscription or subscription['status'] != 'active':
-                logger.warning(f"⚠️ Cannot start clone {bot_id}: subscription not active")
-                return False, "Clone subscription is not active"
-
-            # Check if subscription has expired
-            if subscription['expiry_date'] < datetime.now():
-                logger.warning(f"⚠️ Cannot start clone {bot_id}: subscription expired")
-                await subscriptions.update_one(
-                    {"_id": bot_id},
-                    {"$set": {"status": "expired"}}
-                )
-                return False, "Clone subscription has expired"
-
-            # Get clone data
-            clone_data = await get_clone(bot_id)
-            if not clone_data:
-                logger.error(f"❌ Clone data not found for {bot_id}")
-                return False, "Clone not found"
-
-            # Get configuration
-            config = await clone_config_loader.get_bot_config(clone_data['token'])
-
-            # Create and start instance
-            instance = BotInstance(clone_data['token'], config)
-            success = await instance.start()
-
-            if success:
-                self.instances[bot_id] = instance
-                logger.info(f"✅ Clone {bot_id} started successfully")
-                return True, f"Clone {bot_id} started successfully"
-            else:
-                logger.error(f"❌ Failed to start clone instance {bot_id}")
-                return False, "Failed to start clone"
-
-        except FloodWait as e:
-            logger.error(f"❌ Telegram flood wait for clone {bot_id}: {e.value}s")
-            return False, f"Telegram rate limit: wait {e.value}s"
         except Exception as e:
             logger.error(f"❌ Error starting clone {bot_id}: {e}")
             return False, str(e)
 
     async def stop_clone(self, bot_id: str):
-        """Stop a specific clone"""
+        """Stop a clone bot"""
         try:
-            if bot_id in self.instances:
-                await self.instances[bot_id].stop()
-                del self.instances[bot_id]
-                return True, f"Clone {bot_id} stopped successfully"
-            else:
+            if bot_id not in self.active_clones:
                 return False, "Clone not running"
+
+            # Cancel background task
+            if bot_id in self.clone_tasks:
+                self.clone_tasks[bot_id].cancel()
+                del self.clone_tasks[bot_id]
+
+            # Stop the bot
+            clone_info = self.active_clones[bot_id]
+            clone_bot = clone_info['client']
+            
+            if clone_bot.is_connected:
+                await clone_bot.stop()
+
+            # Remove from active clones
+            del self.active_clones[bot_id]
+
+            # Update database status
+            await stop_clone_in_db(bot_id)
+
+            logger.info(f"🛑 Clone {bot_id} stopped successfully")
+            return True, "Clone stopped successfully"
 
         except Exception as e:
             logger.error(f"❌ Error stopping clone {bot_id}: {e}")
             return False, str(e)
 
-    async def start_all_clones(self):
-        """Start all active clones with valid subscriptions"""
-        logger.info("🚀 Starting all active clones...")
+    async def _keep_clone_running(self, bot_id: str):
+        """Keep clone running in background"""
+        try:
+            while bot_id in self.active_clones:
+                clone_info = self.active_clones[bot_id]
+                clone_bot = clone_info['client']
+                
+                # Check if bot is still connected
+                if not clone_bot.is_connected:
+                    logger.warning(f"⚠️ Clone {bot_id} disconnected, attempting restart...")
+                    try:
+                        await clone_bot.start()
+                        logger.info(f"✅ Clone {bot_id} reconnected")
+                    except Exception as e:
+                        logger.error(f"❌ Failed to reconnect clone {bot_id}: {e}")
+                        break
 
-        # Get all active clones
-        clones = await get_all_clones()
-        started = 0
+                # Update last seen
+                await update_clone_last_seen(bot_id)
+                
+                # Sleep for 30 seconds before next check
+                await asyncio.sleep(30)
 
-        for clone in clones:
-            if clone['status'] == 'active':
-                # Check subscription
-                subscription = await get_subscription(clone['_id'])
-                if subscription and subscription['status'] == 'active' and subscription.get('payment_verified', False):
-                    success, message = await self.start_clone(clone['_id'])
-                    if success:
-                        started += 1
-                    else:
-                        logger.warning(f"Failed to start clone {clone['_id']}: {message}")
-                else:
-                    logger.info(f"Skipping clone {clone['_id']}: subscription not active or payment not verified")
+        except asyncio.CancelledError:
+            logger.info(f"🛑 Background task for clone {bot_id} cancelled")
+        except Exception as e:
+            logger.error(f"❌ Error in background task for clone {bot_id}: {e}")
 
-        logger.info(f"✅ Started {started} clones")
+    async def restart_clone(self, bot_id: str):
+        """Restart a clone bot"""
+        try:
+            # Stop first
+            await self.stop_clone(bot_id)
+            await asyncio.sleep(2)  # Wait a bit
+            
+            # Start again
+            return await self.start_clone(bot_id)
+        except Exception as e:
+            logger.error(f"❌ Error restarting clone {bot_id}: {e}")
+            return False, str(e)
 
-    async def check_subscriptions(self):
-        """Check and handle expired subscriptions"""
-        while True:
-            try:
-                logger.info("🔍 Checking subscription status...")
-
-                # Get expired subscriptions
-                expired_clones = await check_expired_subscriptions()
-
-                for clone_id in expired_clones:
-                    # Stop the clone
-                    if clone_id in self.instances:
-                        await self.stop_clone(clone_id)
-                        logger.info(f"⏰ Stopped expired clone: {clone_id}")
-
-                    # Deactivate in database
-                    await deactivate_clone(clone_id)
-
-                await asyncio.sleep(self.subscription_check_interval)
-
-            except Exception as e:
-                logger.error(f"❌ Error checking subscriptions: {e}")
-                await asyncio.sleep(300)  # Wait 5 minutes on error
-
-    def get_running_clones(self):
-        """Get list of currently running clones"""
-        return {
-            bot_id: {
-                'running': instance.running,
-                'config': instance.config
+    async def get_clone_status(self, bot_id: str):
+        """Get clone status"""
+        if bot_id in self.active_clones:
+            clone_info = self.active_clones[bot_id]
+            return {
+                'status': 'running',
+                'started_at': clone_info['started_at'],
+                'connected': clone_info['client'].is_connected
             }
-            for bot_id, instance in self.instances.items()
-        }
+        else:
+            return {'status': 'stopped'}
 
-# Global clone manager instance
+    async def start_all_active_clones(self):
+        """Start all active clones from database"""
+        try:
+            active_clones = await clones_collection.find({"status": "active"}).to_list(None)
+            started_count = 0
+            
+            for clone_data in active_clones:
+                bot_id = clone_data['_id']
+                success, message = await self.start_clone(bot_id)
+                if success:
+                    started_count += 1
+                    logger.info(f"✅ Started clone {bot_id}")
+                else:
+                    logger.error(f"❌ Failed to start clone {bot_id}: {message}")
+
+            logger.info(f"🚀 Started {started_count}/{len(active_clones)} clones")
+            return started_count, len(active_clones)
+
+        except Exception as e:
+            logger.error(f"❌ Error starting all clones: {e}")
+            return 0, 0
+
+    async def cleanup_inactive_clones(self):
+        """Cleanup inactive or expired clones"""
+        try:
+            # Find expired clones
+            from bot.database.subscription_db import subscriptions_collection
+            expired_subscriptions = await subscriptions_collection.find({
+                "expires_at": {"$lt": datetime.now()},
+                "status": "active"
+            }).to_list(None)
+
+            for subscription in expired_subscriptions:
+                bot_id = subscription['bot_id']
+                
+                # Stop the clone
+                await self.stop_clone(bot_id)
+                
+                # Deactivate in database
+                await deactivate_clone(bot_id)
+                await subscriptions_collection.update_one(
+                    {"_id": bot_id},
+                    {"$set": {"status": "expired"}}
+                )
+                
+                logger.info(f"🔄 Deactivated expired clone {bot_id}")
+
+        except Exception as e:
+            logger.error(f"❌ Error cleaning up clones: {e}")
+
+# Create global instance
 clone_manager = CloneManager()
-
-async def main():
-    """Main function for standalone clone manager"""
-    await clone_manager.start_all_clones()
-
-    # Start subscription monitoring
-    asyncio.create_task(clone_manager.check_subscriptions())
-
-    try:
-        await asyncio.Event().wait()
-    except KeyboardInterrupt:
-        logger.info("\n🛑 Shutting down clone manager...")
-        for bot_id in list(clone_manager.instances.keys()):
-            await clone_manager.stop_clone(bot_id)
-        logger.info("✅ All clones stopped.")
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())

@@ -100,16 +100,22 @@ async def handle_approve_request(client: Client, query: CallbackQuery):
         # Approve the request and create clone
         success = await approve_clone_request(request_id)
         if success:
-            # Create clone entry
+            # Extract bot ID from token
             bot_id = bot_token.split(':')[0]
+            
+            # Create clone entry
             clone_success, clone_data = await create_clone(bot_token, requester_id, mongodb_url)
 
             if clone_success:
                 # Create and activate subscription
+                from bot.database.subscription_db import create_subscription, activate_subscription
                 subscription_created = await create_subscription(bot_id, requester_id, plan, payment_verified=True)
 
                 if subscription_created:
                     await activate_subscription(bot_id)
+                    
+                    # Activate clone in database
+                    await activate_clone(bot_id)
 
                     # Try to start the clone
                     start_success, start_message = await clone_manager.start_clone(bot_id)

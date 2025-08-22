@@ -188,3 +188,112 @@ async def get_subscription_stats():
     except Exception as e:
         logger.error(f"❌ Error getting subscription stats: {e}")
         return {"total": 0, "active": 0, "pending": 0, "expired": 0, "total_revenue": 0}
+from datetime import datetime, timedelta
+from motor.motor_asyncio import AsyncIOMotorClient
+from info import Config
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
+
+# Subscription database
+subscription_client = AsyncIOMotorClient(Config.DATABASE_URL)
+subscription_db = subscription_client[Config.DATABASE_NAME]
+subscriptions_collection = subscription_db.subscriptions
+pricing_collection = subscription_db.pricing
+
+async def create_subscription(bot_id: str, user_id: int, plan: str, payment_verified: bool = False):
+    """Create a new subscription"""
+    try:
+        # Get plan details
+        plans = await get_pricing_tiers()
+        plan_data = plans.get(plan)
+        
+        if not plan_data:
+            return False
+        
+        subscription_data = {
+            "_id": bot_id,
+            "bot_id": bot_id,
+            "user_id": user_id,
+            "plan": plan,
+            "plan_data": plan_data,
+            "status": "active" if payment_verified else "pending_payment",
+            "created_at": datetime.now(),
+            "expires_at": datetime.now() + timedelta(days=plan_data['duration_days']),
+            "payment_verified": payment_verified,
+            "tokens": plan_data.get('tokens', 1000),
+            "features": plan_data.get('features', [])
+        }
+        
+        await subscriptions_collection.update_one(
+            {"_id": bot_id},
+            {"$set": subscription_data},
+            upsert=True
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error creating subscription: {e}")
+        return False
+
+async def activate_subscription(bot_id: str):
+    """Activate a subscription"""
+    try:
+        await subscriptions_collection.update_one(
+            {"_id": bot_id},
+            {"$set": {"status": "active", "activated_at": datetime.now()}}
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error activating subscription: {e}")
+        return False
+
+async def get_pricing_tiers():
+    """Get available pricing tiers"""
+    default_tiers = {
+        "basic": {
+            "name": "Basic",
+            "price": 5.00,
+            "duration_days": 30,
+            "tokens": 1000,
+            "features": ["Search", "Download", "Basic Support"]
+        },
+        "premium": {
+            "name": "Premium",
+            "price": 10.00,
+            "duration_days": 30,
+            "tokens": 5000,
+            "features": ["Search", "Download", "Upload", "Premium Support", "Auto Delete"]
+        },
+        "unlimited": {
+            "name": "Unlimited",
+            "price": 20.00,
+            "duration_days": 30,
+            "tokens": -1,  # Unlimited
+            "features": ["All Features", "Priority Support", "Custom Channels"]
+        }
+    }
+    
+    try:
+        # Try to get from database first
+        pricing_doc = await pricing_collection.find_one({"_id": "pricing_tiers"})
+        if pricing_doc:
+            return pricing_doc["tiers"]
+        else:
+            # Insert default tiers
+            await pricing_collection.update_one(
+                {"_id": "pricing_tiers"},
+                {"$set": {"tiers": default_tiers, "updated_at": datetime.now()}},
+                upsert=True
+            )
+            return default_tiers
+    except Exception as e:
+        logger.error(f"Error getting pricing tiers: {e}")
+        return default_tiers
+
+async def get_subscription(bot_id: str):
+    """Get subscription by bot ID"""
+    try:
+        return await subscriptions_collection.find_one({"_id": bot_id})
+    except Exception as e:
+        logger.error(f"Error getting subscription: {e}")
+        return None
