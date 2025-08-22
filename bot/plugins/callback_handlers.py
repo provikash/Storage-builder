@@ -26,7 +26,6 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
     """Route admin callbacks to appropriate handlers"""
     print(f"DEBUG: Admin callback router - {query.data} from user {query.from_user.id}")
     
-    # Prevent duplicate handling by checking if already answered
     try:
         # Handle refresh dashboard
         if query.data == "refresh_dashboard":
@@ -43,16 +42,18 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
             await dashboard_command(client, fake_message)
             return
         
-        # Import and delegate to admin_panel handlers
+        # Only handle if not already processed by dedicated handlers
+        # Check if this is a mother bot callback
         if query.data.startswith("mother_") or query.data.startswith("back_to_mother"):
-            from bot.plugins.admin_panel import mother_admin_callbacks
-            await mother_admin_callbacks(client, query)
+            # Don't handle here, let the dedicated mother_admin_callbacks handle it
+            pass
+        # Check if this is a clone bot callback  
         elif query.data.startswith("clone_") or query.data.startswith("back_to_clone"):
-            from bot.plugins.admin_panel import clone_admin_callbacks
-            await clone_admin_callbacks(client, query)
+            # Don't handle here, let the dedicated clone_admin_callbacks handle it
+            pass
     except Exception as e:
         print(f"DEBUG: Error in admin callback router: {e}")
-        if not query.data.startswith("back_to_") and query.data != "refresh_dashboard":  # Don't show error for navigation
+        if not query.data.startswith("back_to_") and query.data != "refresh_dashboard":
             await query.answer("❌ Error processing request!", show_alert=True)
 
 # Approval System Callbacks (Priority 2)

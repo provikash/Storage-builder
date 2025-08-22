@@ -132,18 +132,17 @@ async def mother_admin_panel(client: Client, query_or_message):
 
     if hasattr(query_or_message, 'edit_message_text'):
         try:
-            # Check if content is different from last message
-            last_session = admin_sessions.get(user_id, {})
-            if last_session.get('last_content') != panel_text:
-                await query_or_message.edit_message_text(panel_text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
-                admin_sessions[user_id]['last_content'] = panel_text
-                debug_print(f"Successfully updated Mother Bot panel for user {user_id}")
-            else:
-                debug_print(f"Message content unchanged for user {user_id}, skipping edit")
-                await query_or_message.answer("Panel refreshed!", show_alert=False)
+            # Always try to edit the message for callback queries
+            await query_or_message.edit_message_text(panel_text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
+            admin_sessions[user_id]['last_content'] = panel_text
+            debug_print(f"Successfully updated Mother Bot panel for user {user_id}")
         except Exception as e:
-            debug_print(f"Error editing message: {e}")
-            await query_or_message.answer("Panel updated!", show_alert=False)
+            if "MESSAGE_NOT_MODIFIED" in str(e):
+                debug_print(f"Message content unchanged for user {user_id}")
+                await query_or_message.answer("Panel refreshed!", show_alert=False)
+            else:
+                debug_print(f"Error editing message: {e}")
+                await query_or_message.answer("❌ Error updating panel!", show_alert=True)
     else:
         await query_or_message.reply_text(panel_text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
 
@@ -229,8 +228,8 @@ async def handle_clone_approval_callbacks(client: Client, query: CallbackQuery):
         debug_print(f"ERROR: Error in clone approval callback: {e}")
         await query.answer("❌ Error processing request!", show_alert=True)
 
-# Mother Bot Callback Handlers
-@Client.on_callback_query(filters.regex("^mother_"))
+# Mother Bot Callback Handlers (Higher priority than the router)
+@Client.on_callback_query(filters.regex("^mother_"), group=0)
 async def mother_admin_callbacks(client: Client, query: CallbackQuery):
     """Handle Mother Bot admin panel callbacks"""
     user_id = query.from_user.id
@@ -294,8 +293,8 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
         debug_print(f"Unknown Mother Bot callback action: {callback_data}")
         await query.answer("⚠️ Unknown action", show_alert=True)
 
-# Clone Bot Callback Handlers
-@Client.on_callback_query(filters.regex("^clone_"))
+# Clone Bot Callback Handlers (Higher priority than the router)
+@Client.on_callback_query(filters.regex("^clone_"), group=0)
 async def clone_admin_callbacks(client: Client, query: CallbackQuery):
     """Handle Clone Bot admin panel callbacks"""
     user_id = query.from_user.id
@@ -1200,8 +1199,45 @@ async def handle_clone_subscription_status(client: Client, query: CallbackQuery)
     debug_print(f"Displayed subscription status for user {user_id}")
 
 
+# Back to Mother Panel Handler
+@Client.on_callback_query(filters.regex("^back_to_mother_panel$"), group=0)
+async def back_to_mother_panel_handler(client: Client, query: CallbackQuery):
+    """Handle back to mother panel navigation"""
+    user_id = query.from_user.id
+    debug_print(f"Back to mother panel handler called by user {user_id}")
+    
+    if not is_mother_admin(user_id):
+        debug_print(f"Unauthorized back to mother panel from user {user_id}")
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+    
+    await mother_admin_panel(client, query)
+
+# Back to Clone Panel Handler  
+@Client.on_callback_query(filters.regex("^back_to_clone_panel$"), group=0)
+async def back_to_clone_panel_handler(client: Client, query: CallbackQuery):
+    """Handle back to clone panel navigation"""
+    user_id = query.from_user.id
+    debug_print(f"Back to clone panel handler called by user {user_id}")
+    
+    # Get session and validate
+    session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        debug_print(f"Invalid session for back to clone panel from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+    
+    # Convert query to message for clone_admin_panel
+    class FakeMessage:
+        def __init__(self, query):
+            self.from_user = query.from_user
+            self.chat = query.message.chat
+        async def reply_text(self, text, reply_markup=None):
+            await query.edit_message_text(text, reply_markup=reply_markup)
+    
+    fake_message = FakeMessage(query)
+    await clone_admin_panel(client, fake_message)
+
 # Feature toggle handler for clone bots
-@Client.on_callback_query(filters.regex("^toggle_feature#"))
+@Client.on_callback_query(filters.regex("^toggle_feature#"), group=0)
 async def toggle_feature_handler(client: Client, query: CallbackQuery):
     """Handle feature toggling for clone bots"""
     user_id = query.from_user.id
