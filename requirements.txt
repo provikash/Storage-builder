@@ -6,7 +6,7 @@ apscheduler==3.10.4
 dnspython==2.4.2
 aiohttp==3.9.1
 uvloop==0.19.0
-shortzy==1.0.1
+shortzy
 psutil==5.9.6
-cryptography==41.0.8
+cryptography==41.0.7
 pymongo==4.6.0
