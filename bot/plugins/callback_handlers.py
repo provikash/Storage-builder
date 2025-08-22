@@ -26,13 +26,19 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
     """Route admin callbacks to appropriate handlers"""
     print(f"DEBUG: Admin callback router - {query.data} from user {query.from_user.id}")
     
-    # Import and delegate to admin_panel handlers
-    if query.data.startswith("mother_") or query.data.startswith("back_to_mother"):
-        from bot.plugins.admin_panel import mother_admin_callbacks
-        await mother_admin_callbacks(client, query)
-    elif query.data.startswith("clone_") or query.data.startswith("back_to_clone"):
-        from bot.plugins.admin_panel import clone_admin_callbacks
-        await clone_admin_callbacks(client, query)
+    # Prevent duplicate handling by checking if already answered
+    try:
+        # Import and delegate to admin_panel handlers
+        if query.data.startswith("mother_") or query.data.startswith("back_to_mother"):
+            from bot.plugins.admin_panel import mother_admin_callbacks
+            await mother_admin_callbacks(client, query)
+        elif query.data.startswith("clone_") or query.data.startswith("back_to_clone"):
+            from bot.plugins.admin_panel import clone_admin_callbacks
+            await clone_admin_callbacks(client, query)
+    except Exception as e:
+        print(f"DEBUG: Error in admin callback router: {e}")
+        if not query.data.startswith("back_to_"):  # Don't show error for navigation
+            await query.answer("❌ Error processing request!", show_alert=True)
 
 # Approval System Callbacks (Priority 2)
 @Client.on_callback_query(filters.regex("^(approve_request|reject_request):"), group=CALLBACK_PRIORITIES["approval"])

@@ -92,12 +92,9 @@ async def mother_admin_panel(client: Client, query_or_message):
 
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("⏳ Pending Clone Requests", callback_data="mother_pending_requests")],
-        [InlineKeyboardButton("🤖 Create Clone", callback_data="mother_create_clone")],
-        [InlineKeyboardButton("💰 Manage Subscriptions", callback_data="mother_manage_subscriptions")],
-        [InlineKeyboardButton("📢 Manage Global Force Channels", callback_data="mother_global_force_channels")],
-        [InlineKeyboardButton("📄 Edit About Page", callback_data="mother_edit_about")],
-        [InlineKeyboardButton("📋 View All Clones", callback_data="mother_view_all_clones")],
-        [InlineKeyboardButton("🗑️ Disable/Delete Clone", callback_data="mother_disable_clone")],
+        [InlineKeyboardButton("🤖 Manage Clones", callback_data="mother_manage_clones")],
+        [InlineKeyboardButton("💰 Subscriptions", callback_data="mother_subscriptions")],
+        [InlineKeyboardButton("⚙️ Global Settings", callback_data="mother_global_settings")],
         [InlineKeyboardButton("📊 System Statistics", callback_data="mother_statistics")]
     ])
 
@@ -118,10 +115,13 @@ async def mother_admin_panel(client: Client, query_or_message):
             if last_session.get('last_content') != panel_text:
                 await query_or_message.edit_message_text(panel_text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
                 admin_sessions[user_id]['last_content'] = panel_text
+                debug_print(f"Successfully updated Mother Bot panel for user {user_id}")
             else:
                 debug_print(f"Message content unchanged for user {user_id}, skipping edit")
+                await query_or_message.answer("Panel refreshed!", show_alert=False)
         except Exception as e:
             debug_print(f"Error editing message: {e}")
+            await query_or_message.answer("Panel updated!", show_alert=False)
     else:
         await query_or_message.reply_text(panel_text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
 
@@ -243,6 +243,12 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
         await handle_mother_subscription_report(client, query)
     elif callback_data == "view_all_pending":
         await handle_view_all_pending_requests(client, query)
+    elif callback_data == "mother_manage_clones":
+        await handle_mother_manage_clones(client, query)
+    elif callback_data == "mother_subscriptions":
+        await handle_mother_manage_subscriptions(client, query)
+    elif callback_data == "mother_global_settings":
+        await handle_mother_global_settings(client, query)
     elif callback_data == "back_to_mother_panel":
         debug_print(f"Navigating back to Mother Bot panel for user {user_id}")
         await mother_admin_panel(client, query)
@@ -301,8 +307,8 @@ async def handle_mother_pending_requests(client: Client, query: CallbackQuery):
     debug_print(f"handle_mother_pending_requests called by user {user_id}")
 
     try:
-        from bot.plugins.clone_request import get_all_pending_requests
-        pending_requests = await get_all_pending_requests()
+        from bot.database.clone_db import get_all_clone_requests
+        pending_requests = await get_all_clone_requests("pending")
         debug_print(f"Found {len(pending_requests)} pending requests")
 
         text = f"⏳ **Pending Clone Requests ({len(pending_requests)})**\n\n"
@@ -650,16 +656,17 @@ async def handle_mother_statistics(client: Client, query: CallbackQuery):
     ])
 
     try:
-        # Check if content changed to prevent MESSAGE_NOT_MODIFIED
-        last_session = admin_sessions.get(user_id, {})
-        if last_session.get('last_content') != panel_text:
-            await query.edit_message_text(panel_text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
-            admin_sessions[user_id]['last_content'] = panel_text
-            debug_print(f"Displayed system statistics for user {user_id}")
-        else:
-            debug_print(f"Message content unchanged for system statistics for user {user_id}")
+        # Always try to edit message for statistics (data changes frequently)
+        await query.edit_message_text(panel_text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
+        admin_sessions[user_id]['last_content'] = panel_text
+        debug_print(f"Displayed system statistics for user {user_id}")
     except Exception as e:
-        debug_print(f"Error displaying system statistics for user {user_id}: {e}")
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            debug_print(f"Statistics content unchanged for user {user_id}")
+            await query.answer("Statistics refreshed!", show_alert=False)
+        else:
+            debug_print(f"Error displaying system statistics for user {user_id}: {e}")
+            await query.answer("Error loading statistics!", show_alert=True)
 
 
 async def handle_mother_subscription_report(client: Client, query: CallbackQuery):
@@ -699,14 +706,108 @@ async def handle_mother_subscription_report(client: Client, query: CallbackQuery
         debug_print(f"ERROR: Error in handle_mother_subscription_report for user {user_id}: {e}")
         await query.answer("❌ Error loading report!", show_alert=True)
 
+async def handle_mother_global_settings(client: Client, query: CallbackQuery):
+    """Handle global settings management"""
+    user_id = query.from_user.id
+    debug_print(f"handle_mother_global_settings called by user {user_id}")
+
+    try:
+        global_channels = await get_global_force_channels()
+        global_about = await get_global_about()
+        
+        text = f"⚙️ **Global Settings Management**\n\n"
+        
+        text += f"📢 **Global Force Channels ({len(global_channels)}):**\n"
+        if global_channels:
+            for i, channel in enumerate(global_channels[:3], 1):
+                text += f"{i}. {channel}\n"
+            if len(global_channels) > 3:
+                text += f"... and {len(global_channels) - 3} more\n"
+        else:
+            text += "❌ No global force channels set\n"
+            
+        text += f"\n📄 **Global About Page:**\n"
+        if global_about:
+            text += f"✅ About page configured ({len(global_about)} characters)\n"
+        else:
+            text += "❌ No global about page set\n"
+            
+        text += f"\n**Quick Actions:**\n"
+        text += f"• Use buttons below for management\n"
+        text += f"• Or use commands for detailed control"
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📢 Manage Force Channels", callback_data="mother_global_force_channels")],
+            [InlineKeyboardButton("📄 Edit About Page", callback_data="mother_edit_about")],
+            [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+        ])
+
+        await query.edit_message_text(text, reply_markup=buttons)
+        debug_print(f"Displayed global settings for user {user_id}")
+
+    except Exception as e:
+        debug_print(f"ERROR: Error in handle_mother_global_settings for user {user_id}: {e}")
+        await query.edit_message_text(
+            f"❌ **Error loading global settings**\n\nError: {str(e)}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+            ])
+        )
+
+async def handle_mother_manage_clones(client: Client, query: CallbackQuery):
+    """Handle clone management interface"""
+    user_id = query.from_user.id
+    debug_print(f"handle_mother_manage_clones called by user {user_id}")
+
+    try:
+        clones = await get_all_clones()
+        running_clones = clone_manager.get_running_clones()
+        
+        text = f"🤖 **Clone Management ({len(clones)} total)**\n\n"
+        
+        if not clones:
+            text += "❌ No clones found."
+        else:
+            text += "**Clone Status Overview:**\n"
+            for clone in clones[:5]:
+                status_emoji = "🟢" if clone['_id'] in running_clones else "🔴"
+                text += f"{status_emoji} @{clone.get('username', 'Unknown')} - {clone['status']}\n"
+            
+            if len(clones) > 5:
+                text += f"... and {len(clones) - 5} more clones\n"
+            
+            text += f"\n**Commands:**\n"
+            text += f"• `/startclone <bot_id>` - Start a clone\n"
+            text += f"• `/stopclone <bot_id>` - Stop a clone\n"
+            text += f"• `/restartclone <bot_id>` - Restart a clone\n"
+            text += f"• `/deleteclone <bot_id>` - Delete a clone"
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📋 View All Clones", callback_data="mother_view_all_clones")],
+            [InlineKeyboardButton("🗑️ Delete Clone", callback_data="mother_disable_clone")],
+            [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+        ])
+
+        await query.edit_message_text(text, reply_markup=buttons)
+        debug_print(f"Displayed clone management for user {user_id}")
+
+    except Exception as e:
+        debug_print(f"ERROR: Error in handle_mother_manage_clones for user {user_id}: {e}")
+        await query.edit_message_text(
+            f"❌ **Error managing clones**\n\nError: {str(e)}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+            ])
+        )
+
 async def handle_view_all_pending_requests(client: Client, query: CallbackQuery):
     """Handle viewing all pending requests with pagination"""
     user_id = query.from_user.id
     debug_print(f"handle_view_all_pending_requests called by user {user_id}")
 
     try:
-        from bot.plugins.clone_request import get_all_pending_requests
-        pending_requests = await get_all_pending_requests()
+        from bot.database.clone_db import get_all_clone_requests
+        pending_requests = await get_all_clone_requests("pending")
 
         text = f"📋 **All Pending Clone Requests ({len(pending_requests)})**\n\n"
 
