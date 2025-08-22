@@ -12,6 +12,7 @@ logger = LOGGER(__name__)
 
 class CloneManager:
     def __init__(self):
+        self.instances = {}  # Changed from active_clones to instances for consistency
         self.active_clones = {}
         self.clone_tasks = {}
 
@@ -144,10 +145,12 @@ class CloneManager:
         else:
             return {'status': 'stopped'}
 
-    async def start_all_active_clones(self):
+    async def start_all_clones(self):
         """Start all active clones from database"""
         try:
-            active_clones = await clones_collection.find({"status": "active"}).to_list(None)
+            from bot.database.clone_db import get_all_clones
+            active_clones_data = await get_all_clones()
+            active_clones = [clone for clone in active_clones_data if clone.get('status') == 'active']
             started_count = 0
             
             for clone_data in active_clones:
@@ -165,6 +168,22 @@ class CloneManager:
         except Exception as e:
             logger.error(f"❌ Error starting all clones: {e}")
             return 0, 0
+
+    async def start_all_active_clones(self):
+        """Alias for start_all_clones for backward compatibility"""
+        return await self.start_all_clones()
+
+    def get_running_clones(self):
+        """Get list of currently running clones"""
+        return list(self.active_clones.keys())
+
+    async def check_subscriptions(self):
+        """Check subscription status for all clones"""
+        try:
+            await self.cleanup_inactive_clones()
+            logger.info("✅ Subscription check completed")
+        except Exception as e:
+            logger.error(f"❌ Error checking subscriptions: {e}")
 
     async def cleanup_inactive_clones(self):
         """Cleanup inactive or expired clones"""

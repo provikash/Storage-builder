@@ -238,13 +238,4 @@ async def main():
         logger.info("✅ Graceful shutdown completed")
 
 if __name__ == "__main__":
-    async def main():
-        """Main function to start bot and clone manager"""
-        # Start clone manager
-        from start_clones import startup_clones
-        await startup_clones()
-
-        # Start main bot
-        await Bot().start()
-
     asyncio.run(main())
