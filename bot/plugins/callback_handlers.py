@@ -57,7 +57,7 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
             await query.answer("❌ Error processing request!", show_alert=True)
 
 # Approval System Callbacks (Priority 2)
-@Client.on_callback_query(filters.regex("^(approve_request|reject_request):"), group=CALLBACK_PRIORITIES["approval"])
+@Client.on_callback_query(filters.regex("^(approve_request|reject_request|quick_approve|quick_reject|view_request):"), group=CALLBACK_PRIORITIES["approval"])
 async def approval_callback_handler(client: Client, query: CallbackQuery):
     """Handle clone approval/rejection callbacks"""
     print(f"DEBUG: Approval callback - {query.data} from user {query.from_user.id}")
@@ -69,16 +69,55 @@ async def approval_callback_handler(client: Client, query: CallbackQuery):
     try:
         action, request_id = query.data.split(":", 1)
         
-        if action == "approve_request":
-            from bot.plugins.clone_approval import approve_clone_request
-            await approve_clone_request(client, query, request_id)
-        elif action == "reject_request":
-            from bot.plugins.clone_approval import reject_clone_request
-            await reject_clone_request(client, query, request_id)
+        if action == "approve_request" or action == "quick_approve":
+            from bot.plugins.clone_approval import handle_approve_request
+            await handle_approve_request(client, query)
+        elif action == "reject_request" or action == "quick_reject":
+            from bot.plugins.clone_approval import handle_reject_request
+            await handle_reject_request(client, query)
+        elif action == "view_request":
+            await handle_view_request_details(client, query, request_id)
             
     except Exception as e:
         print(f"ERROR: Approval callback error: {e}")
         await query.answer("❌ Error processing request!", show_alert=True)
+
+async def handle_view_request_details(client: Client, query: CallbackQuery, request_id: str):
+    """Handle viewing request details"""
+    try:
+        from bot.database.clone_db import get_clone_request_by_id
+        request = await get_clone_request_by_id(request_id)
+        
+        if not request:
+            await query.answer("❌ Request not found!", show_alert=True)
+            return
+        
+        # Format request details
+        masked_token = f"{request['bot_token'][:8]}...{request['bot_token'][-4:]}"
+        
+        text = f"📋 **Clone Request Details**\n\n"
+        text += f"🆔 **Request ID:** `{request_id}`\n"
+        text += f"👤 **User ID:** `{request['user_id']}`\n"
+        text += f"🤖 **Bot Username:** @{request.get('bot_username', 'Unknown')}\n"
+        text += f"🔑 **Bot Token:** `{masked_token}`\n"
+        text += f"🗄️ **Database URL:** `{request['mongodb_url'][:30]}...`\n"
+        text += f"💰 **Plan:** {request.get('plan', 'monthly').title()}\n"
+        text += f"📅 **Created:** {request['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n"
+        text += f"⚡ **Status:** {request['status'].title()}\n"
+        
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Approve", callback_data=f"quick_approve:{request_id}"),
+                InlineKeyboardButton("❌ Reject", callback_data=f"quick_reject:{request_id}")
+            ],
+            [InlineKeyboardButton("🔙 Back to Pending", callback_data="mother_pending_requests")]
+        ])
+        
+        await query.edit_message_text(text, reply_markup=buttons)
+        
+    except Exception as e:
+        print(f"ERROR: Error viewing request details: {e}")
+        await query.answer("❌ Error loading request details!", show_alert=True)
 
 # Premium System Callbacks (Priority 3)
 @Client.on_callback_query(filters.regex("^(show_premium_plans|buy_premium)"), group=CALLBACK_PRIORITIES["premium"])

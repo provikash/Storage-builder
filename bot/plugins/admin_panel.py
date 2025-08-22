@@ -370,40 +370,56 @@ async def handle_mother_pending_requests(client: Client, query: CallbackQuery):
         pending_requests = await get_all_clone_requests("pending")
         debug_print(f"Found {len(pending_requests)} pending requests")
 
-        text = f"⏳ **Pending Clone Requests ({len(pending_requests)})**\n\n"
+        text = f"⏳ Pending Clone Requests ({len(pending_requests)})\n\n"
 
         if not pending_requests:
             text += "✅ No pending requests found.\n\n"
-            text += "**Commands:**\n"
-            text += "• Users can request clones with `/requestclone`\n"
+            text += "Commands:\n"
+            text += "• Users can request clones with /requestclone\n"
             text += "• Requests will appear here for approval"
         else:
-            text += "**Recent Requests:**\n"
+            text += "Recent Requests:\n"
             for i, req in enumerate(pending_requests[:5], 1):
-                masked_token = f"{req['bot_token'][:8]}...{req['bot_token'][-4:]}"
-                text += f"**{i}. Request #{req['request_id'][:8]}...**\n"
-                text += f"👤 User: {req['user_id']}\n"
-                text += f"🤖 Bot: @{req['bot_username']}\n"
-                text += f"🔑 Token: `{masked_token}`\n"
-                text += f"💰 Plan: {req['plan_details']['name']} (${req['plan_details']['price']})\n"
-                text += f"📅 Date: {req['created_at'].strftime('%Y-%m-%d %H:%M')}\n\n"
+                try:
+                    masked_token = f"{req['bot_token'][:8]}...{req['bot_token'][-4:]}"
+                    plan_info = req.get('plan_details', {})
+                    plan_name = plan_info.get('name', req.get('plan', 'Unknown'))
+                    plan_price = plan_info.get('price', 'N/A')
+                    
+                    text += f"{i}. Request #{req['request_id'][:8]}...\n"
+                    text += f"👤 User: {req['user_id']}\n"
+                    text += f"🤖 Bot: @{req.get('bot_username', 'Unknown')}\n"
+                    text += f"🔑 Token: {masked_token}\n"
+                    text += f"💰 Plan: {plan_name} (${plan_price})\n"
+                    text += f"📅 Date: {req['created_at'].strftime('%Y-%m-%d %H:%M')}\n\n"
+                except Exception as req_error:
+                    debug_print(f"Error formatting request {i}: {req_error}")
+                    text += f"{i}. Request #{req.get('request_id', 'Unknown')[:8]}...\n"
+                    text += f"👤 User: {req.get('user_id', 'Unknown')}\n"
+                    text += f"⚠️ Error loading details\n\n"
 
             if len(pending_requests) > 5:
                 text += f"... and {len(pending_requests) - 5} more requests\n\n"
 
-            text += "**Quick Actions:**\n"
+            text += "Quick Actions:\n"
             text += "• Click on buttons below to approve/reject\n"
-            text += "• Or use commands: `/approveclone <request_id>` | `/rejectclone <request_id>`"
+            text += "• Or use commands: /approveclone <request_id> | /rejectclone <request_id>"
 
         buttons = []
         if pending_requests:
             # Show approve/reject buttons for first few requests
             for req in pending_requests[:3]:
-                req_short = req['request_id'][:8]
-                buttons.append([
-                    InlineKeyboardButton(f"✅ Approve {req_short}", callback_data=f"approve_request:{req['request_id']}"),
-                    InlineKeyboardButton(f"❌ Reject {req_short}", callback_data=f"reject_request:{req['request_id']}")
-                ])
+                try:
+                    req_short = req['request_id'][:8]
+                    buttons.append([
+                        InlineKeyboardButton(f"✅ Approve {req_short}", callback_data=f"quick_approve:{req['request_id']}"),
+                        InlineKeyboardButton(f"❌ Reject {req_short}", callback_data=f"quick_reject:{req['request_id']}")
+                    ])
+                    buttons.append([
+                        InlineKeyboardButton(f"📋 View Details {req_short}", callback_data=f"view_request:{req['request_id']}")
+                    ])
+                except Exception as btn_error:
+                    debug_print(f"Error creating buttons for request: {btn_error}")
 
             if len(pending_requests) > 3:
                 buttons.append([InlineKeyboardButton("📋 View All Requests", callback_data="view_all_pending")])
@@ -411,18 +427,19 @@ async def handle_mother_pending_requests(client: Client, query: CallbackQuery):
         buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="mother_pending_requests")])
         buttons.append([InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")])
 
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons), parse_mode=None)
         debug_print(f"Successfully displayed pending requests for user {user_id}")
 
     except Exception as e:
         debug_print(f"ERROR: Error in handle_mother_pending_requests for user {user_id}: {e}")
         await query.edit_message_text(
-            f"❌ **Error loading pending requests**\n\n"
+            f"❌ Error loading pending requests\n\n"
             f"Error: {str(e)}\n\n"
             f"Please try again or check the logs.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
-            ])
+            ]),
+            parse_mode=None
         )
 
 
