@@ -1,4 +1,13 @@
 
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from datetime import datetime
+from info import Config
+from bot.database.clone_db import *
+from bot.database.subscription_db import *
+from bot.utils.clone_config_loader import clone_config_loader
+from clone_manager import clone_manager
+
 @Client.on_message(filters.command("activate_clone") & filters.private)
 async def activate_clone_command(client: Client, message: Message):
     """Activate a clone bot"""
