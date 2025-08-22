@@ -184,6 +184,26 @@ async def main():
         except Exception as e:
             logger.error(f"❌ System monitoring failed: {e}")
 
+        # Start health monitoring
+        try:
+            from bot.utils.health_check import health_checker
+            health_task = asyncio.create_task(health_checker.start_monitoring())
+            monitoring_tasks.append(health_task)
+            logger.info("✅ Health monitoring started")
+        except Exception as e:
+            logger.error(f"❌ Health monitoring failed: {e}")
+
+        # Start web server for monitoring dashboard
+        try:
+            import threading
+            from web.server import run_server
+            web_thread = threading.Thread(target=run_server, daemon=True)
+            web_thread.start()
+            logger.info("✅ Web monitoring dashboard started on port 5000")
+            logger.info("🌐 Dashboard URL: http://localhost:5000/dashboard")
+        except Exception as e:
+            logger.error(f"❌ Web server failed: {e}")
+
         # Print startup summary
         logger.info("\n" + "="*60)
         logger.info("🎉 MOTHER BOT + CLONE SYSTEM READY!")

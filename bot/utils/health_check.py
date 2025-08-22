@@ -1,84 +1,76 @@
 
 import asyncio
-import logging
-import time
-from typing import Dict, Any
-from pyrogram import Client
-from bot.database.connection import Database
+from datetime import datetime
+from bot.database.clone_db import get_all_clones, get_clone_statistics
+from bot.database.subscription_db import get_subscription_stats
+from clone_manager import clone_manager
+from bot.logging import LOGGER
 
-logger = logging.getLogger(__name__)
+logger = LOGGER(__name__)
 
 class HealthChecker:
-    """System health monitoring"""
+    """Monitor overall system health"""
     
     def __init__(self):
-        self.start_time = time.time()
-        self.last_check = time.time()
-        self.health_status = {
-            'bot': False,
-            'database': False,
-            'clone_manager': False
-        }
+        self.check_interval = 600  # Check every 10 minutes
+        self.last_check = None
+        self.status = "unknown"
     
-    async def check_bot_health(self, client: Client) -> bool:
-        """Check if bot is responsive"""
-        try:
-            me = await client.get_me()
-            return me is not None
-        except Exception as e:
-            logger.error(f"Bot health check failed: {e}")
-            return False
+    async def start_monitoring(self):
+        """Start health monitoring"""
+        logger.info("🏥 Starting health monitoring...")
+        
+        while True:
+            try:
+                await self.perform_health_check()
+                await asyncio.sleep(self.check_interval)
+            except Exception as e:
+                logger.error(f"❌ Error in health monitoring: {e}")
+                await asyncio.sleep(60)
     
-    async def check_database_health(self) -> bool:
-        """Check database connectivity"""
-        try:
-            database = Database()
-            # Simple ping to check connection
-            await database.total_users_count()
-            return True
-        except Exception as e:
-            logger.error(f"Database health check failed: {e}")
-            return False
-    
-    async def check_clone_manager_health(self) -> bool:
-        """Check clone manager status"""
-        try:
-            from clone_manager import clone_manager
-            return hasattr(clone_manager, 'instances')
-        except Exception as e:
-            logger.error(f"Clone manager health check failed: {e}")
-            return False
-    
-    async def perform_health_check(self, client: Client = None) -> Dict[str, Any]:
+    async def perform_health_check(self):
         """Perform comprehensive health check"""
-        self.last_check = time.time()
-        
-        # Check bot health
-        if client:
-            self.health_status['bot'] = await self.check_bot_health(client)
-        
-        # Check database health
-        self.health_status['database'] = await self.check_database_health()
-        
-        # Check clone manager health
-        self.health_status['clone_manager'] = await self.check_clone_manager_health()
-        
-        uptime = self.last_check - self.start_time
-        
+        try:
+            self.last_check = datetime.now()
+            issues = []
+            
+            # Check database connectivity
+            try:
+                clone_stats = await get_clone_statistics()
+                subscription_stats = await get_subscription_stats()
+            except Exception as e:
+                issues.append(f"Database connectivity: {e}")
+            
+            # Check clone manager
+            try:
+                running_clones = clone_manager.get_running_clones()
+                all_clones = await get_all_clones()
+                active_clones = [c for c in all_clones if c.get('status') == 'active']
+                
+                if len(running_clones) != len(active_clones):
+                    issues.append(f"Clone sync issue: {len(running_clones)}/{len(active_clones)} running")
+            except Exception as e:
+                issues.append(f"Clone manager: {e}")
+            
+            # Set status
+            if not issues:
+                self.status = "healthy"
+                logger.info("✅ System health check passed")
+            else:
+                self.status = "degraded"
+                logger.warning(f"⚠️ Health issues detected: {'; '.join(issues)}")
+            
+        except Exception as e:
+            self.status = "critical"
+            logger.error(f"❌ Health check failed: {e}")
+    
+    def get_status(self):
+        """Get current health status"""
         return {
-            'status': 'healthy' if all(self.health_status.values()) else 'unhealthy',
-            'uptime': uptime,
-            'components': self.health_status,
-            'timestamp': self.last_check
+            "status": self.status,
+            "last_check": self.last_check,
+            "uptime": datetime.now() - (self.last_check or datetime.now())
         }
-    
-    def get_uptime(self) -> float:
-        """Get system uptime in seconds"""
-        return time.time() - self.start_time
-    
-    def is_healthy(self) -> bool:
-        """Check if system is healthy"""
-        return all(self.health_status.values())
 
-# Global health checker instance
+# Create global instance
 health_checker = HealthChecker()

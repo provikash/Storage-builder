@@ -297,3 +297,25 @@ async def get_subscription(bot_id: str):
     except Exception as e:
         logger.error(f"Error getting subscription: {e}")
         return None
+
+async def check_expired_subscriptions():
+    """Check and return expired subscription IDs"""
+    try:
+        expired_subs = await subscriptions_collection.find({
+            "expires_at": {"$lt": datetime.now()},
+            "status": "active"
+        }).to_list(None)
+        
+        expired_ids = []
+        for sub in expired_subs:
+            # Mark as expired
+            await subscriptions_collection.update_one(
+                {"_id": sub["_id"]},
+                {"$set": {"status": "expired", "expired_at": datetime.now()}}
+            )
+            expired_ids.append(sub["bot_id"])
+        
+        return expired_ids
+    except Exception as e:
+        logger.error(f"Error checking expired subscriptions: {e}")
+        return []

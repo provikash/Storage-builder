@@ -4,7 +4,7 @@ from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
 from info import Config
-from bot.database.clone_db import get_all_clone_requests, approve_clone_request, reject_clone_request, create_clone, get_clone_request_by_id
+from bot.database.clone_db import get_all_clone_requests, approve_clone_request, reject_clone_request, create_clone, get_clone_request_by_id, activate_clone
 from bot.database.subscription_db import create_subscription, activate_subscription
 from clone_manager import clone_manager
 import uuid
