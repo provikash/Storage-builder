@@ -97,53 +97,48 @@ async def handle_approve_request(client: Client, query: CallbackQuery):
         requester_id = request['user_id']
         plan = request['plan']
 
-        # Approve the request and create clone
-        success = await approve_clone_request(request_id)
-        if success:
-            # Extract bot ID from token
-            bot_id = bot_token.split(':')[0]
-            
-            # Create clone entry
-            clone_success, clone_data = await create_clone(bot_token, requester_id, mongodb_url)
+        # Extract bot ID from token
+        bot_id = bot_token.split(':')[0]
 
-            if clone_success:
-                # Create and activate subscription
-                from bot.database.subscription_db import create_subscription, activate_subscription
-                subscription_created = await create_subscription(bot_id, requester_id, plan, payment_verified=True)
+        # Create clone entry
+        clone_success, clone_data = await create_clone(bot_token, requester_id, mongodb_url)
 
-                if subscription_created:
-                    await activate_subscription(bot_id)
-                    
-                    # Activate clone in database
-                    await activate_clone(bot_id)
+        if clone_success:
+            # Create and activate subscription
+            from bot.database.subscription_db import create_subscription, activate_subscription
+            subscription_created = await create_subscription(bot_id, requester_id, plan, payment_verified=True)
 
-                    # Try to start the clone
-                    start_success, start_message = await clone_manager.start_clone(bot_id)
+            if subscription_created:
+                await activate_subscription(bot_id)
 
-                    # Notify requester
-                    try:
-                        notification_text = f"🎉 **Clone Request Approved!**\n\n"
-                        notification_text += f"Your clone bot has been created and activated.\n\n"
-                        notification_text += f"**Bot ID:** `{bot_id}`\n"
-                        notification_text += f"**Plan:** {plan.title()}\n"
-                        notification_text += f"**Status:** {'Running' if start_success else 'Created (will start soon)'}\n\n"
-                        notification_text += "You can now manage your bot using /admin command in your clone bot."
+                # Activate clone in database
+                await activate_clone(bot_id)
 
-                        await client.send_message(requester_id, notification_text, parse_mode=ParseMode.MARKDOWN)
-                    except Exception as notify_error:
-                        debug_print(f"Could not notify user {requester_id}: {notify_error}")
+                # Try to start the clone
+                start_success, start_message = await clone_manager.start_clone(bot_id)
 
-                    await query.answer("✅ Request approved and clone created!", show_alert=True)
+                # Notify requester
+                try:
+                    notification_text = f"🎉 **Clone Request Approved!**\n\n"
+                    notification_text += f"Your clone bot has been created and activated.\n\n"
+                    notification_text += f"**Bot ID:** `{bot_id}`\n"
+                    notification_text += f"**Plan:** {plan.title()}\n"
+                    notification_text += f"**Status:** {'Running' if start_success else 'Created (will start soon)'}\n\n"
+                    notification_text += "You can now manage your bot using /admin command in your clone bot."
 
-                    # Refresh the pending requests list by re-editing the same message
-                    await handle_mother_pending_requests(client, query)
+                    await client.send_message(requester_id, notification_text, parse_mode=ParseMode.MARKDOWN)
+                except Exception as notify_error:
+                    debug_print(f"Could not notify user {requester_id}: {notify_error}")
 
-                else:
-                    await query.answer("❌ Error creating subscription", show_alert=True)
+                await query.answer("✅ Request approved and clone created!", show_alert=True)
+
+                # Refresh the pending requests list by re-editing the same message
+                await handle_mother_pending_requests(client, query)
+
             else:
-                await query.answer("❌ Error creating clone", show_alert=True)
+                await query.answer("❌ Error creating subscription", show_alert=True)
         else:
-            await query.answer("❌ Error approving request", show_alert=True)
+            await query.answer("❌ Error creating clone", show_alert=True)
 
     except Exception as e:
         debug_print(f"Error approving request {request_id}: {e}")
@@ -227,28 +222,3 @@ async def log_admin_action(admin_id: int, action: str, details: dict):
         await admin_logs.insert_one(log_entry)
     except Exception as e:
         debug_print(f"Failed to log admin action: {e}")
-
-# Assuming the following functions are defined elsewhere or are part of the `clone_manager` and `bot.database` modules.
-# The edited snippet did not provide definitions for these, but they are called.
-# If these are critical and missing, the code might not run as expected.
-
-# async def get_all_clone_requests(status="pending"): ...
-# async def approve_clone_request(request_id: str): ...
-# async def reject_clone_request(request_id: str): ...
-# async def create_clone(bot_token: str, user_id: int, mongodb_url: str): ...
-# async def create_subscription(bot_id: str, user_id: int, plan: str, payment_verified: bool): ...
-# async def activate_subscription(bot_id: str): ...
-# async def start_clone(bot_id: str): ...
-# async def get_clone_request_by_id(request_id: str): ... # This one is defined in the edited snippet, but calling it again here is redundant.
-
-# Removed functions that were in the original but not in the edited snippet, as the edited snippet appears to be a replacement.
-# Specifically:
-# - quick_approve_request
-# - quick_reject_request
-# - view_request_details
-# - show_request_details
-# - process_request_approval
-# - process_request_rejection
-# - notify_requester_approval
-# - notify_requester_rejection
-# - log_admin_action (This was present in original, but also in edited. Replaced with edited version which is cleaner)
