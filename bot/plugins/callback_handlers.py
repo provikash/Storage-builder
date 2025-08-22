@@ -53,7 +53,7 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
     except Exception as e:
         print(f"DEBUG: Error in admin callback router: {e}")
         if not query.data.startswith("back_to_") and query.data != "refresh_dashboard":  # Don't show error for navigation
-            await query.answer("❌ Error processing request!", show_alert=True)e)
+            await query.answer("❌ Error processing request!", show_alert=True)
 
 # Approval System Callbacks (Priority 2)
 @Client.on_callback_query(filters.regex("^(approve_request|reject_request):"), group=CALLBACK_PRIORITIES["approval"])
