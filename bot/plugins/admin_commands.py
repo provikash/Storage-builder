@@ -1,4 +1,117 @@
 
+@Client.on_message(filters.command("activate_clone") & filters.private)
+async def activate_clone_command(client: Client, message: Message):
+    """Activate a clone bot"""
+    user_id = message.from_user.id
+    print(f"DEBUG: activate_clone command from user {user_id}")
+    
+    # Debug admin check
+    owner_id = getattr(Config, 'OWNER_ID', None)
+    admins = getattr(Config, 'ADMINS', ())
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    print(f"DEBUG: activate_clone admin check - user_id: {user_id}, admin_list: {admin_list}")
+    
+    if user_id not in admin_list:
+        print(f"DEBUG: activate_clone access denied for user {user_id}")
+        return await message.reply_text("❌ Only Mother Bot admins can activate clones.")
+    
+    print(f"DEBUG: activate_clone access granted for user {user_id}")
+    
+    if len(message.command) < 2:
+        print(f"DEBUG: activate_clone invalid format from user {user_id}")
+        return await message.reply_text("❌ Usage: `/activate_clone <bot_id>`")
+    
+    bot_id = message.command[1]
+    print(f"DEBUG: activate_clone attempting to activate bot_id: {bot_id}")
+    
+    try:
+        # Get clone data
+        clone_data = await get_clone(bot_id)
+        if not clone_data:
+            print(f"DEBUG: activate_clone clone not found: {bot_id}")
+            return await message.reply_text(f"❌ Clone {bot_id} not found.")
+        
+        print(f"DEBUG: activate_clone found clone: {clone_data.get('username', 'Unknown')}")
+        
+        # Update status to active
+        await update_clone_status(bot_id, 'active')
+        print(f"DEBUG: activate_clone updated status to active for {bot_id}")
+        
+        # Start the clone
+        success, result = await clone_manager.start_clone(bot_id)
+        print(f"DEBUG: activate_clone start result: success={success}, result={result}")
+        
+        if success:
+            await message.reply_text(
+                f"✅ **Clone Activated Successfully!**\n\n"
+                f"🤖 **Bot:** @{clone_data.get('username', 'Unknown')}\n"
+                f"🆔 **Bot ID:** {bot_id}\n"
+                f"📊 **Status:** Active & Running"
+            )
+        else:
+            await message.reply_text(f"⚠️ Clone activated but failed to start: {result}")
+            
+    except Exception as e:
+        print(f"DEBUG: activate_clone error: {e}")
+        await message.reply_text(f"❌ Error activating clone: {str(e)}")
+
+@Client.on_message(filters.command("dashboard") & filters.private)
+async def dashboard_command(client: Client, message: Message):
+    """Show dashboard with system overview"""
+    user_id = message.from_user.id
+    print(f"DEBUG: dashboard command from user {user_id}")
+    
+    # Debug admin check
+    owner_id = getattr(Config, 'OWNER_ID', None)
+    admins = getattr(Config, 'ADMINS', ())
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    print(f"DEBUG: dashboard admin check - user_id: {user_id}, admin_list: {admin_list}")
+    
+    if user_id not in admin_list:
+        print(f"DEBUG: dashboard access denied for user {user_id}")
+        return await message.reply_text("❌ Only Mother Bot admins can access dashboard.")
+    
+    print(f"DEBUG: dashboard access granted for user {user_id}")
+    
+    try:
+        # Get system stats
+        total_clones = len(await get_all_clones())
+        active_clones = len([c for c in await get_all_clones() if c['status'] == 'active'])
+        running_clones = len(clone_manager.get_running_clones())
+        total_subscriptions = len(await get_all_subscriptions())
+        
+        print(f"DEBUG: dashboard stats - total_clones: {total_clones}, active_clones: {active_clones}, running_clones: {running_clones}")
+        
+        dashboard_text = f"📊 **System Dashboard**\n\n"
+        dashboard_text += f"🤖 **Clone Statistics:**\n"
+        dashboard_text += f"• Total Clones: {total_clones}\n"
+        dashboard_text += f"• Active Clones: {active_clones}\n"
+        dashboard_text += f"• Running Clones: {running_clones}\n\n"
+        dashboard_text += f"💰 **Subscriptions:**\n"
+        dashboard_text += f"• Total Subscriptions: {total_subscriptions}\n\n"
+        dashboard_text += f"⏱️ **System Status:**\n"
+        dashboard_text += f"• Mother Bot: Running\n"
+        dashboard_text += f"• Clone Manager: Active\n"
+        dashboard_text += f"• Database: Connected\n"
+        dashboard_text += f"• Last Updated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}\n\n"
+        dashboard_text += f"**Quick Commands:**\n"
+        dashboard_text += f"• `/admin` - Admin Panel\n"
+        dashboard_text += f"• `/createclone` - Create New Clone\n"
+        dashboard_text += f"• `/activate_clone <id>` - Activate Clone"
+        
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🎛️ Admin Panel", callback_data="mother_admin_panel")],
+            [InlineKeyboardButton("🔄 Refresh Dashboard", callback_data="refresh_dashboard")]
+        ])
+        
+        await message.reply_text(dashboard_text, reply_markup=buttons)
+        print(f"DEBUG: dashboard sent successfully to user {user_id}")
+        
+    except Exception as e:
+        print(f"DEBUG: dashboard error: {e}")
+        await message.reply_text(f"❌ Error loading dashboard: {str(e)}")
+
+# Add debug logging to existing commands
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from info import Config
@@ -11,8 +124,20 @@ from clone_manager import clone_manager
 @Client.on_message(filters.command("createclone") & filters.private)
 async def create_clone_command(client: Client, message: Message):
     """Create a new clone bot"""
-    if message.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    user_id = message.from_user.id
+    print(f"DEBUG: createclone command from user {user_id}")
+    
+    # Debug admin check
+    owner_id = getattr(Config, 'OWNER_ID', None)
+    admins = getattr(Config, 'ADMINS', ())
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    print(f"DEBUG: createclone admin check - user_id: {user_id}, owner_id: {owner_id}, admins: {admins}, admin_list: {admin_list}")
+    
+    if user_id not in admin_list:
+        print(f"DEBUG: createclone access denied for user {user_id}")
         return await message.reply_text("❌ Only Mother Bot admins can create clones.")
+    
+    print(f"DEBUG: createclone access granted for user {user_id}")
     
     if len(message.command) < 4:
         return await message.reply_text(
@@ -52,8 +177,15 @@ async def create_clone_command(client: Client, message: Message):
 @Client.on_message(filters.command("setglobalchannels") & filters.private)
 async def set_global_channels(client: Client, message: Message):
     """Set global force channels"""
-    if message.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    user_id = message.from_user.id
+    print(f"DEBUG: setglobalchannels command from user {user_id}")
+    
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: setglobalchannels access denied for user {user_id}")
         return await message.reply_text("❌ Access denied.")
+    
+    print(f"DEBUG: setglobalchannels access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text(
@@ -73,8 +205,15 @@ async def set_global_channels(client: Client, message: Message):
 @Client.on_message(filters.command("setglobalabout") & filters.private)
 async def set_global_about(client: Client, message: Message):
     """Set global about page"""
-    if message.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    user_id = message.from_user.id
+    print(f"DEBUG: setglobalabout command from user {user_id}")
+    
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: setglobalabout access denied for user {user_id}")
         return await message.reply_text("❌ Access denied.")
+    
+    print(f"DEBUG: setglobalabout access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("Usage: /setglobalabout <about_text>")
@@ -88,8 +227,15 @@ async def set_global_about(client: Client, message: Message):
 @Client.on_message(filters.command("disableclone") & filters.private)
 async def disable_clone_command(client: Client, message: Message):
     """Disable a clone bot"""
-    if message.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    user_id = message.from_user.id
+    print(f"DEBUG: disableclone command from user {user_id}")
+    
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: disableclone access denied for user {user_id}")
         return await message.reply_text("❌ Access denied.")
+    
+    print(f"DEBUG: disableclone access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("Usage: /disableclone <bot_id>")
@@ -107,14 +253,22 @@ async def disable_clone_command(client: Client, message: Message):
 @Client.on_message(filters.command("addforce") & filters.private)
 async def add_force_channel(client: Client, message: Message):
     """Add local force channel"""
+    user_id = message.from_user.id
+    print(f"DEBUG: addforce command from user {user_id}")
+    
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
     
     if not config['bot_info'].get('is_clone', False):
+        print(f"DEBUG: addforce not a clone bot")
         return
     
-    if message.from_user.id != config['bot_info'].get('admin_id'):
+    expected_admin = config['bot_info'].get('admin_id')
+    if user_id != expected_admin:
+        print(f"DEBUG: addforce access denied for user {user_id}, expected admin: {expected_admin}")
         return await message.reply_text("❌ Only clone admin can modify settings.")
+    
+    print(f"DEBUG: addforce access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("Usage: `/addforce <channel_id_or_username>`")
@@ -140,14 +294,21 @@ async def add_force_channel(client: Client, message: Message):
 @Client.on_message(filters.command("removeforce") & filters.private)
 async def remove_force_channel(client: Client, message: Message):
     """Remove local force channel"""
+    user_id = message.from_user.id
+    print(f"DEBUG: removeforce command from user {user_id}")
+    
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
     
     if not config['bot_info'].get('is_clone', False):
         return
     
-    if message.from_user.id != config['bot_info'].get('admin_id'):
+    expected_admin = config['bot_info'].get('admin_id')
+    if user_id != expected_admin:
+        print(f"DEBUG: removeforce access denied for user {user_id}, expected admin: {expected_admin}")
         return await message.reply_text("❌ Only clone admin can modify settings.")
+    
+    print(f"DEBUG: removeforce access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("Usage: `/removeforce <channel_id_or_username>`")
@@ -173,14 +334,21 @@ async def remove_force_channel(client: Client, message: Message):
 @Client.on_message(filters.command("settokenmode") & filters.private)
 async def set_token_mode(client: Client, message: Message):
     """Set token verification mode"""
+    user_id = message.from_user.id
+    print(f"DEBUG: settokenmode command from user {user_id}")
+    
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
     
     if not config['bot_info'].get('is_clone', False):
         return
     
-    if message.from_user.id != config['bot_info'].get('admin_id'):
+    expected_admin = config['bot_info'].get('admin_id')
+    if user_id != expected_admin:
+        print(f"DEBUG: settokenmode access denied for user {user_id}, expected admin: {expected_admin}")
         return await message.reply_text("❌ Only clone admin can modify settings.")
+    
+    print(f"DEBUG: settokenmode access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text(
@@ -207,14 +375,21 @@ async def set_token_mode(client: Client, message: Message):
 @Client.on_message(filters.command("setcommandlimit") & filters.private)
 async def set_command_limit(client: Client, message: Message):
     """Set command limit for tokens"""
+    user_id = message.from_user.id
+    print(f"DEBUG: setcommandlimit command from user {user_id}")
+    
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
     
     if not config['bot_info'].get('is_clone', False):
         return
     
-    if message.from_user.id != config['bot_info'].get('admin_id'):
+    expected_admin = config['bot_info'].get('admin_id')
+    if user_id != expected_admin:
+        print(f"DEBUG: setcommandlimit access denied for user {user_id}, expected admin: {expected_admin}")
         return await message.reply_text("❌ Only clone admin can modify settings.")
+    
+    print(f"DEBUG: setcommandlimit access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("Usage: `/setcommandlimit <number>`")
@@ -239,14 +414,21 @@ async def set_command_limit(client: Client, message: Message):
 @Client.on_message(filters.command("settokenprice") & filters.private)
 async def set_token_price(client: Client, message: Message):
     """Set token price"""
+    user_id = message.from_user.id
+    print(f"DEBUG: settokenprice command from user {user_id}")
+    
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
     
     if not config['bot_info'].get('is_clone', False):
         return
     
-    if message.from_user.id != config['bot_info'].get('admin_id'):
+    expected_admin = config['bot_info'].get('admin_id')
+    if user_id != expected_admin:
+        print(f"DEBUG: settokenprice access denied for user {user_id}, expected admin: {expected_admin}")
         return await message.reply_text("❌ Only clone admin can modify settings.")
+    
+    print(f"DEBUG: settokenprice access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("Usage: `/settokenprice <price>`")
@@ -271,14 +453,21 @@ async def set_token_price(client: Client, message: Message):
 @Client.on_message(filters.command("toggletoken") & filters.private)
 async def toggle_token_system(client: Client, message: Message):
     """Toggle token system on/off"""
+    user_id = message.from_user.id
+    print(f"DEBUG: toggletoken command from user {user_id}")
+    
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
     
     if not config['bot_info'].get('is_clone', False):
         return
     
-    if message.from_user.id != config['bot_info'].get('admin_id'):
+    expected_admin = config['bot_info'].get('admin_id')
+    if user_id != expected_admin:
+        print(f"DEBUG: toggletoken access denied for user {user_id}, expected admin: {expected_admin}")
         return await message.reply_text("❌ Only clone admin can modify settings.")
+    
+    print(f"DEBUG: toggletoken access granted for user {user_id}")
     
     bot_id = bot_token.split(':')[0]
     current_config = await get_clone_config(bot_id)
@@ -306,10 +495,15 @@ from clone_manager import clone_manager
 async def approve_clone_command(client: Client, message: Message):
     """Approve a clone request"""
     user_id = message.from_user.id
+    print(f"DEBUG: approveclone command from user {user_id}")
     
     # Check admin permissions
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: approveclone access denied for user {user_id}")
         return await message.reply_text("❌ Only Mother Bot administrators can approve clones.")
+    
+    print(f"DEBUG: approveclone access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: `/approveclone <request_id>`")
@@ -345,10 +539,15 @@ async def approve_clone_command(client: Client, message: Message):
 async def reject_clone_command(client: Client, message: Message):
     """Reject a clone request"""
     user_id = message.from_user.id
+    print(f"DEBUG: rejectclone command from user {user_id}")
     
     # Check admin permissions
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: rejectclone access denied for user {user_id}")
         return await message.reply_text("❌ Only Mother Bot administrators can reject clones.")
+    
+    print(f"DEBUG: rejectclone access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: `/rejectclone <request_id> [reason]`")
@@ -384,10 +583,15 @@ async def reject_clone_command(client: Client, message: Message):
 async def delete_clone_command(client: Client, message: Message):
     """Delete a clone permanently"""
     user_id = message.from_user.id
+    print(f"DEBUG: deleteclone command from user {user_id}")
     
     # Check admin permissions
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: deleteclone access denied for user {user_id}")
         return await message.reply_text("❌ Only Mother Bot administrators can delete clones.")
+    
+    print(f"DEBUG: deleteclone access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: `/deleteclone <bot_id>`")
@@ -423,10 +627,15 @@ async def delete_clone_command(client: Client, message: Message):
 async def enable_clone_command(client: Client, message: Message):
     """Enable a disabled clone"""
     user_id = message.from_user.id
+    print(f"DEBUG: enableclone command from user {user_id}")
     
     # Check admin permissions
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: enableclone access denied for user {user_id}")
         return await message.reply_text("❌ Only Mother Bot administrators can enable clones.")
+    
+    print(f"DEBUG: enableclone access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: `/enableclone <bot_id>`")
@@ -456,10 +665,15 @@ async def enable_clone_command(client: Client, message: Message):
 async def disable_clone_command(client: Client, message: Message):
     """Disable a clone"""
     user_id = message.from_user.id
+    print(f"DEBUG: disableclone command from user {user_id}")
     
     # Check admin permissions
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: disableclone access denied for user {user_id}")
         return await message.reply_text("❌ Only Mother Bot administrators can disable clones.")
+    
+    print(f"DEBUG: disableclone access granted for user {user_id}")
     
     if len(message.command) < 2:
         return await message.reply_text("❌ Usage: `/disableclone <bot_id>`")

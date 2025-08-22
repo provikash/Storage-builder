@@ -14,15 +14,37 @@ admin_sessions = {}
 
 # Helper function to check Mother Bot admin permissions
 def is_mother_admin(user_id):
-    return user_id in [Config.OWNER_ID] + list(Config.ADMINS)
+    owner_id = getattr(Config, 'OWNER_ID', None)
+    admins = getattr(Config, 'ADMINS', ())
+    debug_print(f"is_mother_admin check: user_id={user_id}, owner_id={owner_id}, admins={admins}")
+    
+    # Convert to list if it's a tuple
+    if isinstance(admins, tuple):
+        admin_list = list(admins)
+    else:
+        admin_list = admins if isinstance(admins, list) else []
+    
+    is_owner = user_id == owner_id
+    is_admin = user_id in admin_list
+    result = is_owner or is_admin
+    
+    debug_print(f"is_mother_admin result: {result} (is_owner: {is_owner}, is_admin: {is_admin})")
+    return result
 
 # Helper function to check Clone Bot admin permissions
 def is_clone_admin(user_id, config):
-    return user_id == config['bot_info'].get('admin_id')
+    admin_id = config['bot_info'].get('admin_id')
+    result = user_id == admin_id
+    debug_print(f"is_clone_admin check: user_id={user_id}, expected_admin_id={admin_id}, result={result}")
+    return result
 
 # Helper function for debug printing with a common prefix
 def debug_print(message):
     print(f"DEBUG: {message}")
+    # Also log to actual logger
+    from bot.logging import LOGGER
+    logger = LOGGER(__name__)
+    logger.info(f"ADMIN_DEBUG: {message}")
 
 @Client.on_message(filters.command("admin") & filters.private)
 async def admin_command_handler(client: Client, message: Message):
@@ -214,11 +236,27 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     debug_print(f"Mother Bot callback received from user {user_id}, data: {query.data}")
 
-    # Validate session and permissions
+    # Check admin permissions first
+    if not is_mother_admin(user_id):
+        debug_print(f"Permission denied for Mother Bot callback from user {user_id}")
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    # Validate or create session
     session = admin_sessions.get(user_id)
-    if not session or session['type'] != 'mother_admin' or not is_mother_admin(user_id):
-        debug_print(f"Invalid session or permissions for Mother Bot callback from user {user_id}")
-        return await query.answer("❌ Session expired or unauthorized access!", show_alert=True)
+    debug_print(f"Current session for user {user_id}: {session}")
+    
+    if not session or session['type'] != 'mother_admin':
+        debug_print(f"Creating new mother admin session for user {user_id}")
+        admin_sessions[user_id] = {
+            'type': 'mother_admin',
+            'timestamp': datetime.now(),
+            'last_content': None
+        }
+        session = admin_sessions[user_id]
+    else:
+        # Update timestamp
+        session['timestamp'] = datetime.now()
+        debug_print(f"Updated existing session timestamp for user {user_id}")
 
     callback_data = query.data
     debug_print(f"Processing callback_data: {callback_data}")
@@ -263,18 +301,40 @@ async def clone_admin_callbacks(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     debug_print(f"Clone Bot callback received from user {user_id}, data: {query.data}")
 
-    # Validate session and permissions
-    session = admin_sessions.get(user_id)
-    if not session or session['type'] != 'clone':
-        debug_print(f"Invalid session for Clone Bot callback from user {user_id}")
-        return await query.answer("❌ Session expired or unauthorized access!", show_alert=True)
+    # Get bot configuration first
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    debug_print(f"Bot token for clone callback: {bot_token}")
+    
+    try:
+        config = await clone_config_loader.get_bot_config(bot_token)
+        debug_print(f"Config loaded successfully for clone callback")
+    except Exception as e:
+        debug_print(f"Error loading config for clone callback: {e}")
+        return await query.answer("❌ Error loading bot configuration!", show_alert=True)
 
-    bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
-    config = await clone_config_loader.get_bot_config(bot_token)
-
+    # Check clone admin permissions
     if not is_clone_admin(user_id, config):
         debug_print(f"Unauthorized access to Clone Bot panel for user {user_id}. Expected admin ID: {config['bot_info'].get('admin_id')}")
         return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    # Validate or create session
+    session = admin_sessions.get(user_id)
+    debug_print(f"Current clone session for user {user_id}: {session}")
+    
+    if not session or session['type'] != 'clone':
+        debug_print(f"Creating new clone admin session for user {user_id}")
+        admin_sessions[user_id] = {
+            'type': 'clone',
+            'timestamp': datetime.now(),
+            'bot_token': bot_token,
+            'last_content': None
+        }
+        session = admin_sessions[user_id]
+    else:
+        # Update timestamp and bot_token
+        session['timestamp'] = datetime.now()
+        session['bot_token'] = bot_token
+        debug_print(f"Updated existing clone session for user {user_id}")
 
     callback_data = query.data
     debug_print(f"Processing callback_data: {callback_data}")

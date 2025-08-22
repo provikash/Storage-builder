@@ -21,13 +21,28 @@ CALLBACK_PRIORITIES = {
 }
 
 # Admin Panel Callbacks (Priority 1)
-@Client.on_callback_query(filters.regex("^(mother_|clone_|back_to_)"), group=CALLBACK_PRIORITIES["admin"])
+@Client.on_callback_query(filters.regex("^(mother_|clone_|back_to_|refresh_dashboard)"), group=CALLBACK_PRIORITIES["admin"])
 async def admin_callback_router(client: Client, query: CallbackQuery):
     """Route admin callbacks to appropriate handlers"""
     print(f"DEBUG: Admin callback router - {query.data} from user {query.from_user.id}")
     
     # Prevent duplicate handling by checking if already answered
     try:
+        # Handle refresh dashboard
+        if query.data == "refresh_dashboard":
+            from bot.plugins.admin_commands import dashboard_command
+            # Convert callback query to message-like object for dashboard_command
+            class FakeMessage:
+                def __init__(self, query):
+                    self.from_user = query.from_user
+                    self.command = ["dashboard"]
+                async def reply_text(self, text, reply_markup=None):
+                    await query.edit_message_text(text, reply_markup=reply_markup)
+            
+            fake_message = FakeMessage(query)
+            await dashboard_command(client, fake_message)
+            return
+        
         # Import and delegate to admin_panel handlers
         if query.data.startswith("mother_") or query.data.startswith("back_to_mother"):
             from bot.plugins.admin_panel import mother_admin_callbacks
@@ -37,8 +52,8 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
             await clone_admin_callbacks(client, query)
     except Exception as e:
         print(f"DEBUG: Error in admin callback router: {e}")
-        if not query.data.startswith("back_to_"):  # Don't show error for navigation
-            await query.answer("❌ Error processing request!", show_alert=True)
+        if not query.data.startswith("back_to_") and query.data != "refresh_dashboard":  # Don't show error for navigation
+            await query.answer("❌ Error processing request!", show_alert=True)e)
 
 # Approval System Callbacks (Priority 2)
 @Client.on_callback_query(filters.regex("^(approve_request|reject_request):"), group=CALLBACK_PRIORITIES["approval"])
