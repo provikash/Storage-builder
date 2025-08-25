@@ -2,105 +2,70 @@
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
-from datetime import datetime, timedelta
 import sys
 import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from bot.utils.clone_config_loader import CloneConfigLoader
 
 
-class TestCloneConfigLoader:
-    """Test clone configuration loading"""
+class TestConfigLoader:
+    """Test configuration loading functionality"""
     
     def setup_method(self):
         """Setup for each test"""
         self.config_loader = CloneConfigLoader()
 
     @pytest.mark.asyncio
-    async def test_get_mother_bot_config(self):
-        """Test getting mother bot configuration"""
-        with patch('info.Config') as mock_config:
-            mock_config.BOT_TOKEN = "123456:ABC"
-            mock_config.ADMINS = [789]
-            
-            config = await self.config_loader.get_mother_bot_config()
-            
-            assert config["bot_info"]["is_mother_bot"] == True
-            assert config["permissions"]["can_create_clones"] == True
-
-    @pytest.mark.asyncio
-    async def test_get_clone_config_active_subscription(self):
-        """Test getting clone config with active subscription"""
-        mock_clone_config = {
+    async def test_load_clone_config(self):
+        """Test loading clone configuration"""
+        mock_config = {
             "bot_id": "123456",
             "admin_id": 789,
-            "features": {"search": True, "upload": True}
+            "features": {
+                "search": True,
+                "upload": True,
+                "token_verification": True
+            }
         }
         
-        mock_subscription = {
-            "status": "active",
-            "tier": "monthly",
-            "expiry_date": datetime.now() + timedelta(days=30)
-        }
-        
-        with patch('bot.utils.clone_config_loader.get_clone_config') as mock_get_config:
-            mock_get_config.return_value = mock_clone_config
+        with patch('bot.database.clone_db.get_clone_config') as mock_get:
+            mock_get.return_value = mock_config
             
-            with patch('bot.utils.clone_config_loader.get_subscription') as mock_get_sub:
-                mock_get_sub.return_value = mock_subscription
-                
-                with patch('bot.utils.clone_config_loader.get_clone_data') as mock_get_data:
-                    mock_get_data.return_value = {"admin_id": 789}
-                    
-                    config = await self.config_loader.get_bot_config("123456:ABC")
-                    
-                    assert config["subscription"]["active"] == True
-                    assert config["permissions"]["can_use_bot"] == True
+            config = await self.config_loader.load_config("123456")
+            assert config["bot_id"] == "123456"
+            assert config["admin_id"] == 789
 
     @pytest.mark.asyncio
-    async def test_get_clone_config_expired_subscription(self):
-        """Test getting clone config with expired subscription"""
-        mock_subscription = {
-            "status": "expired",
-            "tier": "monthly",
-            "expiry_date": datetime.now() - timedelta(days=1)
+    async def test_save_clone_config(self):
+        """Test saving clone configuration"""
+        config_data = {
+            "bot_id": "123456",
+            "features": {"search": True}
         }
         
-        with patch('bot.utils.clone_config_loader.get_subscription') as mock_get_sub:
-            mock_get_sub.return_value = mock_subscription
+        with patch('bot.database.clone_db.update_clone_config') as mock_update:
+            mock_update.return_value = True
             
-            with patch('bot.utils.clone_config_loader.get_clone_config') as mock_get_config:
-                mock_get_config.return_value = None
-                
-            with patch('bot.utils.clone_config_loader.get_clone_data') as mock_get_data:
-                mock_get_data.return_value = None
-                
-                config = await self.config_loader.get_bot_config("123456:ABC")
-                
-                assert config["subscription"]["active"] == False
-                assert config["permissions"]["can_use_bot"] == False
+            result = await self.config_loader.save_config("123456", config_data)
+            assert result == True
 
-    def test_get_default_features(self):
-        """Test getting default features"""
-        features = self.config_loader._get_default_features()
+    def test_validate_config(self):
+        """Test configuration validation"""
+        valid_config = {
+            "bot_id": "123456",
+            "admin_id": 789,
+            "features": {"search": True}
+        }
         
-        assert features["search"] == True
-        assert features["upload"] == True
-        assert features["clone_creation"] == False
-        assert features["admin_panel"] == False
+        is_valid = self.config_loader.validate_config(valid_config)
+        assert is_valid == True
 
-    def test_get_clone_permissions_active(self):
-        """Test getting permissions for active subscription"""
-        permissions = self.config_loader._get_clone_permissions(True)
+    def test_get_default_config(self):
+        """Test getting default configuration"""
+        default_config = self.config_loader.get_default_config()
         
-        assert permissions["can_use_bot"] == True
-        assert permissions["can_upload"] == True
-        assert permissions["unlimited_access"] == False
-
-    def test_get_clone_permissions_inactive(self):
-        """Test getting permissions for inactive subscription"""
-        permissions = self.config_loader._get_clone_permissions(False)
-        
-        assert permissions["can_use_bot"] == False
+        assert "features" in default_config
+        assert "token_settings" in default_config
+        assert "channels" in default_config

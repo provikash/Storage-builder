@@ -6,7 +6,9 @@ from datetime import datetime
 import sys
 import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
 
 from bot.utils.system_monitor import SystemMonitor
 from bot.utils.health_check import HealthChecker
