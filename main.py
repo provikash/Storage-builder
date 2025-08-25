@@ -1,3 +1,4 @@
+
 import uvloop
 import asyncio
 import logging
@@ -159,16 +160,6 @@ async def main():
         if clone_task:
             monitoring_tasks.append(clone_task)
 
-        # Auto-start all active clones with better error handling
-        logger.info("🔄 Auto-starting active clones...")
-        try:
-            await clone_manager.start_all_clones()
-            running_clones = clone_manager.get_running_clones()
-            logger.info(f"✅ Auto-start completed. {len(running_clones)} clones are now running.")
-        except Exception as e:
-            logger.error(f"❌ Error during clone auto-start: {e}")
-            logger.info("🔄 Continuing with Mother Bot startup...")
-
         # Start subscription monitoring
         subscription_task = await start_subscription_monitoring()
         if subscription_task:
@@ -226,12 +217,8 @@ async def main():
         logger.info(f"🆕 Create Clone: /createclone")
         logger.info("="*60)
 
-        # Keep the application running
-        while not shutdown_handler.shutdown:
-            try:
-                await asyncio.sleep(1)
-            except asyncio.CancelledError:
-                break
+        # Keep the application running using pyrogram's idle
+        await idle()
 
     except KeyboardInterrupt:
         logger.info("⚠️ Received keyboard interrupt")
@@ -270,23 +257,16 @@ async def main():
         logger.info("✅ Graceful shutdown completed")
 
 if __name__ == "__main__":
-    # Test MongoDB connection
+    # Test MongoDB connection first
     try:
         from bot.database.mongo_db import MongoDB
         mongo = MongoDB()
-        asyncio.run(mongo.test_connection()) # Ensure test_connection is awaited if it's an async method
+        asyncio.run(mongo.test_connection())
         logger.info("✅ MongoDB connection test successful")
         mongo.close()
     except Exception as e:
         logger.error(f"❌ An unexpected error occurred during MongoDB connection test: {e}")
         sys.exit(1)
 
-    # Start all active clones
-    try:
-        started, total = asyncio.run(clone_manager.start_all_clones()) # Ensure start_all_clones is awaited
-        logger.info(f"🚀 Started {started}/{total} clones on startup")
-    except Exception as e:
-        logger.error(f"❌ Error starting clones on startup: {e}")
-
-    # Keep the bot running
-    asyncio.run(idle())
+    # Run the main application
+    asyncio.run(main())
