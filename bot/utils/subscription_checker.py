@@ -38,6 +38,9 @@ class SubscriptionChecker:
             # Check for pending subscriptions that became active
             await self.check_pending_subscriptions()
             
+            # Check pending clones that might now be ready
+            await clone_manager.check_pending_clones()
+            
         except Exception as e:
             logger.error(f"❌ Error checking subscriptions: {e}")
 

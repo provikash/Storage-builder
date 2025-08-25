@@ -174,6 +174,19 @@ async def main():
         if subscription_task:
             monitoring_tasks.append(subscription_task)
 
+        # Add periodic pending clone check (every 10 minutes)
+        async def periodic_pending_check():
+            while True:
+                try:
+                    await asyncio.sleep(600)  # 10 minutes
+                    await clone_manager.check_pending_clones()
+                except Exception as e:
+                    logger.error(f"❌ Error in periodic pending check: {e}")
+                    await asyncio.sleep(300)  # Wait 5 minutes on error
+
+        pending_monitor = asyncio.create_task(periodic_pending_check())
+        monitoring_tasks.append(pending_monitor)
+
         # Start system monitoring
         try:
             from bot.utils.system_monitor import system_monitor

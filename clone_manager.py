@@ -33,12 +33,17 @@ class CloneManager:
             if subscription['status'] not in valid_statuses and not subscription.get('payment_verified', False):
                 return False, f"Subscription status is {subscription['status']}"
             
-            # If subscription is pending, schedule a retry
+            # If subscription is pending, schedule a retry but don't fail the start process
             if subscription['status'] == 'pending':
                 logger.info(f"⏳ Clone {bot_id} subscription pending - will retry later")
                 # Schedule retry after 5 minutes
                 asyncio.create_task(self._retry_pending_clone(bot_id, 300))
-                return False, f"Subscription status is pending - retry scheduled"
+                # Update database to reflect pending status
+                await clones_collection.update_one(
+                    {"_id": bot_id},
+                    {"$set": {"status": "pending_subscription", "last_check": datetime.now()}}
+                )
+                return True, f"Clone {bot_id} subscription pending - retry scheduled"
 
             if bot_id in self.active_clones:
                 return True, "Clone already running"
@@ -204,20 +209,39 @@ class CloneManager:
 
     async def _retry_pending_clone(self, bot_id: str, delay: int = 300):
         """Retry starting a clone with pending subscription after delay"""
+        max_retries = 12  # 12 retries = 1 hour of checking (5 min intervals)
+        retry_count = 0
+        
         try:
-            await asyncio.sleep(delay)
-            
-            # Check if subscription is now active
-            subscription = await get_subscription(bot_id)
-            if subscription and subscription['status'] == 'active':
-                logger.info(f"🔄 Retrying clone {bot_id} - subscription now active")
-                success, message = await self.start_clone(bot_id)
-                if success:
-                    logger.info(f"✅ Successfully started pending clone {bot_id}")
+            while retry_count < max_retries:
+                await asyncio.sleep(delay)
+                retry_count += 1
+                
+                # Check if subscription is now active
+                subscription = await get_subscription(bot_id)
+                if subscription and subscription['status'] == 'active':
+                    logger.info(f"🔄 Retrying clone {bot_id} - subscription now active (attempt {retry_count})")
+                    success, message = await self.start_clone(bot_id)
+                    if success:
+                        logger.info(f"✅ Successfully started pending clone {bot_id}")
+                        return
+                    else:
+                        logger.warning(f"⚠️ Still failed to start clone {bot_id}: {message}")
+                        # If it fails to start even with active subscription, stop retrying
+                        break
+                elif subscription and subscription['status'] in ['expired', 'cancelled']:
+                    logger.info(f"🛑 Stopping retry for clone {bot_id} - subscription {subscription['status']}")
+                    await deactivate_clone(bot_id)
+                    break
                 else:
-                    logger.warning(f"⚠️ Still failed to start clone {bot_id}: {message}")
-            else:
-                logger.info(f"⏳ Clone {bot_id} subscription still pending")
+                    logger.info(f"⏳ Clone {bot_id} subscription still pending (attempt {retry_count}/{max_retries})")
+            
+            if retry_count >= max_retries:
+                logger.warning(f"⚠️ Max retries reached for clone {bot_id} - marking as failed")
+                await clones_collection.update_one(
+                    {"_id": bot_id},
+                    {"$set": {"status": "pending_timeout", "last_check": datetime.now()}}
+                )
                 
         except Exception as e:
             logger.error(f"❌ Error retrying pending clone {bot_id}: {e}")
@@ -249,6 +273,32 @@ class CloneManager:
 
         except Exception as e:
             logger.error(f"❌ Error cleaning up clones: {e}")
+
+    async def check_pending_clones(self):
+        """Check and attempt to start pending clones"""
+        try:
+            from bot.database.subscription_db import subscriptions_collection
+            
+            # Find clones with pending_subscription status
+            pending_clones = await clones_collection.find({
+                "status": "pending_subscription"
+            }).to_list(None)
+            
+            for clone in pending_clones:
+                bot_id = clone['_id']
+                
+                # Check if subscription is now active
+                subscription = await get_subscription(bot_id)
+                if subscription and subscription['status'] == 'active':
+                    logger.info(f"🔄 Attempting to start previously pending clone {bot_id}")
+                    success, message = await self.start_clone(bot_id)
+                    if success:
+                        logger.info(f"✅ Successfully started pending clone {bot_id}")
+                    else:
+                        logger.warning(f"⚠️ Failed to start clone {bot_id}: {message}")
+                        
+        except Exception as e:
+            logger.error(f"❌ Error checking pending clones: {e}")
 
 # Create global instance
 clone_manager = CloneManager()
