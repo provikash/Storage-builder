@@ -14,7 +14,18 @@ clone_configs_collection = clone_db.clone_configs # Renamed for clarity
 global_settings_collection = clone_db.global_settings # Renamed for clarity
 
 
-async def create_clone(bot_token: str, admin_id: int, db_url: str):
+async def create_clone(clone_data: dict):
+    """Create a new clone entry"""
+    try:
+        await clones_collection.update_one(
+            {"_id": clone_data["_id"]},
+            {"$set": clone_data},
+            upsert=True
+        )
+        return True
+    except Exception as e:
+        logger.error(f"Error creating clone: {e}")
+        return False
     """Create a new clone entry with separate database"""
     from pyrogram import Client
     from motor.motor_asyncio import AsyncIOMotorClient
@@ -380,6 +391,15 @@ async def create_clone_request(request_data: dict):
     except Exception as e:
         logger.error(f"Error creating clone request: {e}")
         return False
+
+async def get_clone_request(request_id: str):
+    """Get clone request by ID - alias for compatibility"""
+    try:
+        request = await clone_requests_collection.find_one({"request_id": request_id})
+        return request
+    except Exception as e:
+        logger.error(f"Error getting clone request {request_id}: {e}")
+        return None
 
 async def get_clone_request_by_id(request_id: str):
     """Get clone request by ID"""

@@ -165,8 +165,8 @@ async def reject_clone_request(client: Client, query: CallbackQuery, request_id:
 async def get_clone_request_by_id(request_id: str):
     """Get clone request by ID"""
     try:
-        from bot.database.clone_db import get_clone_request
-        return await get_clone_request(request_id)
+        from bot.database.clone_db import get_clone_request_by_id as db_get_clone_request
+        return await db_get_clone_request(request_id)
     except Exception as e:
         debug_print(f"Error getting clone request {request_id}: {e}")
         return None

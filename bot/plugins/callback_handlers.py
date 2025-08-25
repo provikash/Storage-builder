@@ -1,4 +1,3 @@
-
 import asyncio
 from datetime import datetime, timedelta
 from pyrogram import Client, filters
@@ -20,12 +19,30 @@ CALLBACK_PRIORITIES = {
     "catchall": 99   # Catch-all lowest priority
 }
 
+# Helper function to check if user is Mother Bot admin
+def is_mother_admin(user_id):
+    """Check if user is Mother Bot admin"""
+    owner_id = getattr(Config, 'OWNER_ID', None)
+    admins = getattr(Config, 'ADMINS', ())
+
+    # Convert to list if it's a tuple
+    if isinstance(admins, tuple):
+        admin_list = list(admins)
+    else:
+        admin_list = admins if isinstance(admins, list) else []
+
+    is_owner = user_id == owner_id
+    is_admin = user_id in admin_list
+    result = is_owner or is_admin
+
+    return result
+
 # Admin Panel Callbacks (Priority 1)
 @Client.on_callback_query(filters.regex("^(mother_|clone_|back_to_|refresh_dashboard)"), group=CALLBACK_PRIORITIES["admin"])
 async def admin_callback_router(client: Client, query: CallbackQuery):
     """Route admin callbacks to appropriate handlers"""
     print(f"DEBUG: Admin callback router - {query.data} from user {query.from_user.id}")
-    
+
     try:
         # Handle refresh dashboard
         if query.data == "refresh_dashboard":
@@ -37,11 +54,11 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
                     self.command = ["dashboard"]
                 async def reply_text(self, text, reply_markup=None):
                     await query.edit_message_text(text, reply_markup=reply_markup)
-            
+
             fake_message = FakeMessage(query)
             await dashboard_command(client, fake_message)
             return
-        
+
         # Only handle if not already processed by dedicated handlers
         # Check if this is a mother bot callback
         if query.data.startswith("mother_") or query.data.startswith("back_to_mother"):
@@ -56,82 +73,156 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
         if not query.data.startswith("back_to_") and query.data != "refresh_dashboard":
             await query.answer("❌ Error processing request!", show_alert=True)
 
-# Quick approval/rejection callbacks (Priority 2)
-@Client.on_callback_query(filters.regex("^(quick_approve|quick_reject|approve_request|reject_request):"), group=CALLBACK_PRIORITIES["approval"])
-async def approval_callback_handler(client: Client, query: CallbackQuery):
-    """Handle approval/rejection callbacks"""
-    print(f"DEBUG: Approval callback - {query.data} from user {query.from_user.id}")
-    
+# Handle quick approval/rejection callbacks
+@Client.on_callback_query(filters.regex("^(quick_approve|quick_reject|view_request):"), group=CALLBACK_PRIORITIES["approval"])
+async def handle_quick_actions(client: Client, query: CallbackQuery):
+    """Handle quick approval, rejection, and view request actions"""
+    user_id = query.from_user.id
+    print(f"DEBUG: Quick action callback - {query.data} from user {user_id}")
+
     # Check admin permissions
-    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    if not is_mother_admin(user_id):
         return await query.answer("❌ Unauthorized access!", show_alert=True)
-    
+
     try:
         action, request_id = query.data.split(":", 1)
-        
-        if action in ["quick_approve", "approve_request"]:
+
+        if action == "quick_approve":
             from bot.plugins.clone_approval import approve_clone_request
             await approve_clone_request(client, query, request_id)
-        elif action in ["quick_reject", "reject_request"]:
+        elif action == "quick_reject":
             from bot.plugins.clone_approval import reject_clone_request
             await reject_clone_request(client, query, request_id)
-            
+        elif action == "view_request":
+            await handle_view_request_details(client, query, request_id)
+
     except Exception as e:
-        print(f"ERROR: Error in approval callback: {e}")
+        print(f"ERROR: Error in quick action callback: {e}")
         await query.answer("❌ Error processing request!", show_alert=True)
 
-# View request details handler
-@Client.on_callback_query(filters.regex("^view_request:"), group=CALLBACK_PRIORITIES["approval"])
-async def handle_view_request_details(client: Client, query: CallbackQuery):
-    """Handle viewing request details"""
-    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
-        return await query.answer("❌ Unauthorized access!", show_alert=True)
-        
-    request_id = query.data.split(":", 1)[1]
-    
+async def handle_view_request_details(client: Client, query: CallbackQuery, request_id: str):
+    """Show detailed view of a clone request"""
     try:
         from bot.database.clone_db import get_clone_request_by_id
         request = await get_clone_request_by_id(request_id)
-        
+
         if not request:
-            await query.answer("❌ Request not found!", show_alert=True)
-            return
-        
+            return await query.answer("❌ Request not found!", show_alert=True)
+
         # Format request details
-        masked_token = f"{request['bot_token'][:8]}...{request['bot_token'][-4:]}"
         plan_details = request.get('plan_details', {})
-        plan_name = plan_details.get('name', request.get('plan', 'monthly'))
-        
         text = f"📋 **Clone Request Details**\n\n"
-        text += f"🆔 **Request ID:** `{request_id}`\n"
+        text += f"🆔 **Request ID:** `{request['request_id']}`\n"
         text += f"👤 **User ID:** `{request['user_id']}`\n"
         text += f"🤖 **Bot Username:** @{request.get('bot_username', 'Unknown')}\n"
-        text += f"🔑 **Bot Token:** `{masked_token}`\n"
-        text += f"🗄️ **Database URL:** `{request['mongodb_url'][:30]}...`\n"
-        text += f"💰 **Plan:** {plan_name.title()}\n"
-        text += f"📅 **Created:** {request['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n"
-        text += f"⚡ **Status:** {request['status'].title()}\n"
-        
+        text += f"🔑 **Bot Token:** `{request['bot_token'][:8]}...{request['bot_token'][-4:]}`\n"
+        text += f"🗄️ **MongoDB URL:** `{request['mongodb_url'][:30]}...`\n"
+        text += f"💰 **Plan:** {plan_details.get('name', 'Unknown')}\n"
+        text += f"💵 **Price:** ${plan_details.get('price', 'N/A')}\n"
+        text += f"📅 **Duration:** {plan_details.get('duration_days', 'N/A')} days\n"
+        text += f"📊 **Status:** {request['status']}\n"
+        text += f"🕐 **Submitted:** {request['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n"
+
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("✅ Approve", callback_data=f"approve_request:{request_id}"),
                 InlineKeyboardButton("❌ Reject", callback_data=f"reject_request:{request_id}")
             ],
-            [InlineKeyboardButton("🔙 Back to Pending", callback_data="mother_pending_requests")]
+            [InlineKeyboardButton("🔙 Back to Pending Requests", callback_data="mother_pending_requests")]
         ])
-        
+
         await query.edit_message_text(text, reply_markup=buttons)
-        
+
     except Exception as e:
         print(f"ERROR: Error viewing request details: {e}")
         await query.answer("❌ Error loading request details!", show_alert=True)
+
+# Mother Bot callback handlers
+@Client.on_callback_query(filters.regex("^(mother_|back_to_mother_panel|admin_)"), group=CALLBACK_PRIORITIES["admin"])
+async def mother_admin_callback_router(client: Client, query: CallbackQuery):
+    """Route Mother Bot admin callbacks"""
+    user_id = query.from_user.id
+    print(f"DEBUG: Admin callback router - {query.data} from user {user_id}")
+
+    # Let specific handlers handle their callbacks
+    pass
+
+# Quick approval/rejection callbacks (Priority 2) - This is now handled by handle_quick_actions
+# @Client.on_callback_query(filters.regex("^(quick_approve|quick_reject|approve_request|reject_request):"), group=CALLBACK_PRIORITIES["approval"])
+# async def approval_callback_handler(client: Client, query: CallbackQuery):
+#     """Handle approval/rejection callbacks"""
+#     print(f"DEBUG: Approval callback - {query.data} from user {query.from_user.id}")
+
+#     # Check admin permissions
+#     if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+#         return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+#     try:
+#         action, request_id = query.data.split(":", 1)
+
+#         if action in ["quick_approve", "approve_request"]:
+#             from bot.plugins.clone_approval import approve_clone_request
+#             await approve_clone_request(client, query, request_id)
+#         elif action in ["quick_reject", "reject_request"]:
+#             from bot.plugins.clone_approval import reject_clone_request
+#             await reject_clone_request(client, query, request_id)
+
+#     except Exception as e:
+#         print(f"ERROR: Error in approval callback: {e}")
+#         await query.answer("❌ Error processing request!", show_alert=True)
+
+# View request details handler - This is now handled by handle_view_request_details
+# @Client.on_callback_query(filters.regex("^view_request:"), group=CALLBACK_PRIORITIES["approval"])
+# async def handle_view_request_details(client: Client, query: CallbackQuery):
+#     """Handle viewing request details"""
+#     if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+#         return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+#     request_id = query.data.split(":", 1)[1]
+
+#     try:
+#         from bot.database.clone_db import get_clone_request_by_id
+#         request = await get_clone_request_by_id(request_id)
+
+#         if not request:
+#             await query.answer("❌ Request not found!", show_alert=True)
+#             return
+
+#         # Format request details
+#         masked_token = f"{request['bot_token'][:8]}...{request['bot_token'][-4:]}"
+#         plan_details = request.get('plan_details', {})
+#         plan_name = plan_details.get('name', request.get('plan', 'monthly'))
+
+#         text = f"📋 **Clone Request Details**\n\n"
+#         text += f"🆔 **Request ID:** `{request_id}`\n"
+#         text += f"👤 **User ID:** `{request['user_id']}`\n"
+#         text += f"🤖 **Bot Username:** @{request.get('bot_username', 'Unknown')}\n"
+#         text += f"🔑 **Bot Token:** `{masked_token}`\n"
+#         text += f"🗄️ **Database URL:** `{request['mongodb_url'][:30]}...`\n"
+#         text += f"💰 **Plan:** {plan_name.title()}\n"
+#         text += f"📅 **Created:** {request['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n"
+#         text += f"⚡ **Status:** {request['status'].title()}\n"
+
+#         buttons = InlineKeyboardMarkup([
+#             [
+#                 InlineKeyboardButton("✅ Approve", callback_data=f"approve_request:{request_id}"),
+#                 InlineKeyboardButton("❌ Reject", callback_data=f"reject_request:{request_id}")
+#             ],
+#             [InlineKeyboardButton("🔙 Back to Pending", callback_data="mother_pending_requests")]
+#         ])
+
+#         await query.edit_message_text(text, reply_markup=buttons)
+
+#     except Exception as e:
+#         print(f"ERROR: Error viewing request details: {e}")
+#         await query.answer("❌ Error loading request details!", show_alert=True)
 
 # Premium System Callbacks (Priority 3)
 @Client.on_callback_query(filters.regex("^(show_premium_plans|buy_premium)"), group=CALLBACK_PRIORITIES["premium"])
 async def premium_callback_handler(client: Client, query: CallbackQuery):
     """Handle premium-related callbacks"""
     print(f"DEBUG: Premium callback - {query.data} from user {query.from_user.id}")
-    
+
     # Import from existing callback handler
     if query.data == "show_premium_plans":
         from bot.plugins.callback import show_premium_callback
@@ -145,9 +236,9 @@ async def premium_callback_handler(client: Client, query: CallbackQuery):
 async def search_callback_handler(client: Client, query: CallbackQuery):
     """Handle search and random file callbacks"""
     print(f"DEBUG: Search callback - {query.data} from user {query.from_user.id}")
-    
+
     callback_data = query.data
-    
+
     # Route to existing handlers
     if callback_data == "execute_rand":
         from bot.plugins.callback import execute_rand_callback
@@ -173,9 +264,9 @@ async def search_callback_handler(client: Client, query: CallbackQuery):
 async def general_callback_handler(client: Client, query: CallbackQuery):
     """Handle general purpose callbacks"""
     print(f"DEBUG: General callback - {query.data} from user {query.from_user.id}")
-    
+
     callback_data = query.data
-    
+
     if callback_data == "about":
         from bot.plugins.callback import about_callback
         await about_callback(client, query)
@@ -207,7 +298,7 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
 async def feature_toggle_callback(client: Client, query: CallbackQuery):
     """Handle feature toggling callbacks"""
     print(f"DEBUG: Feature toggle callback - {query.data} from user {query.from_user.id}")
-    
+
     # Import from admin panel
     from bot.plugins.admin_panel import toggle_feature_handler
     await toggle_feature_handler(client, query)
@@ -217,8 +308,8 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
 async def debug_unhandled_callbacks(client: Client, query: CallbackQuery):
     """Debug handler for unhandled callbacks"""
     callback_data = query.data
-    
+
     print(f"⚠️ UNHANDLED CALLBACK: {callback_data} from user {query.from_user.id}")
-    
+
     # Don't respond to avoid conflicts, just log
     pass
