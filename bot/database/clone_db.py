@@ -198,6 +198,20 @@ async def get_global_about():
         logger.error(f"❌ Error getting global about: {e}")
         return ""
 
+async def set_global_about(about_text: str):
+    """Set global about message"""
+    try:
+        await global_settings_collection.update_one(
+            {"key": "global_about"},
+            {"$set": {"value": about_text, "updated_at": datetime.now()}},
+            upsert=True
+        )
+        logger.info(f"✅ Global about message updated")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Error setting global about: {e}")
+        return False
+
 async def get_user_clones(user_id: int):
     """Get all clones belonging to a user"""
     try:
