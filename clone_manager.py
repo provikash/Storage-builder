@@ -29,9 +29,16 @@ class CloneManager:
                 return False, "No subscription found"
 
             # Allow active, pending_payment, or manual approval
-            valid_statuses = ['active', 'pending_payment']
+            valid_statuses = ['active', 'pending_payment', 'pending']
             if subscription['status'] not in valid_statuses and not subscription.get('payment_verified', False):
                 return False, f"Subscription status is {subscription['status']}"
+            
+            # If subscription is pending, schedule a retry
+            if subscription['status'] == 'pending':
+                logger.info(f"⏳ Clone {bot_id} subscription pending - will retry later")
+                # Schedule retry after 5 minutes
+                asyncio.create_task(self._retry_pending_clone(bot_id, 300))
+                return False, f"Subscription status is pending - retry scheduled"
 
             if bot_id in self.active_clones:
                 return True, "Clone already running"
@@ -194,6 +201,26 @@ class CloneManager:
             logger.info("✅ Subscription check completed")
         except Exception as e:
             logger.error(f"❌ Error checking subscriptions: {e}")
+
+    async def _retry_pending_clone(self, bot_id: str, delay: int = 300):
+        """Retry starting a clone with pending subscription after delay"""
+        try:
+            await asyncio.sleep(delay)
+            
+            # Check if subscription is now active
+            subscription = await get_subscription(bot_id)
+            if subscription and subscription['status'] == 'active':
+                logger.info(f"🔄 Retrying clone {bot_id} - subscription now active")
+                success, message = await self.start_clone(bot_id)
+                if success:
+                    logger.info(f"✅ Successfully started pending clone {bot_id}")
+                else:
+                    logger.warning(f"⚠️ Still failed to start clone {bot_id}: {message}")
+            else:
+                logger.info(f"⏳ Clone {bot_id} subscription still pending")
+                
+        except Exception as e:
+            logger.error(f"❌ Error retrying pending clone {bot_id}: {e}")
 
     async def cleanup_inactive_clones(self):
         """Cleanup inactive or expired clones"""

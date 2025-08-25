@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 from bot.database.subscription_db import check_expired_subscriptions, get_subscription
-from bot.database.clone_db import deactivate_clone
+from bot.database.clone_db import deactivate_clone, get_clone
 from clone_manager import clone_manager
 from bot.logging import LOGGER
 
@@ -25,17 +25,48 @@ class SubscriptionChecker:
                 await asyncio.sleep(300)  # Wait 5 minutes on error
 
     async def check_subscriptions(self):
-        """Check for expired subscriptions"""
+        """Check for expired subscriptions and activate pending ones"""
         logger.info("🔍 Checking subscription status...")
 
         try:
+            # Check expired subscriptions
             expired_clones = await check_expired_subscriptions()
-
             for clone_id in expired_clones:
                 await self.handle_expired_subscription(clone_id)
                 logger.info(f"⚠️ Deactivated expired clone: {clone_id}")
+            
+            # Check for pending subscriptions that became active
+            await self.check_pending_subscriptions()
+            
         except Exception as e:
             logger.error(f"❌ Error checking subscriptions: {e}")
+
+    async def check_pending_subscriptions(self):
+        """Check for pending subscriptions that became active"""
+        try:
+            from bot.database.subscription_db import subscriptions_collection
+            from bot.database.clone_db import get_all_clones
+            
+            # Find clones that are inactive with active subscriptions
+            active_subscriptions = await subscriptions_collection.find({
+                "status": "active"
+            }).to_list(None)
+            
+            for subscription in active_subscriptions:
+                bot_id = subscription['bot_id']
+                
+                # Check if clone exists but isn't running
+                clone = await get_clone(bot_id) if 'get_clone' in globals() else None
+                if clone and clone.get('status') != 'active':
+                    # Try to start the clone
+                    success, message = await clone_manager.start_clone(bot_id)
+                    if success:
+                        logger.info(f"✅ Started previously pending clone {bot_id}")
+                    else:
+                        logger.warning(f"⚠️ Failed to start clone {bot_id}: {message}")
+                        
+        except Exception as e:
+            logger.error(f"❌ Error checking pending subscriptions: {e}")
 
     async def handle_expired_subscription(self, clone_id: str):
         """Handle an expired subscription"""
