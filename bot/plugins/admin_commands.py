@@ -142,11 +142,20 @@ async def create_clone_command(client: Client, message: Message):
     admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
     print(f"DEBUG: createclone admin check - user_id: {user_id}, owner_id: {owner_id}, admins: {admins}, admin_list: {admin_list}")
 
-    if user_id not in admin_list:
-        print(f"DEBUG: createclone access denied for user {user_id}")
-        return await message.reply_text("❌ Only Mother Bot admins can create clones.")
+    # Removed admin check, now available for all users
 
-    print(f"DEBUG: createclone access granted for user {user_id}")
+    # Check for sufficient balance (example, replace with actual balance check logic)
+    user_balance = await get_user_balance(user_id) # Assuming get_user_balance exists
+    clone_cost = 10 # Example cost, replace with actual cost from config or DB
+
+    if user_balance < clone_cost:
+        await message.reply_text(
+            f"❌ **Insufficient Balance**\n\n"
+            f"Your current balance is {user_balance}. "
+            f"You need at least {clone_cost} to create a clone. "
+            f"Please add balance to your account."
+        )
+        return
 
     if len(message.command) < 4:
         return await message.reply_text(
@@ -169,6 +178,8 @@ async def create_clone_command(client: Client, message: Message):
         success, result = await clone_manager.create_clone(bot_token, admin_id, db_url, tier)
 
         if success:
+            # Deduct balance after successful creation
+            await deduct_user_balance(user_id, clone_cost) # Assuming deduct_user_balance exists
             await processing_msg.edit_text(
                 f"🎉 **Clone Created Successfully!**\n\n"
                 f"🤖 **Bot Username:** @{result['username']}\n"
@@ -241,7 +252,7 @@ async def delete_all_clones_command(client: Client, message: Message):
     try:
         # Wait for user confirmation
         response = await client.listen(message.chat.id, timeout=30)
-        
+
         if response.text != "CONFIRM DELETE ALL":
             return await confirmation_msg.edit_text("✅ **Operation Cancelled**\n\nNo clones were deleted.")
 
@@ -249,7 +260,7 @@ async def delete_all_clones_command(client: Client, message: Message):
 
         # Get all clones
         all_clones = await get_all_clones()
-        
+
         if not all_clones:
             return await processing_msg.edit_text("📝 **No Clones Found**\n\nThere are no clones to delete.")
 
@@ -260,7 +271,7 @@ async def delete_all_clones_command(client: Client, message: Message):
         for clone in all_clones:
             bot_id = clone['_id']
             username = clone.get('username', 'Unknown')
-            
+
             try:
                 # Stop the clone if running
                 if bot_id in clone_manager.active_clones:
@@ -270,7 +281,7 @@ async def delete_all_clones_command(client: Client, message: Message):
                 # Delete from database
                 clone_deleted = await delete_clone(bot_id)
                 config_deleted = await delete_clone_config(bot_id)
-                
+
                 # Delete subscription
                 try:
                     from bot.database.subscription_db import delete_subscription
@@ -310,7 +321,7 @@ async def delete_all_clones_command(client: Client, message: Message):
             result_text += "**Detailed Results:**\n"
             for result in results[:20]:  # Show first 20 results
                 result_text += f"{result}\n"
-            
+
             if len(results) > 20:
                 result_text += f"... and {len(results) - 20} more\n"
 
@@ -324,7 +335,7 @@ async def delete_all_clones_command(client: Client, message: Message):
         await message.reply_text(f"❌ **Error during mass deletion:**\n{str(e)}")
 
 
-            
+
 
 @Client.on_message(filters.command("setglobalabout") & filters.private)
 async def set_global_about(client: Client, message: Message):
@@ -694,12 +705,12 @@ async def start_clone_command(client: Client, message: Message):
     try:
         from clone_manager import clone_manager
         success, msg = await clone_manager.start_clone(bot_id)
-        
+
         if success:
             await message.reply_text(f"✅ Clone {bot_id} started successfully!\n{msg}")
         else:
             await message.reply_text(f"❌ Failed to start clone {bot_id}:\n{msg}")
-            
+
     except Exception as e:
         await message.reply_text(f"❌ Error starting clone: {str(e)}")
 
@@ -716,7 +727,7 @@ async def start_all_clones_command(client: Client, message: Message):
         from clone_manager import clone_manager
         started, total = await clone_manager.start_all_clones()
         await message.reply_text(f"🚀 Clone startup completed!\n✅ Started: {started}/{total} clones")
-        
+
     except Exception as e:
         await message.reply_text(f"❌ Error starting clones: {str(e)}")
 
@@ -837,3 +848,66 @@ async def disable_clone_command(client: Client, message: Message):
 
     except Exception as e:
         await message.reply_text(f"❌ Error disabling clone: {str(e)}")
+
+# Placeholder functions for balance management (replace with actual implementations)
+async def get_user_balance(user_id: int) -> float:
+    """Placeholder function to get user balance."""
+    # Replace with actual database call to retrieve user balance
+    print(f"DEBUG: Getting balance for user {user_id}")
+    return 50.0 # Example balance
+
+async def deduct_user_balance(user_id: int, amount: float):
+    """Placeholder function to deduct user balance."""
+    # Replace with actual database call to deduct balance
+    print(f"DEBUG: Deducting {amount} from user {user_id}'s balance")
+    pass
+
+# Placeholder for start message handler (needs to be implemented)
+@Client.on_message(filters.command("start") & filters.private)
+async def start_message_handler(client: Client, message: Message):
+    """Handles the /start command for all users."""
+    user_id = message.from_user.id
+    user_balance = await get_user_balance(user_id)
+    clone_cost = 10 # Example cost, should match the cost in create_clone_command
+
+    start_text = (
+        f"👋 Hello @{message.from_user.username}!\n\n"
+        f"💰 Your current balance is: {user_balance}\n\n"
+        f"You can create a new clone bot using the `/createclone` command.\n"
+        f"The cost to create a clone is {clone_cost}.\n\n"
+        f"**Available Commands:**\n"
+        f"• `/createclone` - Create a new clone bot\n"
+        f"• `/myclones` - View your created clones\n"
+        f"• `/addbalance` - Add balance to your account\n"
+    )
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Create Clone", callback_data="create_clone_button")],
+        [InlineKeyboardButton("➕ Add Balance", callback_data="add_balance_button")]
+    ])
+
+    await message.reply_text(start_text, reply_markup=buttons)
+
+# Placeholder for callback query handlers (needs to be implemented)
+@Client.on_callback_query(filters.regex("create_clone_button"))
+async def handle_create_clone_button(client: Client, callback_query):
+    """Handles the 'Create Clone' button click."""
+    user_id = callback_query.from_user.id
+    await callback_query.answer("Initiating clone creation...") # Acknowledge the callback
+    # You might want to prompt the user for clone details here or directly call create_clone_command logic
+    # For simplicity, let's just send a message prompting for the command
+    await callback_query.message.reply_text(
+        "To create a clone, please use the `/createclone` command with the required details:\n"
+        "`/createclone <bot_token> <admin_id> <db_url> [tier]`"
+    )
+
+@Client.on_callback_query(filters.regex("add_balance_button"))
+async def handle_add_balance_button(client: Client, callback_query):
+    """Handles the 'Add Balance' button click."""
+    user_id = callback_query.from_user.id
+    await callback_query.answer("Redirecting to add balance...")
+    # Implement logic to guide the user to add balance (e.g., payment links, instructions)
+    await callback_query.message.reply_text(
+        "To add balance, please follow these instructions or use the specified payment method.\n"
+        "*(This is a placeholder, implement your balance adding mechanism here)*"
+    )

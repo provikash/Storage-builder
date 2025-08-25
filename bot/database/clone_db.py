@@ -8,7 +8,7 @@ logger = LOGGER(__name__)
 
 # Clone database
 clone_client = AsyncIOMotorClient(Config.DATABASE_URL)
-clone_db = clone_client[Config.DATABASE_NAME]
+clone_db = clone_client[Config.DATABASE_DB_NAME] # Corrected to use Config.DATABASE_DB_NAME
 clones_collection = clone_db.clones # Renamed to avoid conflict with the import
 clone_configs_collection = clone_db.clone_configs # Renamed for clarity
 global_settings_collection = clone_db.global_settings # Renamed for clarity
@@ -190,16 +190,22 @@ async def set_global_force_channels(channels: list):
     await set_global_setting("global_force_channels", channels)
 
 async def get_global_about():
-    """Get global about page content"""
-    return await get_global_setting("global_about", "")
+    """Get global about message"""
+    try:
+        settings = await global_settings_collection.find_one({"key": "global_about"})
+        return settings.get("value", "") if settings else ""
+    except Exception as e:
+        logger.error(f"❌ Error getting global about: {e}")
+        return ""
 
-async def set_global_about(about_text: str):
-    """Set global about page content"""
-    await global_settings_collection.update_one(
-        {"_id": "global_about"},
-        {"$set": {"about_text": about_text, "updated_at": datetime.now()}},
-        upsert=True
-    )
+async def get_user_clones(user_id: int):
+    """Get all clones belonging to a user"""
+    try:
+        clones = await clones_collection.find({"admin_id": user_id}).to_list(None)
+        return clones
+    except Exception as e:
+        logger.error(f"❌ Error getting user clones for {user_id}: {e}")
+        return []
 
 async def get_total_subscriptions():
     """Get total number of subscriptions"""

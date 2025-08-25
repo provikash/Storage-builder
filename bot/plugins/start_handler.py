@@ -73,12 +73,24 @@ async def show_mother_bot_start(client: Client, message: Message, config: dict):
     me = await client.get_me()
     user_id = message.from_user.id
     
+    # Get user balance
+    from bot.database.balance_db import create_user_profile, get_user_balance
+    await create_user_profile(
+        user_id=user_id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name
+    )
+    current_balance = await get_user_balance(user_id)
+    
     # Check if user is admin
     is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
     
     start_text = f"🤖 **Welcome to {me.first_name}**\n\n"
     start_text += "🎛️ **Mother Bot System**\n"
     start_text += "The ultimate file-sharing bot with clone creation capabilities!\n\n"
+    
+    # Add balance information
+    start_text += f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
     
     if is_admin:
         start_text += "👑 **Admin Features:**\n"
@@ -101,11 +113,14 @@ async def show_mother_bot_start(client: Client, message: Message, config: dict):
     
     buttons = []
     
+    # Add create clone and balance buttons for all users
+    buttons.extend([
+        [InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation")],
+        [InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")]
+    ])
+    
     if is_admin:
-        buttons.extend([
-            [InlineKeyboardButton("🎛️ Admin Panel", callback_data="mother_admin_panel")],
-            [InlineKeyboardButton("🤖 Create Clone", callback_data="mother_create_clone")]
-        ])
+        buttons.append([InlineKeyboardButton("🎛️ Admin Panel", callback_data="mother_admin_panel")])
     
     buttons.extend([
         [InlineKeyboardButton("🔍 Search Files", callback_data="search_files")],
@@ -124,6 +139,15 @@ async def show_clone_bot_start(client: Client, message: Message, config: dict):
     me = await client.get_me()
     user_id = message.from_user.id
     
+    # Get user balance
+    from bot.database.balance_db import create_user_profile, get_user_balance
+    await create_user_profile(
+        user_id=user_id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name
+    )
+    current_balance = await get_user_balance(user_id)
+    
     # Get custom messages or use defaults
     custom_messages = config.get('custom_messages', {})
     global_about = await get_global_about()
@@ -137,6 +161,9 @@ async def show_clone_bot_start(client: Client, message: Message, config: dict):
         start_text = f"🤖 **Welcome to {me.first_name}**\n\n"
         start_text += "📁 **Professional File Sharing Bot**\n"
         start_text += "Fast, reliable, and secure file sharing service.\n\n"
+        
+        # Add balance information
+        start_text += f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
         
         start_text += "✨ **Features:**\n"
         if config['features'].get('search', True):
@@ -193,7 +220,8 @@ async def show_clone_bot_start(client: Client, message: Message, config: dict):
     
     buttons.extend([
         [InlineKeyboardButton("🎲 Random Files", callback_data="random_files")],
-        [InlineKeyboardButton("🤖 Create Your Clone", url="https://t.me/your_mother_bot?start=create_clone")],
+        [InlineKeyboardButton("🤖 Create Your Clone", callback_data="start_clone_creation")],
+        [InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")],
         [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
     ])
     
@@ -275,3 +303,73 @@ async def check_subscription_callback(client, query):
             await show_clone_bot_start(client, query.message, config)
     else:
         await query.answer("❌ Please join all required channels first!", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^start_clone_creation$"))
+async def start_clone_creation_callback(client, query):
+    """Handle create clone button"""
+    await query.answer()
+    
+    # Import the clone creation function
+    from bot.plugins.clone_request import create_clone_command
+    
+    # Create a fake message object to trigger the command
+    class FakeMessage:
+        def __init__(self, user):
+            self.from_user = user
+            self.chat = user
+            self.command = ["createclone"]
+        
+        async def reply_text(self, text, reply_markup=None):
+            return await query.edit_message_text(text, reply_markup=reply_markup)
+    
+    fake_message = FakeMessage(query.from_user)
+    await create_clone_command(client, fake_message)
+
+@Client.on_callback_query(filters.regex("^add_balance$"))
+async def add_balance_callback(client, query):
+    """Handle add balance button"""
+    await query.answer()
+    
+    from bot.database.balance_db import get_user_balance, get_user_transactions
+    
+    user_id = query.from_user.id
+    current_balance = await get_user_balance(user_id)
+    recent_transactions = await get_user_transactions(user_id, limit=5)
+    
+    text = f"💰 **Balance Management**\n\n"
+    text += f"💵 **Current Balance:** ${current_balance:.2f}\n\n"
+    
+    if recent_transactions:
+        text += "📊 **Recent Transactions:**\n"
+        for trans in recent_transactions[:3]:
+            emoji = "➕" if trans['type'] == 'credit' else "➖"
+            text += f"{emoji} ${trans['amount']:.2f} - {trans['description']}\n"
+        text += "\n"
+    
+    text += "💳 **Payment Methods:**\n"
+    text += "• PayPal: Contact admin\n"
+    text += "• Cryptocurrency: Contact admin\n"
+    text += "• Bank Transfer: Contact admin\n\n"
+    text += "📞 **Contact admin to add balance to your account**"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("💬 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+        [InlineKeyboardButton("🔄 Refresh Balance", callback_data="add_balance")],
+        [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^back_to_start$"))
+async def back_to_start_callback(client, query):
+    """Handle back to start button"""
+    await query.answer()
+    
+    # Show start message again
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    config = await clone_config_loader.get_bot_config(bot_token)
+    
+    if config['bot_info'].get('is_mother_bot', False):
+        await show_mother_bot_start(client, query.message, config)
+    else:
+        await show_clone_bot_start(client, query.message, config)

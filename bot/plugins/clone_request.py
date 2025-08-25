@@ -13,9 +13,9 @@ logger = LOGGER(__name__)
 # Store user request sessions
 request_sessions = {}
 
-@Client.on_message(filters.command("requestclone") & filters.private)
-async def request_clone_command(client: Client, message: Message):
-    """Handle clone request initiation"""
+@Client.on_message(filters.command("createclone") & filters.private)
+async def create_clone_command(client: Client, message: Message):
+    """Handle clone creation with automatic balance checking"""
     user_id = message.from_user.id
 
     # Create user profile if doesn't exist
@@ -29,19 +29,22 @@ async def request_clone_command(client: Client, message: Message):
     # Get current balance
     current_balance = await get_user_balance(user_id)
 
-    # Check if user already has a pending request
-    existing_request = await get_pending_clone_request(user_id)
-    if existing_request:
+    # Check if user already has an active clone
+    from bot.database.clone_db import get_user_clones
+    user_clones = await get_user_clones(user_id)
+    active_clones = [clone for clone in user_clones if clone.get('status') == 'active']
+    
+    if active_clones:
         return await message.reply_text(
-            "⏳ **You already have a pending clone request!**\n\n"
-            f"Request ID: `{existing_request['request_id'][:8]}...`\n"
-            f"Status: {existing_request['status'].title()}\n"
-            f"Submitted: {existing_request['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+            "⚠️ **You already have an active clone!**\n\n"
+            f"🤖 **Active Clone:** @{active_clones[0].get('username', 'Unknown')}\n"
+            f"🆔 **Bot ID:** `{active_clones[0]['_id']}`\n"
+            f"📊 **Status:** {active_clones[0]['status'].title()}\n\n"
             f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
-            "Please wait for admin approval or contact support."
+            "You can only have one active clone at a time."
         )
 
-    # Start request session
+    # Start creation session
     request_sessions[user_id] = {
         'step': 'bot_token',
         'data': {},
@@ -49,7 +52,7 @@ async def request_clone_command(client: Client, message: Message):
     }
 
     await message.reply_text(
-        f"🤖 **Clone Bot Request Process**\n\n"
+        f"🤖 **Create Your Clone Bot**\n\n"
         f"Welcome {message.from_user.first_name}! Let's set up your clone bot.\n\n"
         f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
         f"**Step 1/4: Bot Token**\n\n"
@@ -58,7 +61,7 @@ async def request_clone_command(client: Client, message: Message):
         f"⚠️ **Important:** Keep your token secure and never share it publicly!"
     )
 
-@Client.on_message(filters.private & ~filters.command(["start", "help", "about", "admin", "requestclone"]))
+@Client.on_message(filters.private & ~filters.command(["start", "help", "about", "admin", "createclone"]))
 async def handle_clone_request_input(client: Client, message: Message):
     """Handle user input during clone request process"""
     user_id = message.from_user.id
@@ -72,7 +75,7 @@ async def handle_clone_request_input(client: Client, message: Message):
         del request_sessions[user_id]
         await message.reply_text(
             "⏰ **Session expired!**\n\n"
-            "Your clone request session has timed out. Please start again with /requestclone"
+            "Your clone creation session has timed out. Please start again with /createclone"
         )
         return
 
@@ -264,7 +267,7 @@ async def show_request_confirmation(client: Client, query: CallbackQuery, user_i
 
 @Client.on_callback_query(filters.regex("^confirm_request$"))
 async def handle_request_confirmation(client: Client, query: CallbackQuery):
-    """Handle request confirmation and submission"""
+    """Handle clone creation with automatic balance processing"""
     user_id = query.from_user.id
     session = request_sessions.get(user_id)
 
@@ -272,61 +275,86 @@ async def handle_request_confirmation(client: Client, query: CallbackQuery):
         return await query.answer("❌ Session expired!", show_alert=True)
 
     try:
-        # Generate request ID
-        request_id = str(uuid.uuid4())
         data = session['data']
+        plan_details = data['plan_details']
+        required_amount = plan_details['price']
 
-        # Create clone request
-        request_data = {
-            "request_id": request_id,
-            "user_id": user_id,
-            "bot_token": data['bot_token'],
-            "bot_username": data['bot_username'],
-            "bot_id": data['bot_id'],
-            "mongodb_url": data['mongodb_url'],
-            "subscription_plan": data['subscription_plan'],
-            "plan_details": data['plan_details'],
-            "status": "pending",
-            "created_at": datetime.now(),
-            "requester_info": {
-                "first_name": query.from_user.first_name,
-                "last_name": query.from_user.last_name,
-                "username": query.from_user.username
-            }
-        }
-
-        from bot.database.clone_db import create_clone_request
-        success = await create_clone_request(request_data)
-
-        if not success:
+        # Check balance
+        from bot.database.balance_db import get_user_balance, check_sufficient_balance
+        current_balance = await get_user_balance(user_id)
+        
+        if not await check_sufficient_balance(user_id, required_amount):
             await query.edit_message_text(
-                "❌ **Error submitting request!**\n\n"
-                "Please try again later or contact support."
+                f"❌ **Insufficient Balance!**\n\n"
+                f"💰 **Required:** ${required_amount:.2f}\n"
+                f"💰 **Your Balance:** ${current_balance:.2f}\n"
+                f"💰 **Needed:** ${required_amount - current_balance:.2f}\n\n"
+                f"Please add balance to your account and try again.\n\n"
+                f"Use the 'Add Balance' button in the main menu to top up your account."
             )
+            # Clean up session
+            del request_sessions[user_id]
             return
 
-        # Clean up session
-        del request_sessions[user_id]
-
-        # Notify user
-        await query.edit_message_text(
-            f"✅ **Clone Request Submitted Successfully!**\n\n"
-            f"📋 **Request ID:** `{request_id}`\n"
-            f"🤖 **Bot:** @{data['bot_username']}\n"
-            f"💰 **Plan:** {data['plan_details']['name']}\n"
-            f"📅 **Submitted:** {datetime.now().strftime('%Y-%m-%d %H:%M UTC')}\n\n"
-            f"⏳ **Status:** Pending Review\n\n"
-            f"You'll receive a notification once your request is reviewed by our administrators.\n\n"
-            f"Thank you for choosing our service! 🎉"
+        # Process automatic clone creation
+        processing_msg = await query.edit_message_text(
+            f"⚙️ **Creating Your Clone...**\n\n"
+            f"💰 **Deducting ${required_amount:.2f} from your balance...**\n"
+            f"🤖 **Setting up @{data['bot_username']}...**\n\n"
+            f"Please wait, this may take a few moments..."
         )
 
-        # Notify admins
-        await notify_admins_new_request(client, request_data)
+        success, result = await process_clone_auto_approval(user_id, data)
+
+        if success:
+            # Clean up session
+            del request_sessions[user_id]
+            
+            if isinstance(result, dict):
+                message_text = (
+                    f"🎉 **Clone Created Successfully!**\n\n"
+                    f"🤖 **Bot:** @{result['bot_username']}\n"
+                    f"💰 **Plan:** {result['plan']}\n"
+                    f"💵 **Amount Deducted:** ${result['amount_deducted']:.2f}\n"
+                )
+
+                if result['clone_started']:
+                    message_text += f"\n✅ **Status:** Your bot is now running and ready to use!"
+                    message_text += f"\n🔗 **Bot Link:** https://t.me/{result['bot_username']}"
+                else:
+                    message_text += f"\n⚠️ **Status:** Clone created but will start automatically within a few minutes."
+
+                # Get remaining balance
+                remaining_balance = await get_user_balance(user_id)
+                message_text += f"\n💰 **Remaining Balance:** ${remaining_balance:.2f}"
+
+                await processing_msg.edit_text(message_text)
+            else:
+                await processing_msg.edit_text(
+                    f"🎉 **Clone Created Successfully!**\n\n"
+                    f"🤖 **Bot:** @{data['bot_username']}\n"
+                    f"💰 **Plan:** {plan_details['name']}\n"
+                    f"💵 **Amount Deducted:** ${required_amount:.2f}\n\n"
+                    f"✅ Your clone is now being set up and will be ready shortly!"
+                )
+        else:
+            # Clean up session
+            del request_sessions[user_id]
+            
+            await processing_msg.edit_text(
+                f"❌ **Clone Creation Failed!**\n\n"
+                f"Error: {result}\n\n"
+                f"Your balance has not been deducted. Please try again or contact support."
+            )
 
     except Exception as e:
-        logger.error(f"Error submitting clone request: {e}")
+        logger.error(f"Error creating clone: {e}")
+        # Clean up session
+        if user_id in request_sessions:
+            del request_sessions[user_id]
+        
         await query.edit_message_text(
-            "❌ **Error submitting request!**\n\n"
+            "❌ **Error creating clone!**\n\n"
             "Please try again later or contact support."
         )
 
@@ -339,8 +367,8 @@ async def handle_request_cancellation(client: Client, query: CallbackQuery):
         del request_sessions[user_id]
 
     await query.edit_message_text(
-        "❌ **Clone request cancelled.**\n\n"
-        "You can start a new request anytime with /requestclone"
+        "❌ **Clone creation cancelled.**\n\n"
+        "You can start creating a clone anytime with /createclone"
     )
 
 async def notify_admins_new_request(client: Client, request_data):
