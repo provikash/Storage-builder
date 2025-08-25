@@ -60,8 +60,10 @@ async def create_clone_with_db(bot_token, admin_id, db_url):
             "username": me.username,
             "first_name": me.first_name,
             "token": bot_token,
+            "bot_token": bot_token,  # Add both for compatibility
             "admin_id": admin_id,
             "db_url": db_url,
+            "mongodb_url": db_url,  # Add both for compatibility
             "db_name": f"clone_{me.id}",
             "created_at": datetime.now(),
             "status": "pending_payment",

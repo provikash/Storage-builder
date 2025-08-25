@@ -257,17 +257,23 @@ async def main():
         logger.info("✅ Graceful shutdown completed")
 
 if __name__ == "__main__":
-    # Test MongoDB connection before starting the main application
+    # Test MongoDB connection
     try:
         from bot.database.mongo_db import MongoDB
-        mongo_db = MongoDB()
-        mongo_db.client.admin.command('ping') # Check connection
-        logger.info("✅ MongoDB connection test successful.")
-    except pymongo.errors.ConnectionFailure as e:
-        logger.error(f"❌ MongoDB connection test failed: {e}")
-        sys.exit(1)
+        mongo = MongoDB()
+        asyncio.run(mongo.test_connection()) # Ensure test_connection is awaited if it's an async method
+        logger.info("✅ MongoDB connection test successful")
+        mongo.close()
     except Exception as e:
         logger.error(f"❌ An unexpected error occurred during MongoDB connection test: {e}")
         sys.exit(1)
 
-    asyncio.run(main())
+    # Start all active clones
+    try:
+        started, total = asyncio.run(clone_manager.start_all_clones()) # Ensure start_all_clones is awaited
+        logger.info(f"🚀 Started {started}/{total} clones on startup")
+    except Exception as e:
+        logger.error(f"❌ Error starting clones on startup: {e}")
+
+    # Keep the bot running
+    asyncio.run(idle())

@@ -561,6 +561,49 @@ async def reject_clone_command(client: Client, message: Message):
     except Exception as e:
         await message.reply_text(f"❌ Error rejecting clone: {str(e)}")
 
+@Client.on_message(filters.command("startclone") & filters.private)
+async def start_clone_command(client: Client, message: Message):
+    """Manually start a specific clone"""
+    user_id = message.from_user.id
+
+    # Check admin permissions
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await message.reply_text("❌ Only Mother Bot administrators can start clones.")
+
+    if len(message.command) < 2:
+        return await message.reply_text("❌ Usage: `/startclone <bot_id>`")
+
+    bot_id = message.command[1]
+
+    try:
+        from clone_manager import clone_manager
+        success, msg = await clone_manager.start_clone(bot_id)
+        
+        if success:
+            await message.reply_text(f"✅ Clone {bot_id} started successfully!\n{msg}")
+        else:
+            await message.reply_text(f"❌ Failed to start clone {bot_id}:\n{msg}")
+            
+    except Exception as e:
+        await message.reply_text(f"❌ Error starting clone: {str(e)}")
+
+@Client.on_message(filters.command("startallclones") & filters.private)
+async def start_all_clones_command(client: Client, message: Message):
+    """Manually start all active clones"""
+    user_id = message.from_user.id
+
+    # Check admin permissions
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await message.reply_text("❌ Only Mother Bot administrators can start clones.")
+
+    try:
+        from clone_manager import clone_manager
+        started, total = await clone_manager.start_all_clones()
+        await message.reply_text(f"🚀 Clone startup completed!\n✅ Started: {started}/{total} clones")
+        
+    except Exception as e:
+        await message.reply_text(f"❌ Error starting clones: {str(e)}")
+
 @Client.on_message(filters.command("deleteclone") & filters.private)
 async def delete_clone_command(client: Client, message: Message):
     """Delete a clone permanently"""

@@ -104,14 +104,20 @@ async def approve_clone_request(client: Client, query: CallbackQuery, request_id
                 # Start the clone bot
                 try:
                     from clone_manager import clone_manager
+                    # Wait a moment for database to sync
+                    await asyncio.sleep(1)
                     success, message = await clone_manager.start_clone(bot_id)
                     if success:
                         debug_print(f"Clone bot {bot_id} started successfully: {message}")
                     else:
                         debug_print(f"Failed to start clone bot {bot_id}: {message}")
-                        # Try to start it anyway, maybe the manager will handle it
-                        await clone_manager.add_clone(bot_token, requester_id, mongodb_url)
-                        debug_print(f"Added clone {bot_id} to manager queue")
+                        # Retry once more
+                        await asyncio.sleep(2)
+                        success, message = await clone_manager.start_clone(bot_id)
+                        if success:
+                            debug_print(f"Clone bot {bot_id} started on retry: {message}")
+                        else:
+                            debug_print(f"Clone bot {bot_id} failed to start after retry: {message}")
                 except Exception as start_error:
                     debug_print(f"Error starting clone bot {bot_id}: {start_error}")
                     # Continue with approval even if starting fails

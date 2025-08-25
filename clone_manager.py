@@ -27,15 +27,16 @@ class CloneManager:
             if not subscription:
                 return False, "No subscription found"
 
-            # Allow active or pending_payment status for manual approval system
-            if subscription['status'] not in ['active', 'pending_payment']:
+            # Allow active, pending_payment, or manual approval
+            valid_statuses = ['active', 'pending_payment']
+            if subscription['status'] not in valid_statuses and not subscription.get('payment_verified', False):
                 return False, f"Subscription status is {subscription['status']}"
 
             if bot_id in self.active_clones:
                 return True, "Clone already running"
 
             # Create bot instance
-            bot_token = clone['token']
+            bot_token = clone.get('bot_token') or clone.get('token')
             clone_bot = Client(
                 f"clone_{bot_id}",
                 api_id=Config.API_ID,
