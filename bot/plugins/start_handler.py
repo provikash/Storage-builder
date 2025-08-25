@@ -115,8 +115,11 @@ async def show_mother_bot_start(client: Client, message: Message, config: dict):
     
     # Add create clone and balance buttons for all users
     buttons.extend([
-        [InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation")],
-        [InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")]
+        [
+            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("💰 Check Balance", callback_data="check_balance")
+        ],
+        [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")]
     ])
     
     if is_admin:
@@ -220,8 +223,11 @@ async def show_clone_bot_start(client: Client, message: Message, config: dict):
     
     buttons.extend([
         [InlineKeyboardButton("🎲 Random Files", callback_data="random_files")],
-        [InlineKeyboardButton("🤖 Create Your Clone", callback_data="start_clone_creation")],
-        [InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")],
+        [
+            InlineKeyboardButton("🤖 Create Your Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("💰 Check Balance", callback_data="check_balance")
+        ],
+        [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")],
         [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
     ])
     
@@ -304,26 +310,58 @@ async def check_subscription_callback(client, query):
     else:
         await query.answer("❌ Please join all required channels first!", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^start_clone_creation$"))
-async def start_clone_creation_callback(client, query):
-    """Handle create clone button"""
+# Clone creation handler is now in step_clone_creation.py
+
+@Client.on_callback_query(filters.regex("^manage_my_clone$"))
+async def manage_my_clone_callback(client, query):
+    """Handle manage my clone button"""
     await query.answer()
     
-    # Import the clone creation function
-    from bot.plugins.clone_request import create_clone_command
+    user_id = query.from_user.id
+    user_clones = await get_user_clones(user_id)
+    active_clones = [clone for clone in user_clones if clone.get('status') == 'active']
     
-    # Create a fake message object to trigger the command
-    class FakeMessage:
-        def __init__(self, user):
-            self.from_user = user
-            self.chat = user
-            self.command = ["createclone"]
+    if not active_clones:
+        text = f"❌ **No Active Clone Found**\n\n"
+        text += f"You don't have any active clones.\n"
+        text += f"Would you like to create one?"
         
-        async def reply_text(self, text, reply_markup=None):
-            return await query.edit_message_text(text, reply_markup=reply_markup)
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation")],
+            [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+        ])
+        
+        return await query.edit_message_text(text, reply_markup=buttons)
     
-    fake_message = FakeMessage(query.from_user)
-    await create_clone_command(client, fake_message)
+    clone = active_clones[0]  # Get the first active clone
+    
+    # Get subscription info
+    from bot.database.subscription_db import get_subscription_by_bot_id
+    subscription = await get_subscription_by_bot_id(clone['_id'])
+    
+    text = f"📋 **Your Clone Management**\n\n"
+    text += f"🤖 **Bot:** @{clone.get('username', 'Unknown')}\n"
+    text += f"🆔 **Bot ID:** `{clone['_id']}`\n"
+    text += f"📊 **Status:** {clone['status'].title()}\n"
+    text += f"📅 **Created:** {clone.get('created_at', datetime.now()).strftime('%Y-%m-%d')}\n"
+    
+    if subscription:
+        text += f"💰 **Plan:** {subscription.get('tier', 'Unknown').title()}\n"
+        if subscription.get('expiry'):
+            text += f"⏰ **Expires:** {subscription['expiry'].strftime('%Y-%m-%d')}\n"
+        text += f"🔄 **Auto Renew:** {'Yes' if subscription.get('auto_renew', False) else 'No'}\n"
+    
+    text += f"\n🔗 **Bot Link:** https://t.me/{clone.get('username', 'unknown')}"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 Open Bot", url=f"https://t.me/{clone.get('username', 'unknown')}")],
+        [InlineKeyboardButton("⚙️ Bot Settings", callback_data=f"clone_settings:{clone['_id']}")],
+        [InlineKeyboardButton("📊 Statistics", callback_data=f"clone_stats:{clone['_id']}")],
+        [InlineKeyboardButton("💰 Subscription", callback_data=f"clone_subscription:{clone['_id']}")],
+        [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^add_balance$"))
 async def add_balance_callback(client, query):
@@ -355,6 +393,54 @@ async def add_balance_callback(client, query):
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("💬 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
         [InlineKeyboardButton("🔄 Refresh Balance", callback_data="add_balance")],
+        [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^check_balance$"))
+async def check_balance_callback(client, query):
+    """Handle check balance button"""
+    await query.answer()
+    
+    from bot.database.balance_db import get_user_balance, get_user_transactions
+    
+    user_id = query.from_user.id
+    current_balance = await get_user_balance(user_id)
+    recent_transactions = await get_user_transactions(user_id, limit=5)
+    
+    text = f"💰 **Your Balance Information**\n\n"
+    text += f"💵 **Current Balance:** ${current_balance:.2f}\n\n"
+    
+    if recent_transactions:
+        text += "📊 **Recent Transactions:**\n"
+        for trans in recent_transactions[:3]:
+            emoji = "➕" if trans['type'] == 'credit' else "➖"
+            date_str = trans['timestamp'].strftime('%m-%d %H:%M')
+            text += f"{emoji} ${trans['amount']:.2f} - {trans['description']} ({date_str})\n"
+        text += "\n"
+    else:
+        text += "📊 **Recent Transactions:** No transactions yet\n\n"
+    
+    text += "💡 **Clone Creation Costs:**\n"
+    text += "• Monthly Plan: $3.00\n"
+    text += "• Quarterly Plan: $8.00\n"
+    text += "• Semi-Annual Plan: $15.00\n"
+    text += "• Yearly Plan: $26.00\n\n"
+    
+    # Check if user can afford any plan
+    if current_balance >= 3.00:
+        text += "✅ **You can create a clone!**"
+    else:
+        text += f"❌ **Insufficient balance for clone creation**\n"
+        text += f"You need at least $3.00 to create a clone."
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")
+        ],
+        [InlineKeyboardButton("🔄 Refresh", callback_data="check_balance")],
         [InlineKeyboardButton("« Back", callback_data="back_to_start")]
     ])
     
