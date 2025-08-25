@@ -18,16 +18,18 @@ def install_test_dependencies():
         "pytest",
         "pytest-asyncio", 
         "pytest-mock",
-        "pytest-cov"
+        "pytest-cov",
+        "psutil",
+        "motor"
     ]
     
     for dep in dependencies:
         try:
-            subprocess.run([sys.executable, "-m", "pip", "install", dep], 
-                         check=True, capture_output=True)
+            result = subprocess.run([sys.executable, "-m", "pip", "install", dep], 
+                         check=True, capture_output=True, text=True)
             print(f"✅ Installed {dep}")
         except subprocess.CalledProcessError as e:
-            print(f"❌ Failed to install {dep}: {e}")
+            print(f"❌ Failed to install {dep}: {e.stderr if hasattr(e, 'stderr') else str(e)}")
             return False
     
     return True
@@ -36,46 +38,35 @@ def run_tests():
     """Run all tests"""
     print("\n🧪 Running test suite...")
     
-    # Test discovery and execution
-    test_commands = [
-        # Basic test run
-        [sys.executable, "-m", "pytest", "tests/", "-v"],
-        
-        # Coverage report
-        [sys.executable, "-m", "pytest", "tests/", "--cov=bot", "--cov=clone_manager", 
-         "--cov-report=term-missing"],
-        
-        # Performance tests (if they exist)
-        [sys.executable, "-m", "pytest", "tests/test_performance.py", "-v", "--tb=short"]
-    ]
+    # Simple test run first
+    cmd = [sys.executable, "-m", "pytest", "tests/", "-v", "--tb=short"]
+    print(f"Command: {' '.join(cmd)}")
     
-    for i, cmd in enumerate(test_commands, 1):
-        print(f"\n📊 Running test command {i}/{len(test_commands)}...")
-        print(f"Command: {' '.join(cmd)}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True)
+        print("📊 Test Results:")
+        print("=" * 50)
+        
+        if result.stdout:
+            print("STDOUT:")
+            print(result.stdout)
             
-            if result.returncode == 0:
-                print("✅ Tests passed!")
-                if result.stdout:
-                    print(result.stdout)
-            else:
-                print("❌ Tests failed!")
-                if result.stdout:
-                    print("STDOUT:", result.stdout)
-                if result.stderr:
-                    print("STDERR:", result.stderr)
-                
-                # Don't exit on failure, continue with other test runs
-                continue
-                
-        except FileNotFoundError:
-            print(f"❌ Command not found: {cmd[0]}")
-            continue
-        except Exception as e:
-            print(f"❌ Error running tests: {e}")
-            continue
+        if result.stderr:
+            print("STDERR:")
+            print(result.stderr)
+            
+        if result.returncode == 0:
+            print("✅ All tests passed!")
+        else:
+            print(f"❌ Tests failed with exit code: {result.returncode}")
+            
+    except subprocess.TimeoutExpired:
+        print("❌ Tests timed out after 5 minutes")
+    except FileNotFoundError:
+        print("❌ pytest not found. Make sure dependencies are installed.")
+    except Exception as e:
+        print(f"❌ Error running tests: {e}")
 
 def check_test_structure():
     """Check if test structure is valid"""

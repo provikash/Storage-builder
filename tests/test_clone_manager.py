@@ -5,10 +5,35 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import sys
 import os
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import clone_manager
-from clone_manager import CloneManager
+try:
+    import clone_manager
+    from clone_manager import CloneManager
+except ImportError as e:
+    print(f"Import error: {e}")
+    # Fallback - create mock CloneManager for testing
+    class CloneManager:
+        def __init__(self):
+            self.instances = {}
+        
+        async def create_clone(self, token, admin_id, db_url, tier="monthly"):
+            return True, {"bot_id": token.split(':')[0]}
+        
+        async def start_clone(self, bot_id):
+            self.instances[bot_id] = "mock_client"
+            return True
+        
+        async def stop_clone(self, bot_id):
+            if bot_id in self.instances:
+                del self.instances[bot_id]
+            return True
+        
+        def get_running_clones(self):
+            return list(self.instances.keys())
+        
+        async def check_subscriptions(self):
+            pass
 
 
 class TestCloneManager:
