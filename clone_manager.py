@@ -5,6 +5,7 @@ from pyrogram import Client
 from pyrogram.errors import AuthKeyUnregistered, AccessTokenExpired, AccessTokenInvalid
 from info import Config
 from bot.database.clone_db import *
+from bot.database.subscription_db import get_subscription
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
