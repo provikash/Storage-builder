@@ -7,6 +7,7 @@ from pathlib import Path
 from pyrogram import idle
 from bot import Bot
 from clone_manager import clone_manager
+import pymongo
 
 # Setup logging first
 from bot.logging import LOGGER
@@ -143,11 +144,11 @@ async def main():
 
         # Check requirements
         if not await check_requirements():
-            return
+            sys.exit(1)
 
         # Initialize databases
         if not await initialize_databases():
-            return
+            sys.exit(1)
 
         # Start mother bot
         app = await start_mother_bot()
@@ -256,4 +257,17 @@ async def main():
         logger.info("✅ Graceful shutdown completed")
 
 if __name__ == "__main__":
+    # Test MongoDB connection before starting the main application
+    try:
+        from bot.database.mongo_db import MongoDB
+        mongo_db = MongoDB()
+        mongo_db.client.admin.command('ping') # Check connection
+        logger.info("✅ MongoDB connection test successful.")
+    except pymongo.errors.ConnectionFailure as e:
+        logger.error(f"❌ MongoDB connection test failed: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"❌ An unexpected error occurred during MongoDB connection test: {e}")
+        sys.exit(1)
+
     asyncio.run(main())

@@ -26,6 +26,8 @@ async def create_clone(clone_data: dict):
     except Exception as e:
         logger.error(f"Error creating clone: {e}")
         return False
+
+async def create_clone_with_db(bot_token, admin_id, db_url):
     """Create a new clone entry with separate database"""
     from pyrogram import Client
     from motor.motor_asyncio import AsyncIOMotorClient
@@ -383,13 +385,14 @@ async def reject_clone_request(request_id: str):
         logger.error(f"Error rejecting request {request_id}: {e}")
         return False
 
-async def create_clone_request(request_data: dict):
-    """Create a new clone request in database"""
+async def create_clone_request(request_data):
+    """Create a new clone request"""
     try:
         await clone_requests_collection.insert_one(request_data)
+        logger.info(f"SUCCESS: Created clone request {request_data['request_id']}")
         return True
     except Exception as e:
-        logger.error(f"Error creating clone request: {e}")
+        logger.error(f"ERROR: Error creating clone request: {e}")
         return False
 
 async def get_clone_request(request_id: str):
@@ -402,12 +405,12 @@ async def get_clone_request(request_id: str):
         return None
 
 async def get_clone_request_by_id(request_id: str):
-    """Get clone request by ID"""
+    """Get a specific clone request by ID"""
     try:
         request = await clone_requests_collection.find_one({"request_id": request_id})
         return request
     except Exception as e:
-        logger.error(f"Error getting request by ID {request_id}: {e}")
+        logger.error(f"ERROR: Error getting clone request {request_id}: {e}")
         return None
 
 async def get_pending_clone_request(user_id: int):

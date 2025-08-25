@@ -53,6 +53,15 @@ async def handle_clone_request_input(client: Client, message: Message):
 
     if not session:
         return
+    
+    # Check if session is expired (30 minutes)
+    if (datetime.now() - session['started_at']).seconds > 1800:
+        del request_sessions[user_id]
+        await message.reply_text(
+            "⏰ **Session expired!**\n\n"
+            "Your clone request session has timed out. Please start again with /requestclone"
+        )
+        return
 
     step = session['step']
     user_input = message.text.strip()
@@ -68,25 +77,36 @@ async def handle_clone_request_input(client: Client, message: Message):
 
         # Test bot token
         try:
+            logger.info(f"Testing bot token for user {user_id}")
             from pyrogram import Client as TestClient
+            import asyncio
+            
             test_client = TestClient(
                 name=f"test_{user_input[:10]}",
                 api_id=Config.API_ID,
                 api_hash=Config.API_HASH,
-                bot_token=user_input
+                bot_token=user_input,
+                in_memory=True
             )
-            await test_client.start()
-            me = await test_client.get_me()
-            await test_client.stop()
+            
+            # Add timeout for token validation
+            try:
+                await asyncio.wait_for(test_client.start(), timeout=30.0)
+                me = await test_client.get_me()
+                await test_client.stop()
+            except asyncio.TimeoutError:
+                raise Exception("Token validation timed out")
 
             session['data']['bot_token'] = user_input
-            session['data']['bot_username'] = me.username
+            session['data']['bot_username'] = me.username or f"bot_{me.id}"
             session['data']['bot_id'] = me.id
             session['step'] = 'mongodb_url'
 
+            logger.info(f"Bot token validated for user {user_id}: @{me.username}")
+
             await message.reply_text(
                 f"✅ **Bot Token Validated!**\n\n"
-                f"🤖 Bot: @{me.username}\n"
+                f"🤖 Bot: @{me.username or f'bot_{me.id}'}\n"
                 f"🆔 Bot ID: `{me.id}`\n\n"
                 f"**Step 2/4: Database URL**\n\n"
                 f"Please provide your MongoDB connection URL:\n\n"
@@ -96,10 +116,15 @@ async def handle_clone_request_input(client: Client, message: Message):
             )
 
         except Exception as e:
+            logger.error(f"Bot token validation failed for user {user_id}: {e}")
             await message.reply_text(
                 f"❌ **Bot token validation failed!**\n\n"
                 f"Error: {str(e)}\n\n"
-                f"Please check your token and try again."
+                f"Please check your token and try again.\n\n"
+                f"Make sure:\n"
+                f"• Token is from @BotFather\n"
+                f"• Token format is correct (number:letters)\n"
+                f"• Bot is not deleted or restricted"
             )
 
     elif step == 'mongodb_url':
@@ -113,23 +138,36 @@ async def handle_clone_request_input(client: Client, message: Message):
 
         # Test MongoDB connection
         try:
+            logger.info(f"Testing MongoDB connection for user {user_id}")
             from motor.motor_asyncio import AsyncIOMotorClient
-            test_client = AsyncIOMotorClient(user_input)
-            test_db = test_client.test_db
-            await test_db.command("ping")
+            import asyncio
+            
+            test_client = AsyncIOMotorClient(user_input, serverSelectionTimeoutMS=10000)
+            test_db = test_client.test_connection_db
+            
+            # Add timeout for MongoDB connection test
+            await asyncio.wait_for(test_db.command("ping"), timeout=15.0)
             test_client.close()
 
             session['data']['mongodb_url'] = user_input
             session['step'] = 'subscription_plan'
 
+            logger.info(f"MongoDB connection validated for user {user_id}")
+
             # Show subscription plans
             await show_subscription_plans(client, message, user_id)
 
         except Exception as e:
+            logger.error(f"MongoDB connection failed for user {user_id}: {e}")
             await message.reply_text(
                 f"❌ **Database connection failed!**\n\n"
                 f"Error: {str(e)}\n\n"
-                f"Please check your MongoDB URL and try again."
+                f"Please check your MongoDB URL and try again.\n\n"
+                f"Make sure:\n"
+                f"• URL starts with mongodb:// or mongodb+srv://\n"
+                f"• Credentials are correct\n"
+                f"• Database server is accessible\n"
+                f"• Network allows connections"
             )
 
 async def show_subscription_plans(client: Client, message: Message, user_id: int):

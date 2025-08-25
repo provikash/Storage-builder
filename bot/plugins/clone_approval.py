@@ -62,10 +62,25 @@ async def approve_clone_request(client: Client, query: CallbackQuery, request_id
             debug_print(f"Clone created successfully for bot {bot_id}")
 
             # Create subscription
+            plan_name = plan_details.get('name', 'basic').lower()
+            # Map plan names to valid plan keys
+            plan_mapping = {
+                'monthly plan': 'monthly',
+                'basic': 'basic',
+                'premium': 'premium',
+                'unlimited': 'unlimited',
+                '3 months plan': 'quarterly',
+                '6 months plan': 'semi_annual',
+                'yearly plan': 'yearly'
+            }
+            
+            plan_key = plan_mapping.get(plan_name, 'basic')
+            debug_print(f"Creating subscription with plan_key: {plan_key}")
+            
             sub_success = await create_subscription(
                 bot_id=bot_id,
                 user_id=requester_id,
-                plan=plan_details.get('name', 'basic'),
+                plan=plan_key,
                 payment_verified=True
             )
 
