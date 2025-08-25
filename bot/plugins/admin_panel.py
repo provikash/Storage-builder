@@ -116,6 +116,7 @@ async def mother_admin_panel(client: Client, query_or_message):
         [InlineKeyboardButton("⏳ Pending Clone Requests", callback_data="mother_pending_requests")],
         [InlineKeyboardButton("🤖 Manage Clones", callback_data="mother_manage_clones")],
         [InlineKeyboardButton("💰 Subscriptions", callback_data="mother_subscriptions")],
+        [InlineKeyboardButton("💳 User Balances", callback_data="mother_user_balances")],
         [InlineKeyboardButton("⚙️ Global Settings", callback_data="mother_global_settings")],
         [InlineKeyboardButton("📊 System Statistics", callback_data="mother_statistics")]
     ])
@@ -286,6 +287,14 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
         await handle_mother_manage_subscriptions(client, query)
     elif callback_data == "mother_global_settings":
         await handle_mother_global_settings(client, query)
+    elif callback_data == "mother_user_balances":
+        await handle_mother_user_balances(client, query)
+    elif callback_data == "mother_add_balance":
+        await handle_mother_add_balance(client, query)
+    elif callback_data == "mother_view_balances":
+        await handle_mother_view_balances(client, query)
+    elif callback_data.startswith("add_balance_"):
+        await handle_specific_add_balance(client, query, callback_data.split("_", 2)[2])
     elif callback_data == "back_to_mother_panel":
         debug_print(f"Navigating back to Mother Bot panel for user {user_id}")
         await mother_admin_panel(client, query)
@@ -829,6 +838,118 @@ async def handle_mother_global_settings(client: Client, query: CallbackQuery):
                 [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
             ])
         )
+
+async def handle_mother_user_balances(client: Client, query: CallbackQuery):
+    """Handle user balance management interface"""
+    user_id = query.from_user.id
+    debug_print(f"handle_mother_user_balances called by user {user_id}")
+
+    try:
+        from bot.database.balance_db import get_all_user_balances
+        user_balances = await get_all_user_balances()
+        
+        text = f"💳 **User Balance Management**\n\n"
+        
+        if not user_balances:
+            text += "❌ No user balances found."
+        else:
+            total_balances = sum(user['balance'] for user in user_balances)
+            text += f"💰 **Total System Balance:** ${total_balances:.2f}\n"
+            text += f"👥 **Total Users:** {len(user_balances)}\n\n"
+            text += "**Top Users by Balance:**\n"
+            
+            for i, user in enumerate(user_balances[:5], 1):
+                username = user.get('username', 'Unknown')
+                first_name = user.get('first_name', 'Unknown')
+                user_display = f"@{username}" if username else first_name
+                text += f"{i}. {user_display} - ${user['balance']:.2f}\n"
+            
+            if len(user_balances) > 5:
+                text += f"... and {len(user_balances) - 5} more users\n"
+
+        text += f"\n**Quick Actions:**\n"
+        text += f"• Use buttons below to manage balances\n"
+        text += f"• Or use `/addbalance <user_id> <amount> [reason]`"
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 View All Balances", callback_data="mother_view_balances")],
+            [InlineKeyboardButton("💰 Add Balance", callback_data="mother_add_balance")],
+            [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+        ])
+
+        await query.edit_message_text(text, reply_markup=buttons)
+        debug_print(f"Displayed user balance management for user {user_id}")
+
+    except Exception as e:
+        debug_print(f"ERROR: Error in handle_mother_user_balances for user {user_id}: {e}")
+        await query.edit_message_text(
+            f"❌ **Error loading user balances**\n\nError: {str(e)}",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+            ])
+        )
+
+async def handle_mother_view_balances(client: Client, query: CallbackQuery):
+    """Handle viewing all user balances"""
+    user_id = query.from_user.id
+    debug_print(f"handle_mother_view_balances called by user {user_id}")
+
+    try:
+        from bot.database.balance_db import get_all_user_balances
+        user_balances = await get_all_user_balances()
+        
+        text = f"📊 **All User Balances**\n\n"
+        
+        if not user_balances:
+            text += "❌ No user balances found."
+        else:
+            for i, user in enumerate(user_balances[:10], 1):
+                username = user.get('username', 'Unknown')
+                first_name = user.get('first_name', 'Unknown')
+                user_display = f"@{username}" if username else first_name
+                text += f"**{i}. {user_display}**\n"
+                text += f"   💰 Balance: ${user['balance']:.2f}\n"
+                text += f"   📊 Total Spent: ${user.get('total_spent', 0):.2f}\n"
+                text += f"   🆔 User ID: `{user['user_id']}`\n\n"
+            
+            if len(user_balances) > 10:
+                text += f"... and {len(user_balances) - 10} more users\n"
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💰 Add Balance", callback_data="mother_add_balance")],
+            [InlineKeyboardButton("🔙 Back to Balance Management", callback_data="mother_user_balances")]
+        ])
+
+        await query.edit_message_text(text, reply_markup=buttons)
+        debug_print(f"Displayed all user balances for user {user_id}")
+
+    except Exception as e:
+        debug_print(f"ERROR: Error in handle_mother_view_balances for user {user_id}: {e}")
+        await query.answer("❌ Error loading balances!", show_alert=True)
+
+async def handle_mother_add_balance(client: Client, query: CallbackQuery):
+    """Handle add balance interface"""
+    user_id = query.from_user.id
+    debug_print(f"handle_mother_add_balance called by user {user_id}")
+
+    text = f"💰 **Add Balance to User**\n\n"
+    text += f"**Format:** `/addbalance <user_id> <amount> [reason]`\n\n"
+    text += f"**Examples:**\n"
+    text += f"• `/addbalance 123456789 10.50 Bonus credit`\n"
+    text += f"• `/addbalance 123456789 25 Monthly allowance`\n"
+    text += f"• `/addbalance 123456789 5 Support credit`\n\n"
+    text += f"**Guidelines:**\n"
+    text += f"• Amount must be positive\n"
+    text += f"• Reason is optional but recommended\n"
+    text += f"• User will be notified automatically"
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("📊 View All Balances", callback_data="mother_view_balances")],
+        [InlineKeyboardButton("🔙 Back to Balance Management", callback_data="mother_user_balances")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
+    debug_print(f"Displayed add balance interface for user {user_id}")
 
 async def handle_mother_manage_clones(client: Client, query: CallbackQuery):
     """Handle clone management interface"""

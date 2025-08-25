@@ -73,6 +73,36 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
         if not query.data.startswith("back_to_") and query.data != "refresh_dashboard":
             await query.answer("❌ Error processing request!", show_alert=True)
 
+# Handle start message admin buttons
+@Client.on_callback_query(filters.regex("^(admin_panel|start)$"), group=CALLBACK_PRIORITIES["admin"])
+async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
+    """Handle admin panel and start buttons from start message"""
+    user_id = query.from_user.id
+    print(f"DEBUG: Start admin button - {query.data} from user {user_id}")
+
+    if query.data == "admin_panel":
+        # Check admin permissions
+        if not is_mother_admin(user_id):
+            return await query.answer("❌ Unauthorized access!", show_alert=True)
+        
+        # Route to admin panel
+        from bot.plugins.admin_panel import mother_admin_panel
+        await mother_admin_panel(client, query)
+    
+    elif query.data == "start":
+        # Handle start button - show start message
+        from bot.plugins.start_handler import start_command
+        # Convert callback to message-like object
+        class FakeMessage:
+            def __init__(self, query):
+                self.from_user = query.from_user
+                self.chat = query.message.chat
+            async def reply_text(self, text, reply_markup=None, **kwargs):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+        
+        fake_message = FakeMessage(query)
+        await start_command(client, fake_message)
+
 # Handle quick approval/rejection callbacks
 @Client.on_callback_query(filters.regex("^(quick_approve|quick_reject|view_request):"), group=CALLBACK_PRIORITIES["approval"])
 async def handle_quick_actions(client: Client, query: CallbackQuery):
