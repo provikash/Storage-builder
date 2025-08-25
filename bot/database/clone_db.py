@@ -8,7 +8,7 @@ logger = LOGGER(__name__)
 
 # Clone database
 clone_client = AsyncIOMotorClient(Config.DATABASE_URL)
-clone_db = clone_client[Config.DATABASE_DB_NAME] # Corrected to use Config.DATABASE_DB_NAME
+clone_db = clone_client[Config.DATABASE_NAME] # Corrected to use Config.DATABASE_DB_NAME
 clones_collection = clone_db.clones # Renamed to avoid conflict with the import
 clone_configs_collection = clone_db.clone_configs # Renamed for clarity
 global_settings_collection = clone_db.global_settings # Renamed for clarity
