@@ -28,22 +28,27 @@ class CloneManager:
             if not subscription:
                 return False, "No subscription found"
 
-            # Allow active, pending_payment, or manual approval
-            valid_statuses = ['active', 'pending_payment', 'pending']
-            if subscription['status'] not in valid_statuses and not subscription.get('payment_verified', False):
-                return False, f"Subscription status is {subscription['status']}"
+            # Allow active subscriptions or payment verified subscriptions
+            is_active_status = subscription['status'] == 'active'
+            is_payment_verified = subscription.get('payment_verified', False)
             
-            # If subscription is pending, schedule a retry but don't fail the start process
-            if subscription['status'] == 'pending':
-                logger.info(f"⏳ Clone {bot_id} subscription pending - will retry later")
-                # Schedule retry after 5 minutes
-                asyncio.create_task(self._retry_pending_clone(bot_id, 300))
-                # Update database to reflect pending status
-                await clones_collection.update_one(
-                    {"_id": bot_id},
-                    {"$set": {"status": "pending_subscription", "last_check": datetime.now()}}
-                )
-                return True, f"Clone {bot_id} subscription pending - retry scheduled"
+            if not is_active_status and not is_payment_verified:
+                # Only fail if both conditions are false
+                if subscription['status'] in ['expired', 'cancelled']:
+                    return False, f"Subscription {subscription['status']}"
+                # For pending status, allow if payment is verified
+                if subscription['status'] == 'pending' and not is_payment_verified:
+                    logger.info(f"⏳ Clone {bot_id} subscription pending - will retry later")
+                    # Schedule retry after 5 minutes
+                    asyncio.create_task(self._retry_pending_clone(bot_id, 300))
+                    # Update database to reflect pending status
+                    await clones_collection.update_one(
+                        {"_id": bot_id},
+                        {"$set": {"status": "pending_subscription", "last_check": datetime.now()}}
+                    )
+                    return True, f"Clone {bot_id} subscription pending - retry scheduled"
+            
+            
 
             if bot_id in self.active_clones:
                 return True, "Clone already running"

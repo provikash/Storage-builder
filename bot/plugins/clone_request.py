@@ -17,6 +17,17 @@ request_sessions = {}
 async def request_clone_command(client: Client, message: Message):
     """Handle clone request initiation"""
     user_id = message.from_user.id
+    
+    # Create user profile if doesn't exist
+    from bot.database.balance_db import create_user_profile, get_user_balance
+    user_profile = await create_user_profile(
+        user_id=user_id,
+        username=message.from_user.username,
+        first_name=message.from_user.first_name
+    )
+    
+    # Get current balance
+    current_balance = await get_user_balance(user_id)
 
     # Check if user already has a pending request
     existing_request = await get_pending_clone_request(user_id)
@@ -26,6 +37,7 @@ async def request_clone_command(client: Client, message: Message):
             f"Request ID: `{existing_request['request_id'][:8]}...`\n"
             f"Status: {existing_request['status'].title()}\n"
             f"Submitted: {existing_request['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n\n"
+            f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
             "Please wait for admin approval or contact support."
         )
 
@@ -37,12 +49,13 @@ async def request_clone_command(client: Client, message: Message):
     }
 
     await message.reply_text(
-        "🤖 **Clone Bot Request Process**\n\n"
-        "Welcome! Let's set up your clone bot. I'll need some information from you.\n\n"
-        "**Step 1/4: Bot Token**\n\n"
-        "Please provide your bot token from @BotFather:\n\n"
-        "Example: `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`\n\n"
-        "⚠️ **Important:** Keep your token secure and never share it publicly!"
+        f"🤖 **Clone Bot Request Process**\n\n"
+        f"Welcome {message.from_user.first_name}! Let's set up your clone bot.\n\n"
+        f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
+        f"**Step 1/4: Bot Token**\n\n"
+        f"Please provide your bot token from @BotFather:\n\n"
+        f"Example: `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`\n\n"
+        f"⚠️ **Important:** Keep your token secure and never share it publicly!"
     )
 
 @Client.on_message(filters.private & ~filters.command(["start", "help", "about", "admin", "requestclone"]))
@@ -521,3 +534,216 @@ async def cleanup_expired_sessions():
 
     for user_id in expired_sessions:
         del request_sessions[user_id]
+async def process_clone_auto_approval(user_id: int, request_data: dict):
+    """Process auto-approval if balance is sufficient"""
+    try:
+        from bot.database.balance_db import check_sufficient_balance, deduct_balance
+        from bot.database.subscription_db import create_subscription, PRICING_TIERS
+        from bot.database.clone_db import create_clone
+        from clone_manager import clone_manager
+        
+        plan_name = request_data.get('plan_details', {}).get('name', 'Monthly Plan').lower()
+        
+        # Map plan names to valid plan keys
+        plan_mapping = {
+            'monthly plan': 'monthly',
+            'basic': 'basic', 
+            'premium': 'premium',
+            'unlimited': 'unlimited',
+            '3 months plan': 'quarterly',
+            '6 months plan': 'semi_annual',
+            'yearly plan': 'yearly'
+        }
+        
+        plan_key = plan_mapping.get(plan_name, 'monthly')
+        plan_data = PRICING_TIERS.get(plan_key, PRICING_TIERS['monthly'])
+        required_amount = plan_data['price']
+        
+        # Check if user has sufficient balance
+        has_balance = await check_sufficient_balance(user_id, required_amount)
+        
+        if not has_balance:
+            logger.info(f"⚠️ Auto-approval failed for user {user_id}: insufficient balance (${required_amount} required)")
+            return False, f"Insufficient balance. Required: ${required_amount:.2f}"
+        
+        # Deduct balance
+        success, message = await deduct_balance(
+            user_id=user_id,
+            amount=required_amount,
+            description=f"Clone purchase - {plan_data['name']} plan"
+        )
+        
+        if not success:
+            return False, message
+        
+        # Extract bot details
+        bot_token = request_data['bot_token']
+        mongodb_url = request_data['mongodb_url']
+        bot_username = request_data.get('bot_username', 'Unknown')
+        bot_id = bot_token.split(':')[0]
+        
+        # Create clone entry
+        clone_data = {
+            "_id": bot_id,
+            "bot_token": bot_token,
+            "username": bot_username,
+            "admin_id": user_id,
+            "mongodb_url": mongodb_url,
+            "status": "active",
+            "created_at": datetime.now(),
+            "auto_approved": True,
+            "approved_at": datetime.now()
+        }
+        
+        clone_success = await create_clone(clone_data)
+        
+        if clone_success:
+            # Create subscription with payment verified (auto-approved)
+            sub_success = await create_subscription(
+                bot_id=bot_id,
+                user_id=user_id,
+                plan=plan_key,
+                payment_verified=True
+            )
+            
+            if sub_success:
+                # Activate subscription
+                from bot.database.subscription_db import activate_subscription
+                await activate_subscription(bot_id)
+                
+                # Activate clone
+                from bot.database.clone_db import activate_clone
+                await activate_clone(bot_id)
+                
+                # Start the clone bot
+                try:
+                    await asyncio.sleep(1)  # Wait for database sync
+                    start_success, start_message = await clone_manager.start_clone(bot_id)
+                    
+                    if start_success:
+                        logger.info(f"✅ Auto-approved and started clone {bot_id} for user {user_id}")
+                        return True, {
+                            'bot_id': bot_id,
+                            'bot_username': bot_username,
+                            'plan': plan_data['name'],
+                            'amount_deducted': required_amount,
+                            'clone_started': True
+                        }
+                    else:
+                        logger.warning(f"⚠️ Clone {bot_id} created but failed to start: {start_message}")
+                        return True, {
+                            'bot_id': bot_id,
+                            'bot_username': bot_username,
+                            'plan': plan_data['name'],
+                            'amount_deducted': required_amount,
+                            'clone_started': False,
+                            'start_error': start_message
+                        }
+                        
+                except Exception as start_error:
+                    logger.error(f"❌ Error starting auto-approved clone {bot_id}: {start_error}")
+                    return True, {
+                        'bot_id': bot_id,
+                        'bot_username': bot_username,
+                        'plan': plan_data['name'],
+                        'amount_deducted': required_amount,
+                        'clone_started': False,
+                        'start_error': str(start_error)
+                    }
+            else:
+                logger.error(f"❌ Failed to create subscription for auto-approved clone {bot_id}")
+                return False, "Failed to create subscription"
+        else:
+            logger.error(f"❌ Failed to create clone {bot_id}")
+            return False, "Failed to create clone"
+            
+    except Exception as e:
+        logger.error(f"❌ Error in auto-approval process: {e}")
+        return False, str(e)
+
+async def submit_clone_request(user_id: int):
+    """Submit clone request with auto-approval check"""
+    try:
+        session = request_sessions[user_id]
+        request_data = session['data']
+        
+        # Try auto-approval first
+        auto_success, auto_result = await process_clone_auto_approval(user_id, request_data)
+        
+        if auto_success:
+            # Auto-approval successful
+            from bot import Bot
+            bot = Bot()
+            
+            if isinstance(auto_result, dict):
+                message_text = (
+                    f"🎉 **Clone Auto-Approved & Created!**\n\n"
+                    f"🤖 **Bot:** @{auto_result['bot_username']}\n"
+                    f"💰 **Plan:** {auto_result['plan']}\n"
+                    f"💵 **Amount Deducted:** ${auto_result['amount_deducted']:.2f}\n"
+                )
+                
+                if auto_result['clone_started']:
+                    message_text += f"\n✅ **Status:** Your bot is now running and ready to use!"
+                else:
+                    message_text += f"\n⚠️ **Status:** Clone created but will start automatically within a few minutes."
+                
+                # Get remaining balance
+                from bot.database.balance_db import get_user_balance
+                remaining_balance = await get_user_balance(user_id)
+                message_text += f"\n💰 **Remaining Balance:** ${remaining_balance:.2f}"
+                
+                await bot.send_message(user_id, message_text)
+            
+            # Clean up session
+            del request_sessions[user_id]
+            return True
+        
+        else:
+            # Auto-approval failed, proceed with manual approval
+            logger.info(f"⚠️ Auto-approval failed for user {user_id}: {auto_result}")
+            
+            # Continue with existing manual approval process
+            request_id = str(uuid.uuid4())
+            
+            # Store in database for manual approval
+            request_doc = {
+                "request_id": request_id,
+                "user_id": user_id,
+                "bot_token": request_data['bot_token'],
+                "bot_username": request_data.get('bot_username', 'Unknown'),
+                "mongodb_url": request_data['mongodb_url'],
+                "plan_details": request_data['plan_details'],
+                "status": "pending",
+                "created_at": datetime.now(),
+                "auto_approval_failed": True,
+                "failure_reason": auto_result
+            }
+            
+            await store_clone_request(request_doc)
+            
+            from bot import Bot
+            bot = Bot()
+            
+            await bot.send_message(
+                user_id,
+                f"⏳ **Clone Request Submitted for Manual Review**\n\n"
+                f"🆔 **Request ID:** `{request_id[:8]}...`\n"
+                f"🤖 **Bot Username:** @{request_data.get('bot_username', 'Unknown')}\n"
+                f"💰 **Plan:** {request_data['plan_details']['name']}\n"
+                f"💵 **Required:** ${request_data['plan_details']['price']:.2f}\n\n"
+                f"❌ **Auto-approval failed:** {auto_result}\n\n"
+                f"Your request has been forwarded to administrators for manual review.\n"
+                f"You will be notified once it's processed."
+            )
+            
+            # Notify admins
+            await notify_admins_new_request(request_doc)
+            
+            # Clean up session
+            del request_sessions[user_id]
+            return True
+            
+    except Exception as e:
+        logger.error(f"❌ Error submitting clone request: {e}")
+        return False

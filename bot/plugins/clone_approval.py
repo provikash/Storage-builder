@@ -127,17 +127,49 @@ async def approve_clone_request(client: Client, query: CallbackQuery, request_id
                 plan_days = plan_details.get('duration_days', 30)
                 expiry_date = datetime.now() + timedelta(days=plan_days)
 
+                # For manual approval, also deduct balance if user has sufficient funds
+                balance_deducted = False
+                try:
+                    from bot.database.balance_db import check_sufficient_balance, deduct_balance
+                    required_amount = plan_details.get('price', 0)
+                    
+                    if required_amount > 0:
+                        has_balance = await check_sufficient_balance(requester_id, required_amount)
+                        if has_balance:
+                            success, message = await deduct_balance(
+                                user_id=requester_id,
+                                amount=required_amount,
+                                description=f"Manual approval - {plan_details.get('name', 'Monthly')} plan"
+                            )
+                            if success:
+                                balance_deducted = True
+                                debug_print(f"Deducted ${required_amount} from user {requester_id} balance")
+                except Exception as balance_error:
+                    debug_print(f"Balance deduction error: {balance_error}")
+
                 # Notify the requester
                 try:
-                    await client.send_message(
-                        requester_id,
+                    notification_text = (
                         f"🎉 **Clone Request Approved!**\n\n"
                         f"🤖 **Your Bot:** @{bot_username}\n"
                         f"💰 **Plan:** {plan_details.get('name', 'Monthly')}\n"
-                        f"📅 **Expires:** {expiry_date.strftime('%Y-%m-%d')}\n\n"
-                        f"Your bot is now active and ready to use!\n"
+                        f"📅 **Expires:** {expiry_date.strftime('%Y-%m-%d')}\n"
+                    )
+                    
+                    if balance_deducted:
+                        from bot.database.balance_db import get_user_balance
+                        remaining_balance = await get_user_balance(requester_id)
+                        notification_text += (
+                            f"💵 **Amount Deducted:** ${required_amount:.2f}\n"
+                            f"💰 **Remaining Balance:** ${remaining_balance:.2f}\n"
+                        )
+                    
+                    notification_text += (
+                        f"\nYour bot is now active and ready to use!\n"
                         f"Your clone will start automatically within a few minutes."
                     )
+                    
+                    await client.send_message(requester_id, notification_text)
                     debug_print(f"Notification sent to user {requester_id}")
                 except Exception as notify_error:
                     debug_print(f"Error notifying user {requester_id}: {notify_error}")
