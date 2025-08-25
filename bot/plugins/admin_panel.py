@@ -202,7 +202,7 @@ async def clone_admin_panel(client: Client, message: Message):
     await message.reply_text(panel_text, reply_markup=buttons)
 
 # Handle approval/rejection callbacks
-@Client.on_callback_query(filters.regex("^(approve_request|reject_request):"))
+@Client.on_callback_query(filters.regex("^(approve_request|reject_request|quick_approve|quick_reject):"))
 async def handle_clone_approval_callbacks(client: Client, query: CallbackQuery):
     """Handle clone request approval/rejection"""
     user_id = query.from_user.id
@@ -217,10 +217,10 @@ async def handle_clone_approval_callbacks(client: Client, query: CallbackQuery):
         action, request_id = query.data.split(":", 1)
         debug_print(f"Processing {action} for request {request_id}")
 
-        if action == "approve_request":
+        if action in ["approve_request", "quick_approve"]:
             from bot.plugins.clone_approval import approve_clone_request
             await approve_clone_request(client, query, request_id)
-        elif action == "reject_request":
+        elif action in ["reject_request", "quick_reject"]:
             from bot.plugins.clone_approval import reject_clone_request
             await reject_clone_request(client, query, request_id)
 

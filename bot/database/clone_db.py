@@ -161,8 +161,9 @@ async def activate_clone(clone_id: str):
     """Activate a clone"""
     await clones_collection.update_one(
         {"_id": clone_id},
-        {"$set": {"status": "active"}}
+        {"$set": {"status": "active", "activated_at": datetime.now()}}
     )
+    return True
 
 # Global settings
 async def set_global_setting(key: str, value):

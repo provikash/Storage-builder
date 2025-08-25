@@ -61,12 +61,12 @@ async def approve_clone_request(client: Client, query: CallbackQuery, request_id
         if clone_success:
             debug_print(f"Clone created successfully for bot {bot_id}")
 
-            # Create subscription
+            # Create subscription with payment verified (manual approval)
             plan_name = plan_details.get('name', 'basic').lower()
             # Map plan names to valid plan keys
             plan_mapping = {
                 'monthly plan': 'monthly',
-                'basic': 'basic',
+                'basic': 'basic', 
                 'premium': 'premium',
                 'unlimited': 'unlimited',
                 '3 months plan': 'quarterly',
@@ -77,25 +77,49 @@ async def approve_clone_request(client: Client, query: CallbackQuery, request_id
             plan_key = plan_mapping.get(plan_name, 'basic')
             debug_print(f"Creating subscription with plan_key: {plan_key}")
             
+            # Create subscription with payment_verified=True for manual approval
             sub_success = await create_subscription(
                 bot_id=bot_id,
                 user_id=requester_id,
                 plan=plan_key,
-                payment_verified=True
+                payment_verified=True  # Manual approval means payment is verified
             )
+            
+            # Also activate the subscription explicitly
+            if sub_success:
+                from bot.database.subscription_db import activate_subscription
+                await activate_subscription(bot_id)
 
             if sub_success:
-                debug_print(f"Subscription created for bot {bot_id}")
+                debug_print(f"Subscription created and activated for bot {bot_id}")
+
+                # Activate the clone status
+                from bot.database.clone_db import activate_clone
+                await activate_clone(bot_id)
+                debug_print(f"Clone {bot_id} activated in database")
 
                 # Update request status
                 await update_clone_request_status(request_id, "approved", user_id)
 
                 # Start the clone bot
                 try:
-                    await clone_manager.start_clone(bot_id)
-                    debug_print(f"Clone bot {bot_id} started successfully")
+                    from clone_manager import clone_manager
+                    success, message = await clone_manager.start_clone(bot_id)
+                    if success:
+                        debug_print(f"Clone bot {bot_id} started successfully: {message}")
+                    else:
+                        debug_print(f"Failed to start clone bot {bot_id}: {message}")
+                        # Try to start it anyway, maybe the manager will handle it
+                        await clone_manager.add_clone(bot_token, requester_id, mongodb_url)
+                        debug_print(f"Added clone {bot_id} to manager queue")
                 except Exception as start_error:
                     debug_print(f"Error starting clone bot {bot_id}: {start_error}")
+                    # Continue with approval even if starting fails
+
+                # Calculate actual expiry date
+                from datetime import timedelta
+                plan_days = plan_details.get('duration_days', 30)
+                expiry_date = datetime.now() + timedelta(days=plan_days)
 
                 # Notify the requester
                 try:
@@ -104,14 +128,15 @@ async def approve_clone_request(client: Client, query: CallbackQuery, request_id
                         f"🎉 **Clone Request Approved!**\n\n"
                         f"🤖 **Your Bot:** @{bot_username}\n"
                         f"💰 **Plan:** {plan_details.get('name', 'Monthly')}\n"
-                        f"📅 **Expires:** {datetime.now().strftime('%Y-%m-%d')}\n\n" # Assuming expiry calculation happens in create_subscription or is not needed here for notification
-                        f"Your bot is now active and ready to use!"
+                        f"📅 **Expires:** {expiry_date.strftime('%Y-%m-%d')}\n\n"
+                        f"Your bot is now active and ready to use!\n"
+                        f"Your clone will start automatically within a few minutes."
                     )
                     debug_print(f"Notification sent to user {requester_id}")
                 except Exception as notify_error:
                     debug_print(f"Error notifying user {requester_id}: {notify_error}")
 
-                await query.answer("✅ Request approved and clone created!", show_alert=True)
+                await query.answer("✅ Request approved, clone created and activated!", show_alert=True)
 
                 # Refresh the pending requests panel
                 from bot.plugins.admin_panel import handle_mother_pending_requests

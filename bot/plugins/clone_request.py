@@ -53,7 +53,7 @@ async def handle_clone_request_input(client: Client, message: Message):
 
     if not session:
         return
-    
+
     # Check if session is expired (30 minutes)
     if (datetime.now() - session['started_at']).seconds > 1800:
         del request_sessions[user_id]
@@ -80,7 +80,7 @@ async def handle_clone_request_input(client: Client, message: Message):
             logger.info(f"Testing bot token for user {user_id}")
             from pyrogram import Client as TestClient
             import asyncio
-            
+
             test_client = TestClient(
                 name=f"test_{user_input[:10]}",
                 api_id=Config.API_ID,
@@ -88,7 +88,7 @@ async def handle_clone_request_input(client: Client, message: Message):
                 bot_token=user_input,
                 in_memory=True
             )
-            
+
             # Add timeout for token validation
             try:
                 await asyncio.wait_for(test_client.start(), timeout=30.0)
@@ -141,10 +141,10 @@ async def handle_clone_request_input(client: Client, message: Message):
             logger.info(f"Testing MongoDB connection for user {user_id}")
             from motor.motor_asyncio import AsyncIOMotorClient
             import asyncio
-            
+
             test_client = AsyncIOMotorClient(user_input, serverSelectionTimeoutMS=10000)
             test_db = test_client.test_connection_db
-            
+
             # Add timeout for MongoDB connection test
             await asyncio.wait_for(test_db.command("ping"), timeout=15.0)
             test_client.close()
@@ -235,11 +235,12 @@ async def show_request_confirmation(client: Client, query: CallbackQuery, user_i
     text += f"🗄️ **Database:** `{masked_db}`\n"
     text += f"💰 **Plan:** {plan['name']} (${plan['price']})\n"
     text += f"⏱️ **Duration:** {plan['duration_days']} days\n\n"
-    text += "⚠️ **Important Notes:**\n"
-    text += "• Your request will be reviewed by administrators\n"
-    text += "• You'll be notified once approved/rejected\n"
-    text += "• Payment will be required after approval\n\n"
-    text += "Confirm your request?"
+    text += f"⚠️ **Important Notes:**\n"
+    text += f"• Your request will be reviewed by administrators\n"
+    text += f"• You'll be notified once approved/rejected\n"
+    text += f"• Payment will be manually verified by admin\n"
+    text += f"• Your clone will start automatically after approval\n\n"
+    text += f"Confirm your request?"
 
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("✅ Submit Request", callback_data="confirm_request")],
@@ -283,7 +284,7 @@ async def handle_request_confirmation(client: Client, query: CallbackQuery):
 
         from bot.database.clone_db import create_clone_request
         success = await create_clone_request(request_data)
-        
+
         if not success:
             await query.edit_message_text(
                 "❌ **Error submitting request!**\n\n"
