@@ -197,6 +197,120 @@ async def set_global_channels(client: Client, message: Message):
 
     if len(message.command) < 2:
         return await message.reply_text(
+
+
+@Client.on_message(filters.command("deleteallclones") & filters.private)
+async def delete_all_clones_command(client: Client, message: Message):
+    """Delete all clones permanently"""
+    user_id = message.from_user.id
+    print(f"DEBUG: deleteallclones command from user {user_id}")
+
+    # Check admin permissions
+    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
+    if user_id not in admin_list:
+        print(f"DEBUG: deleteallclones access denied for user {user_id}")
+        return await message.reply_text("❌ Only Mother Bot administrators can delete all clones.")
+
+    print(f"DEBUG: deleteallclones access granted for user {user_id}")
+
+    # Confirmation step
+    confirmation_msg = await message.reply_text(
+        "⚠️ **WARNING: DELETE ALL CLONES**\n\n"
+        "This will permanently delete ALL clone bots and their data:\n"
+        "• All clone bot instances\n"
+        "• All subscriptions\n"
+        "• All clone configurations\n"
+        "• All clone requests\n\n"
+        "🔥 **This action is IRREVERSIBLE!**\n\n"
+        "Type `CONFIRM DELETE ALL` to proceed or anything else to cancel."
+    )
+
+    try:
+        # Wait for user confirmation
+        response = await client.listen(message.chat.id, timeout=30)
+        
+        if response.text != "CONFIRM DELETE ALL":
+            return await confirmation_msg.edit_text("✅ **Operation Cancelled**\n\nNo clones were deleted.")
+
+        processing_msg = await confirmation_msg.edit_text("🔄 **Deleting All Clones...**\n\nThis may take a few moments...")
+
+        # Get all clones
+        all_clones = await get_all_clones()
+        
+        if not all_clones:
+            return await processing_msg.edit_text("📝 **No Clones Found**\n\nThere are no clones to delete.")
+
+        deleted_count = 0
+        failed_count = 0
+        results = []
+
+        for clone in all_clones:
+            bot_id = clone['_id']
+            username = clone.get('username', 'Unknown')
+            
+            try:
+                # Stop the clone if running
+                if bot_id in clone_manager.active_clones:
+                    await clone_manager.stop_clone(bot_id)
+                    print(f"DEBUG: Stopped running clone {bot_id}")
+
+                # Delete from database
+                clone_deleted = await delete_clone(bot_id)
+                config_deleted = await delete_clone_config(bot_id)
+                
+                # Delete subscription
+                try:
+                    from bot.database.subscription_db import delete_subscription
+                    await delete_subscription(bot_id)
+                except Exception as sub_e:
+                    print(f"DEBUG: Error deleting subscription for {bot_id}: {sub_e}")
+
+                # Delete clone requests
+                try:
+                    from bot.database.clone_db import clone_requests_collection
+                    await clone_requests_collection.delete_many({"bot_id": bot_id})
+                except Exception as req_e:
+                    print(f"DEBUG: Error deleting requests for {bot_id}: {req_e}")
+
+                if clone_deleted:
+                    deleted_count += 1
+                    results.append(f"✅ @{username}")
+                    print(f"DEBUG: Successfully deleted clone {bot_id}")
+                else:
+                    failed_count += 1
+                    results.append(f"❌ @{username}")
+                    print(f"DEBUG: Failed to delete clone {bot_id}")
+
+            except Exception as e:
+                failed_count += 1
+                results.append(f"❌ @{username} - {str(e)[:50]}...")
+                print(f"DEBUG: Error deleting clone {bot_id}: {e}")
+
+        # Update processing message with results
+        result_text = f"🗑️ **Mass Clone Deletion Complete**\n\n"
+        result_text += f"📊 **Summary:**\n"
+        result_text += f"✅ Successfully deleted: {deleted_count}\n"
+        result_text += f"❌ Failed to delete: {failed_count}\n"
+        result_text += f"📋 Total processed: {len(all_clones)}\n\n"
+
+        if results:
+            result_text += "**Detailed Results:**\n"
+            for result in results[:20]:  # Show first 20 results
+                result_text += f"{result}\n"
+            
+            if len(results) > 20:
+                result_text += f"... and {len(results) - 20} more\n"
+
+        result_text += f"\n⚠️ **All selected clones have been permanently removed.**"
+
+        await processing_msg.edit_text(result_text)
+
+    except asyncio.TimeoutError:
+        await confirmation_msg.edit_text("⏰ **Timeout**\n\nOperation cancelled due to timeout.")
+    except Exception as e:
+        await message.reply_text(f"❌ **Error during mass deletion:**\n{str(e)}")
+
+
             "Usage: `/setglobalchannels channel1 channel2 ...`\n\n"
             "Example: `/setglobalchannels @channel1 @channel2 -1001234567890`"
         )

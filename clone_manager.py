@@ -305,5 +305,46 @@ class CloneManager:
         except Exception as e:
             logger.error(f"❌ Error checking pending clones: {e}")
 
+    async def delete_all_clones(self):
+        """Delete all clones and clean up resources"""
+        try:
+            # Stop all running clones first
+            running_clones = list(self.active_clones.keys())
+            for bot_id in running_clones:
+                await self.stop_clone(bot_id)
+                logger.info(f"🛑 Stopped clone {bot_id}")
+
+            # Get all clones from database
+            all_clones = await get_all_clones()
+            deleted_count = 0
+            
+            for clone in all_clones:
+                bot_id = clone['_id']
+                try:
+                    # Delete from database
+                    from bot.database.clone_db import delete_clone, delete_clone_config
+                    from bot.database.subscription_db import delete_subscription
+                    
+                    await delete_clone(bot_id)
+                    await delete_clone_config(bot_id) 
+                    await delete_subscription(bot_id)
+                    
+                    deleted_count += 1
+                    logger.info(f"🗑️ Deleted clone {bot_id}")
+                    
+                except Exception as e:
+                    logger.error(f"❌ Error deleting clone {bot_id}: {e}")
+
+            # Clear internal tracking
+            self.active_clones.clear()
+            self.clone_tasks.clear()
+            
+            logger.info(f"🗑️ Mass deletion completed: {deleted_count} clones deleted")
+            return deleted_count, len(all_clones)
+            
+        except Exception as e:
+            logger.error(f"❌ Error in mass clone deletion: {e}")
+            return 0, 0
+
 # Create global instance
 clone_manager = CloneManager()
