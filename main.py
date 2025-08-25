@@ -195,12 +195,10 @@ async def main():
 
         # Start web server for monitoring dashboard
         try:
-            import threading
-            from web.server import run_server
-            web_thread = threading.Thread(target=run_server, daemon=True)
-            web_thread.start()
+            from web.server import start_webserver
+            web_thread = start_webserver()
             logger.info("✅ Web monitoring dashboard started on port 5000")
-            logger.info("🌐 Dashboard URL: http://localhost:5000/dashboard")
+            logger.info("🌐 Dashboard URL: http://0.0.0.0:5000/dashboard")
         except Exception as e:
             logger.error(f"❌ Web server failed: {e}")
 
