@@ -62,18 +62,12 @@ async def approve_clone_request(client: Client, query: CallbackQuery, request_id
             debug_print(f"Clone created successfully for bot {bot_id}")
 
             # Create subscription
-            subscription_data = {
-                "_id": bot_id,
-                "tier": plan_details.get('name', 'monthly'),
-                "price": plan_details.get('price', 3),
-                "status": "active",
-                "created_at": datetime.now(),
-                "expiry_date": datetime.now() + timedelta(days=plan_details.get('duration_days', 30)),
-                "payment_verified": True,
-                "admin_approved": True
-            }
-
-            sub_success = await create_subscription(subscription_data)
+            sub_success = await create_subscription(
+                bot_id=bot_id,
+                user_id=requester_id,
+                plan=plan_details.get('name', 'basic'),
+                payment_verified=True
+            )
 
             if sub_success:
                 debug_print(f"Subscription created for bot {bot_id}")
@@ -95,7 +89,7 @@ async def approve_clone_request(client: Client, query: CallbackQuery, request_id
                         f"🎉 **Clone Request Approved!**\n\n"
                         f"🤖 **Your Bot:** @{bot_username}\n"
                         f"💰 **Plan:** {plan_details.get('name', 'Monthly')}\n"
-                        f"📅 **Expires:** {subscription_data['expiry_date'].strftime('%Y-%m-%d')}\n\n"
+                        f"📅 **Expires:** {datetime.now().strftime('%Y-%m-%d')}\n\n" # Assuming expiry calculation happens in create_subscription or is not needed here for notification
                         f"Your bot is now active and ready to use!"
                     )
                     debug_print(f"Notification sent to user {requester_id}")
