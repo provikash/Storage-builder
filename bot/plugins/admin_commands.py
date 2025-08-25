@@ -1,3 +1,4 @@
+import asyncio
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime
@@ -197,7 +198,19 @@ async def set_global_channels(client: Client, message: Message):
 
     if len(message.command) < 2:
         return await message.reply_text(
+            "Usage: `/setglobalchannels channel1 channel2 ...`\n\n"
+            "Example: `/setglobalchannels @channel1 @channel2 -1001234567890`"
+        )
 
+    channels = message.command[1:]
+    from bot.database.clone_db import set_global_setting
+    await set_global_setting("global_force_channels", channels)
+
+    await message.reply_text(
+        f"✅ **Global force channels updated!**\n\n"
+        f"**Channels set:**\n" + 
+        "\n".join(f"• {channel}" for channel in channels)
+    )
 
 @Client.on_message(filters.command("deleteallclones") & filters.private)
 async def delete_all_clones_command(client: Client, message: Message):
@@ -311,18 +324,7 @@ async def delete_all_clones_command(client: Client, message: Message):
         await message.reply_text(f"❌ **Error during mass deletion:**\n{str(e)}")
 
 
-            "Usage: `/setglobalchannels channel1 channel2 ...`\n\n"
-            "Example: `/setglobalchannels @channel1 @channel2 -1001234567890`"
-        )
-
-    channels = message.command[1:]
-    await set_global_force_channels(channels)
-
-    await message.reply_text(
-        f"✅ **Global force channels updated!**\n\n"
-        f"**Channels set:**\n" + 
-        "\n".join(f"• {channel}" for channel in channels)
-    )
+            
 
 @Client.on_message(filters.command("setglobalabout") & filters.private)
 async def set_global_about(client: Client, message: Message):
