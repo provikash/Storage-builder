@@ -2,87 +2,23 @@ import asyncio
 from datetime import datetime, timedelta
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from pyrogram.enums import ParseMode
 from info import Config
-from bot.database.clone_db import get_all_clone_requests, approve_clone_request, reject_clone_request, create_clone, get_clone_request_by_id, activate_clone
-from bot.database.subscription_db import create_subscription, activate_subscription
+from bot.database.clone_db import *
+from bot.database.subscription_db import *
+from bot.logging import LOGGER
 from clone_manager import clone_manager
-import uuid
+
+logger = LOGGER(__name__)
 
 def debug_print(message):
     """Debug helper function"""
     print(f"DEBUG: {message}")
+    logger.info(f"APPROVAL_DEBUG: {message}")
 
-@Client.on_callback_query(filters.regex("^mother_pending_requests$"))
-async def handle_mother_pending_requests(client: Client, query: CallbackQuery):
-    """Handle pending clone requests display"""
+async def approve_clone_request(client: Client, query: CallbackQuery, request_id: str):
+    """Approve a clone request"""
     user_id = query.from_user.id
-    debug_print(f"handle_mother_pending_requests called by user {user_id}")
-
-    # Check admin permissions
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
-        await query.answer("❌ Unauthorized access!", show_alert=True)
-        return
-
-    try:
-        # Get pending requests
-        pending_requests = await get_all_clone_requests(status="pending")
-        debug_print(f"Found {len(pending_requests)} pending requests")
-
-        if not pending_requests:
-            requests_text = "📋 **Pending Clone Requests**\n\n"
-            requests_text += "✅ No pending requests at the moment."
-
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 Refresh", callback_data="mother_pending_requests")],
-                [InlineKeyboardButton("« Back", callback_data="back_to_mother_panel")]
-            ])
-        else:
-            requests_text = f"📋 **Pending Clone Requests** ({len(pending_requests)})\n\n"
-
-            buttons_list = []
-            for i, request in enumerate(pending_requests[:10], 1):  # Limit to 10 requests
-                user_id_req = request.get('user_id', 'Unknown')
-                plan = request.get('plan', 'monthly')
-                request_id = request.get('request_id')
-
-                requests_text += f"**{i}.** Request ID: `{request_id[:8]}...`\n"
-                requests_text += f"└ User ID: `{user_id_req}`\n"
-                requests_text += f"└ Plan: {plan.title()}\n"
-                requests_text += f"└ Status: Pending\n\n"
-
-                # Add approve/reject buttons
-                buttons_list.append([
-                    InlineKeyboardButton("✅ Approve", callback_data=f"approve_request:{request_id}"),
-                    InlineKeyboardButton("❌ Reject", callback_data=f"reject_request:{request_id}")
-                ])
-
-            # Add navigation buttons
-            buttons_list.extend([
-                [InlineKeyboardButton("🔄 Refresh", callback_data="mother_pending_requests")],
-                [InlineKeyboardButton("« Back", callback_data="back_to_mother_panel")]
-            ])
-
-            buttons = InlineKeyboardMarkup(buttons_list)
-
-        await query.edit_message_text(requests_text, reply_markup=buttons, parse_mode=ParseMode.MARKDOWN)
-        debug_print(f"Displayed pending requests for user {query.from_user.id}")
-
-    except Exception as e:
-        debug_print(f"Error in handle_mother_pending_requests: {e}")
-        await query.answer("❌ Error loading pending requests", show_alert=True)
-
-@Client.on_callback_query(filters.regex("^approve_request:"))
-async def handle_approve_request(client: Client, query: CallbackQuery):
-    """Handle clone request approval"""
-    user_id = query.from_user.id
-    request_id = query.data.split(":", 1)[1]
     debug_print(f"Approving request {request_id} by admin {user_id}")
-
-    # Check admin permissions
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
-        await query.answer("❌ Unauthorized access!", show_alert=True)
-        return
 
     try:
         # Get request details
@@ -91,70 +27,102 @@ async def handle_approve_request(client: Client, query: CallbackQuery):
             await query.answer("❌ Request not found!", show_alert=True)
             return
 
-        # Create clone in database
+        if request['status'] != 'pending':
+            await query.answer("❌ Request already processed!", show_alert=True)
+            return
+
+        # Extract details from request
         bot_token = request['bot_token']
         mongodb_url = request['mongodb_url']
         requester_id = request['user_id']
-        plan = request['plan']
+        plan_details = request.get('plan_details', {})
+        bot_username = request.get('bot_username', 'Unknown')
 
         # Extract bot ID from token
         bot_id = bot_token.split(':')[0]
 
+        debug_print(f"Creating clone for bot ID: {bot_id}, admin: {requester_id}")
+
         # Create clone entry
-        clone_success, clone_data = await create_clone(bot_token, requester_id, mongodb_url)
+        clone_data = {
+            "_id": bot_id,
+            "bot_token": bot_token,
+            "username": bot_username,
+            "admin_id": requester_id,
+            "mongodb_url": mongodb_url,
+            "status": "active",
+            "created_at": datetime.now(),
+            "approved_by": user_id,
+            "approved_at": datetime.now()
+        }
+
+        clone_success = await create_clone(clone_data)
 
         if clone_success:
-            # Create and activate subscription
-            from bot.database.subscription_db import create_subscription, activate_subscription
-            subscription_created = await create_subscription(bot_id, requester_id, plan, payment_verified=True)
+            debug_print(f"Clone created successfully for bot {bot_id}")
 
-            if subscription_created:
-                await activate_subscription(bot_id)
+            # Create subscription
+            subscription_data = {
+                "_id": bot_id,
+                "tier": plan_details.get('name', 'monthly'),
+                "price": plan_details.get('price', 3),
+                "status": "active",
+                "created_at": datetime.now(),
+                "expiry_date": datetime.now() + timedelta(days=plan_details.get('duration_days', 30)),
+                "payment_verified": True,
+                "admin_approved": True
+            }
 
-                # Activate clone in database
-                await activate_clone(bot_id)
+            sub_success = await create_subscription(subscription_data)
 
-                # Try to start the clone
-                start_success, start_message = await clone_manager.start_clone(bot_id)
+            if sub_success:
+                debug_print(f"Subscription created for bot {bot_id}")
 
-                # Notify requester
+                # Update request status
+                await update_clone_request_status(request_id, "approved", user_id)
+
+                # Start the clone bot
                 try:
-                    notification_text = f"🎉 **Clone Request Approved!**\n\n"
-                    notification_text += f"Your clone bot has been created and activated.\n\n"
-                    notification_text += f"**Bot ID:** `{bot_id}`\n"
-                    notification_text += f"**Plan:** {plan.title()}\n"
-                    notification_text += f"**Status:** {'Running' if start_success else 'Created (will start soon)'}\n\n"
-                    notification_text += "You can now manage your bot using /admin command in your clone bot."
+                    await clone_manager.start_clone(bot_id)
+                    debug_print(f"Clone bot {bot_id} started successfully")
+                except Exception as start_error:
+                    debug_print(f"Error starting clone bot {bot_id}: {start_error}")
 
-                    await client.send_message(requester_id, notification_text, parse_mode=ParseMode.MARKDOWN)
+                # Notify the requester
+                try:
+                    await client.send_message(
+                        requester_id,
+                        f"🎉 **Clone Request Approved!**\n\n"
+                        f"🤖 **Your Bot:** @{bot_username}\n"
+                        f"💰 **Plan:** {plan_details.get('name', 'Monthly')}\n"
+                        f"📅 **Expires:** {subscription_data['expiry_date'].strftime('%Y-%m-%d')}\n\n"
+                        f"Your bot is now active and ready to use!"
+                    )
+                    debug_print(f"Notification sent to user {requester_id}")
                 except Exception as notify_error:
-                    debug_print(f"Could not notify user {requester_id}: {notify_error}")
+                    debug_print(f"Error notifying user {requester_id}: {notify_error}")
 
                 await query.answer("✅ Request approved and clone created!", show_alert=True)
 
-                # Refresh the pending requests list by re-editing the same message
+                # Refresh the pending requests panel
+                from bot.plugins.admin_panel import handle_mother_pending_requests
                 await handle_mother_pending_requests(client, query)
 
             else:
                 await query.answer("❌ Error creating subscription", show_alert=True)
+                debug_print(f"Failed to create subscription for bot {bot_id}")
         else:
             await query.answer("❌ Error creating clone", show_alert=True)
+            debug_print(f"Failed to create clone for bot {bot_id}")
 
     except Exception as e:
         debug_print(f"Error approving request {request_id}: {e}")
         await query.answer("❌ Error processing approval", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^reject_request:"))
-async def handle_reject_request(client: Client, query: CallbackQuery):
-    """Handle clone request rejection"""
+async def reject_clone_request(client: Client, query: CallbackQuery, request_id: str):
+    """Reject a clone request"""
     user_id = query.from_user.id
-    request_id = query.data.split(":", 1)[1]
     debug_print(f"Rejecting request {request_id} by admin {user_id}")
-
-    # Check admin permissions
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
-        await query.answer("❌ Unauthorized access!", show_alert=True)
-        return
 
     try:
         # Get request details
@@ -163,62 +131,67 @@ async def handle_reject_request(client: Client, query: CallbackQuery):
             await query.answer("❌ Request not found!", show_alert=True)
             return
 
-        # Reject the request
-        success = await reject_clone_request(request_id)
-        if success:
-            # Notify requester
-            try:
-                requester_id = request['user_id']
-                notification_text = f"❌ **Clone Request Rejected**\n\n"
-                notification_text += f"Unfortunately, your clone request has been rejected.\n\n"
-                notification_text += f"**Request ID:** `{request_id[:8]}...`\n"
-                notification_text += f"**Reason:** Administrative decision\n\n"
-                notification_text += "You can submit a new request if needed using /requestclone."
+        if request['status'] != 'pending':
+            await query.answer("❌ Request already processed!", show_alert=True)
+            return
 
-                await client.send_message(requester_id, notification_text, parse_mode=ParseMode.MARKDOWN)
-            except Exception as notify_error:
-                debug_print(f"Could not notify user about rejection: {notify_error}")
+        # Update request status
+        await update_clone_request_status(request_id, "rejected", user_id)
 
-            await query.answer("✅ Request rejected!", show_alert=True)
+        # Notify the requester
+        try:
+            await client.send_message(
+                request['user_id'],
+                f"❌ **Clone Request Rejected**\n\n"
+                f"🆔 **Request ID:** {request_id[:8]}...\n"
+                f"📝 **Reason:** Request rejected by administrator\n\n"
+                f"You can submit a new request with `/requestclone` if needed."
+            )
+            debug_print(f"Rejection notification sent to user {request['user_id']}")
+        except Exception as notify_error:
+            debug_print(f"Error notifying user {request['user_id']}: {notify_error}")
 
-            # Refresh the pending requests list by re-editing the same message
-            await handle_mother_pending_requests(client, query)
-        else:
-            await query.answer("❌ Error rejecting request", show_alert=True)
+        await query.answer("✅ Request rejected successfully!", show_alert=True)
+
+        # Refresh the pending requests panel
+        from bot.plugins.admin_panel import handle_mother_pending_requests
+        await handle_mother_pending_requests(client, query)
 
     except Exception as e:
         debug_print(f"Error rejecting request {request_id}: {e}")
         await query.answer("❌ Error processing rejection", show_alert=True)
 
-# The following function was present in the original code but not fully defined in the edited snippet.
-# It's assumed to be defined elsewhere or needs to be provided for completeness.
-# For this task, I'm including the signature as it was in the original code to ensure no parts are missed if it's a dependency.
-# If this function is truly missing, the code might fail at runtime.
+# Add the missing database functions
 async def get_clone_request_by_id(request_id: str):
     """Get clone request by ID"""
     try:
-        from bot.database.connection import db
-        collection = db.clone_requests
-        request = await collection.find_one({"request_id": request_id})
-        return request
+        from bot.database.clone_db import get_clone_request
+        return await get_clone_request(request_id)
     except Exception as e:
-        debug_print(f"Error getting request by ID {request_id}: {e}")
+        debug_print(f"Error getting clone request {request_id}: {e}")
         return None
 
-async def log_admin_action(admin_id: int, action: str, details: dict):
-    """Log admin actions for audit trail"""
-    from bot.database.clone_db import clone_db
-    admin_logs = clone_db.admin_logs
-
-    log_entry = {
-        "admin_id": admin_id,
-        "action": action,
-        "details": details,
-        "timestamp": datetime.now(),
-        "log_id": str(uuid.uuid4())
-    }
-
+async def update_clone_request_status(request_id: str, status: str, admin_id: int = None):
+    """Update clone request status"""
     try:
-        await admin_logs.insert_one(log_entry)
+        from bot.database.clone_db import clone_db
+        clone_requests = clone_db.clone_requests
+
+        update_data = {
+            "status": status,
+            "updated_at": datetime.now()
+        }
+
+        if admin_id:
+            update_data["reviewed_by"] = admin_id
+            update_data["reviewed_at"] = datetime.now()
+
+        await clone_requests.update_one(
+            {"request_id": request_id},
+            {"$set": update_data}
+        )
+        debug_print(f"Updated request {request_id} status to {status}")
+        return True
     except Exception as e:
-        debug_print(f"Failed to log admin action: {e}")
+        debug_print(f"Error updating request {request_id} status: {e}")
+        return False

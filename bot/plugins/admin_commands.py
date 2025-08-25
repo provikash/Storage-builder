@@ -490,24 +490,15 @@ async def toggle_token_system(client: Client, message: Message):
 
     status_text = "enabled" if new_status else "disabled"
     await message.reply_text(f"✅ Token system {status_text}!")
-import asyncio
-from datetime import datetime
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from info import Config
-from bot.database.clone_db import *
-from bot.database.subscription_db import *
-from clone_manager import clone_manager
 
 @Client.on_message(filters.command("approveclone") & filters.private)
 async def approve_clone_command(client: Client, message: Message):
-    """Approve a clone request"""
+    """Approve a clone request via command"""
     user_id = message.from_user.id
-    print(f"DEBUG: approveclone command from user {user_id}")
+    print(f"DEBUG: approveclone command from user {user_id}. Owner: {Config.OWNER_ID}, Admins: {Config.ADMINS}")
 
-    # Check admin permissions
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
-    if user_id not in admin_list:
+    # Check admin permissions  
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
         print(f"DEBUG: approveclone access denied for user {user_id}")
         return await message.reply_text("❌ Only Mother Bot administrators can approve clones.")
 
@@ -519,76 +510,53 @@ async def approve_clone_command(client: Client, message: Message):
     request_id = message.command[1]
 
     try:
-        from bot.plugins.clone_request import get_pending_request, approve_request
-        request = await get_pending_request(request_id)
+        from bot.plugins.clone_approval import approve_clone_request
 
-        if not request:
-            return await message.reply_text("❌ Request not found or already processed.")
+        # Create a fake query object for the approval function
+        class FakeQuery:
+            def __init__(self, message):
+                self.from_user = message.from_user
+                self.message = message
+                self.data = f"approve_request:{request_id}"
 
-        # Approve the request
-        success, result = await approve_request(request_id)
+            async def answer(self, text, show_alert=False):
+                await message.reply_text(text)
 
-        if success:
-            await message.reply_text(
-                f"✅ **Clone Approved Successfully!**\n\n"
-                f"🤖 **Bot:** @{result['username']}\n"
-                f"👤 **Admin:** {result['admin_id']}\n"
-                f"💰 **Plan:** {result['tier']}\n"
-                f"📅 **Expires:** {result['expiry'].strftime('%Y-%m-%d')}\n\n"
-                f"The user has been notified."
-            )
-        else:
-            await message.reply_text(f"❌ Failed to approve clone: {result}")
+        fake_query = FakeQuery(message)
+        await approve_clone_request(client, fake_query, request_id)
 
     except Exception as e:
         await message.reply_text(f"❌ Error approving clone: {str(e)}")
 
 @Client.on_message(filters.command("rejectclone") & filters.private)
 async def reject_clone_command(client: Client, message: Message):
-    """Reject a clone request"""
+    """Reject a clone request via command"""
     user_id = message.from_user.id
-    print(f"DEBUG: rejectclone command from user {user_id}")
 
-    # Check admin permissions
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
-    if user_id not in admin_list:
-        print(f"DEBUG: rejectclone access denied for user {user_id}")
+    # Check admin permissions  
+    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
         return await message.reply_text("❌ Only Mother Bot administrators can reject clones.")
 
-    print(f"DEBUG: rejectclone access granted for user {user_id}")
-
     if len(message.command) < 2:
-        return await message.reply_text("❌ Usage: `/rejectclone <request_id> [reason]`")
+        return await message.reply_text("❌ Usage: `/rejectclone <request_id>`")
 
     request_id = message.command[1]
-    reason = " ".join(message.command[2:]) if len(message.command) > 2 else "No reason provided"
 
     try:
-        from bot.plugins.clone_request import get_pending_request, reject_request
-        request = await get_pending_request(request_id)
+        from bot.plugins.clone_approval import reject_clone_request
 
-        if not request:
-            return await message.reply_text("❌ Request not found or already processed.")
+        # Create a fake query object for the rejection function
+        class FakeQuery:
+            def __init__(self, message):
+                self.from_user = message.from_user
+                self.message = message
+                self.data = f"reject_request:{request_id}"
 
-        # Reject the request
-        success, result = await reject_request(request_id, reason)
+            async def answer(self, text, show_alert=False):
+                await message.reply_text(text)
 
-        if success:
-            # Notify user about rejection
-            try:
-                requester_id = request['user_id']
-                notification_text = f"❌ **Clone Request Rejected**\n\n"
-                notification_text += f"**Request ID:** `{request_id[:8]}...`\n"
-                notification_text += f"**Reason:** {reason}\n\n"
-                notification_text += "You can submit a new request if needed using /requestclone."
-
-                await client.send_message(requester_id, notification_text)
-            except Exception as notify_error:
-                print(f"Could not notify user about rejection: {notify_error}")
-
-            await message.reply_text(f"✅ Request rejected successfully! User has been notified.")
-        else:
-            await message.reply_text("❌ Failed to reject request - request may not exist or already processed")
+        fake_query = FakeQuery(message)
+        await reject_clone_request(client, fake_query, request_id)
 
     except Exception as e:
         await message.reply_text(f"❌ Error rejecting clone: {str(e)}")

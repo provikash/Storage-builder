@@ -56,7 +56,29 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
         if not query.data.startswith("back_to_") and query.data != "refresh_dashboard":
             await query.answer("❌ Error processing request!", show_alert=True)
 
-# Approval callbacks are now handled by clone_approval.py handlers
+# Quick approval/rejection callbacks (Priority 2)
+@Client.on_callback_query(filters.regex("^(quick_approve|quick_reject|approve_request|reject_request):"), group=CALLBACK_PRIORITIES["approval"])
+async def approval_callback_handler(client: Client, query: CallbackQuery):
+    """Handle approval/rejection callbacks"""
+    print(f"DEBUG: Approval callback - {query.data} from user {query.from_user.id}")
+    
+    # Check admin permissions
+    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+    
+    try:
+        action, request_id = query.data.split(":", 1)
+        
+        if action in ["quick_approve", "approve_request"]:
+            from bot.plugins.clone_approval import approve_clone_request
+            await approve_clone_request(client, query, request_id)
+        elif action in ["quick_reject", "reject_request"]:
+            from bot.plugins.clone_approval import reject_clone_request
+            await reject_clone_request(client, query, request_id)
+            
+    except Exception as e:
+        print(f"ERROR: Error in approval callback: {e}")
+        await query.answer("❌ Error processing request!", show_alert=True)
 
 # View request details handler
 @Client.on_callback_query(filters.regex("^view_request:"), group=CALLBACK_PRIORITIES["approval"])
