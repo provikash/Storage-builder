@@ -128,9 +128,19 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
     print(f"💎 DEBUG CLONE: begin_step1_plan_callback triggered by user {user_id}")
 
     # Get clone pricing tiers (excluding token verification plans)
-    from bot.database.subscription_db import get_pricing_tiers
+    from bot.database.subscription_db import get_pricing_tiers, PRICING_TIERS
     pricing_tiers = await get_pricing_tiers()
-    print(f"💎 DEBUG CLONE: Available pricing tiers: {list(pricing_tiers.keys())}")
+    
+    # Use PRICING_TIERS if get_pricing_tiers returns empty list or None
+    if not pricing_tiers:
+        pricing_tiers = PRICING_TIERS
+        print(f"💎 DEBUG CLONE: Using default pricing tiers: {list(pricing_tiers.keys())}")
+    else:
+        print(f"💎 DEBUG CLONE: Got pricing tiers from DB: {pricing_tiers}")
+        # If it's a list, convert to dict format
+        if isinstance(pricing_tiers, list):
+            pricing_tiers = PRICING_TIERS
+            print(f"💎 DEBUG CLONE: Converting list to default pricing tiers")
 
     for tier_name, tier_data in pricing_tiers.items():
         print(f"💎 DEBUG CLONE: Plan {tier_name}: {tier_data['name']} - ${tier_data['price']}")
@@ -148,8 +158,12 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
         session = await session_manager.get_session(user_id)
 
     # Get clone pricing tiers (excluding token verification plans)
-    from bot.database.subscription_db import get_pricing_tiers
+    from bot.database.subscription_db import get_pricing_tiers, PRICING_TIERS
     pricing_tiers = await get_pricing_tiers()
+    
+    # Use PRICING_TIERS if get_pricing_tiers returns empty list or None
+    if not pricing_tiers or isinstance(pricing_tiers, list):
+        pricing_tiers = PRICING_TIERS
 
     text = f"💎 **Step 1/3: Choose Your Clone Plan**\n\n"
     text += f"Select the subscription plan for your clone bot:\n\n"
@@ -190,8 +204,13 @@ async def select_plan_callback(client: Client, query: CallbackQuery):
         )
 
     # Get plan details - ensure we're only using clone plans
-    from bot.database.subscription_db import get_pricing_tiers
+    from bot.database.subscription_db import get_pricing_tiers, PRICING_TIERS
     pricing_tiers = await get_pricing_tiers()
+    
+    # Use PRICING_TIERS if get_pricing_tiers returns empty list or None
+    if not pricing_tiers or isinstance(pricing_tiers, list):
+        pricing_tiers = PRICING_TIERS
+    
     plan_details = pricing_tiers.get(plan_id)
 
     if not plan_details:
