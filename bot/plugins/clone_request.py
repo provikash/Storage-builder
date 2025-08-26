@@ -23,6 +23,14 @@ async def handle_clone_request_input(client: Client, message: Message):
     """Handle user input during clone request process"""
     user_id = message.from_user.id
     session = request_sessions.get(user_id)
+    
+    print(f"📝 DEBUG INPUT: Clone request input from user {user_id}")
+    print(f"📋 DEBUG INPUT: Message text: '{message.text[:50]}...' (truncated)")
+    print(f"🔍 DEBUG INPUT: Session exists: {session is not None}")
+    
+    if session:
+        print(f"🎯 DEBUG INPUT: Current step: {session.get('step', 'unknown')}")
+        print(f"⏰ DEBUG INPUT: Session started: {session.get('started_at', 'unknown')}")
 
     if not session:
         return
@@ -44,8 +52,12 @@ async def handle_clone_request_input(client: Client, message: Message):
     user_input = message.text.strip()
 
     if step == 'bot_token':
+        print(f"🔑 DEBUG INPUT: Processing bot token for user {user_id}")
+        print(f"🔍 DEBUG INPUT: Token length: {len(user_input) if user_input else 0}")
+        
         # Validate bot token format
         if not user_input or ':' not in user_input or len(user_input) < 20:
+            print(f"❌ DEBUG INPUT: Invalid token format for user {user_id}")
             return await message.reply_text(
                 "❌ **Invalid bot token format!**\n\n"
                 "Please provide a valid bot token from @BotFather.\n"
@@ -105,8 +117,12 @@ async def handle_clone_request_input(client: Client, message: Message):
             )
 
     elif step == 'mongodb_url':
+        print(f"🗄️ DEBUG INPUT: Processing MongoDB URL for user {user_id}")
+        print(f"🔍 DEBUG INPUT: URL starts with: '{user_input[:20]}...' (truncated)")
+        
         # Validate MongoDB URL format
         if not user_input.startswith(('mongodb://', 'mongodb+srv://')):
+            print(f"❌ DEBUG INPUT: Invalid MongoDB URL format for user {user_id}")
             return await message.reply_text(
                 "❌ **Invalid MongoDB URL format!**\n\n"
                 "URL must start with `mongodb://` or `mongodb+srv://`\n"

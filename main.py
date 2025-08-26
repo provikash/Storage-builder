@@ -35,6 +35,7 @@ class GracefulShutdown:
 async def check_requirements():
     """Check if all requirements are met before starting"""
     logger.info("🔍 Checking requirements...")
+    print("🔍 DEBUG MAIN: Checking requirements...")
 
     # Check if .env file exists
     if not Path(".env").exists():
@@ -46,6 +47,7 @@ async def check_requirements():
     logs_dir.mkdir(exist_ok=True)
 
     logger.info("✅ Requirements check passed")
+    print("✅ DEBUG MAIN: Requirements check passed")
     return True
 
 async def initialize_databases():
@@ -91,32 +93,40 @@ async def start_mother_bot():
     """Start the mother bot"""
     try:
         logger.info("📡 Initializing Mother Bot...")
+        print("📡 DEBUG BOT: Initializing Mother Bot...")
         app = Bot()
         await app.start()
 
         me = await app.get_me()
         logger.info(f"✅ Mother Bot @{me.username} started successfully!")
+        print(f"✅ DEBUG BOT: Mother Bot @{me.username} started successfully!")
         return app
 
     except Exception as e:
         logger.error(f"❌ Failed to start Mother Bot: {e}")
+        print(f"❌ DEBUG BOT: Failed to start Mother Bot: {e}")
         raise
 
 async def start_clone_system():
     """Start the clone management system"""
     try:
         logger.info("🔄 Starting Clone Manager...")
+        print("🔄 DEBUG CLONE: Starting Clone Manager...")
         await clone_manager.start_all_clones()
         logger.info("✅ Clone manager initialized")
+        print("✅ DEBUG CLONE: Clone manager initialized")
 
         # Start subscription monitoring in background
         logger.info("⏱️ Starting subscription monitoring...")
+        print("⏱️ DEBUG CLONE: Starting subscription monitoring...")
         task = asyncio.create_task(clone_manager.check_subscriptions())
         logger.info("✅ Subscription monitoring started")
+        print("✅ DEBUG CLONE: Subscription monitoring started")
         return task
 
     except Exception as e:
         logger.error(f"❌ Clone manager initialization failed: {e}")
+        print(f"❌ DEBUG CLONE: Clone manager initialization failed: {e}")
         return None
 
 async def start_subscription_monitoring():
@@ -125,9 +135,11 @@ async def start_subscription_monitoring():
         from bot.utils.subscription_checker import subscription_checker
         task = asyncio.create_task(subscription_checker.start_monitoring())
         logger.info("✅ Mother Bot subscription monitoring started")
+        print("✅ DEBUG SUBSCRIPTION: Mother Bot subscription monitoring started")
         return task
     except Exception as e:
         logger.error(f"❌ Mother Bot subscription monitoring failed: {e}")
+        print(f"❌ DEBUG SUBSCRIPTION: Mother Bot subscription monitoring failed: {e}")
         return None
 
 async def main():
@@ -140,6 +152,7 @@ async def main():
 
     try:
         logger.info("🚀 Starting Mother Bot + Clone System...")
+        print("🚀 DEBUG MAIN: Starting Mother Bot + Clone System...")
 
         # Check requirements
         if not await check_requirements():

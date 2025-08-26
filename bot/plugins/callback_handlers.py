@@ -46,7 +46,9 @@ def is_mother_admin(user_id):
 @Client.on_callback_query(filters.regex("^(mother_|clone_|back_to_|refresh_dashboard)"), group=CALLBACK_PRIORITIES["admin"])
 async def admin_callback_router(client: Client, query: CallbackQuery):
     """Route admin callbacks to appropriate handlers"""
-    print(f"DEBUG: Admin callback router - {query.data} from user {query.from_user.id}")
+    user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: Admin callback router - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     try:
         # Handle refresh dashboard
@@ -74,23 +76,26 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
             # Don't handle here, let the dedicated clone_admin_callbacks handle it
             pass
     except Exception as e:
-        print(f"DEBUG: Error in admin callback router: {e}")
+        print(f"❌ ERROR IN ADMIN CALLBACK ROUTER: {e}")
+        traceback.print_exc()
         if not query.data.startswith("back_to_") and query.data != "refresh_dashboard":
             await query.answer("❌ Error processing request!", show_alert=True)
 
 # Handle start message admin buttons
-@Client.on_callback_query(filters.regex("^(admin_panel|start|create_clone_button|create_clone_monthly|create_clone_quarterly|create_clone_semi_annual|create_clone_yearly)$"), group=CALLBACK_PRIORITIES["admin"])
+@Client.on_callback_query(filters.regex("^(start|create_clone_button|create_clone_monthly|create_clone_quarterly|create_clone_semi_annual|create_clone_yearly)$"), group=CALLBACK_PRIORITIES["admin"])
 async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
     """Handle admin panel and start buttons from start message"""
     user_id = query.from_user.id
-    print(f"DEBUG: Start admin button - {query.data} from user {user_id}")
+    print(f"🔄 DEBUG CALLBACK: Start admin button - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     callback_data = query.data
 
     if callback_data == "admin_panel":
         # Check admin permissions
         if not is_mother_admin(user_id):
-            return await query.answer("❌ Unauthorized access!", show_alert=True)
+            await query.answer("❌ Unauthorized access!", show_alert=True)
+            return
 
         # Route to admin panel
         from bot.plugins.admin_panel import mother_admin_panel
@@ -138,11 +143,13 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
 async def handle_quick_actions(client: Client, query: CallbackQuery):
     """Handle quick approval, rejection, and view request actions"""
     user_id = query.from_user.id
-    print(f"DEBUG: Quick action callback - {query.data} from user {user_id}")
+    print(f"🔄 DEBUG CALLBACK: Quick action callback - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     # Check admin permissions
     if not is_mother_admin(user_id):
-        return await query.answer("❌ Unauthorized access!", show_alert=True)
+        await query.answer("❌ Unauthorized access!", show_alert=True)
+        return
 
     try:
         action, request_id = query.data.split(":", 1)
@@ -157,17 +164,22 @@ async def handle_quick_actions(client: Client, query: CallbackQuery):
             await handle_view_request_details(client, query, request_id)
 
     except Exception as e:
-        print(f"ERROR: Error in quick action callback: {e}")
+        print(f"❌ ERROR IN QUICK ACTIONS CALLBACK: {e}")
+        traceback.print_exc()
         await query.answer("❌ Error processing request!", show_alert=True)
 
 async def handle_view_request_details(client: Client, query: CallbackQuery, request_id: str):
     """Show detailed view of a clone request"""
+    user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: View request details - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
     try:
         from bot.database.clone_db import get_clone_request_by_id
         request = await get_clone_request_by_id(request_id)
 
         if not request:
-            return await query.answer("❌ Request not found!", show_alert=True)
+            await query.answer("❌ Request not found!", show_alert=True)
+            return
 
         # Format request details
         plan_details = request.get('plan_details', {})
@@ -194,7 +206,8 @@ async def handle_view_request_details(client: Client, query: CallbackQuery, requ
         await query.edit_message_text(text, reply_markup=buttons)
 
     except Exception as e:
-        print(f"ERROR: Error viewing request details: {e}")
+        print(f"❌ ERROR VIEWING REQUEST DETAILS: {e}")
+        traceback.print_exc()
         await query.answer("❌ Error loading request details!", show_alert=True)
 
 # Mother Bot callback handlers
@@ -202,7 +215,8 @@ async def handle_view_request_details(client: Client, query: CallbackQuery, requ
 async def mother_admin_callback_router(client: Client, query: CallbackQuery):
     """Route Mother Bot admin callbacks"""
     user_id = query.from_user.id
-    print(f"DEBUG: Admin callback router - {query.data} from user {user_id}")
+    print(f"🔄 DEBUG CALLBACK: Mother Bot admin callback router - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     # Let specific handlers handle their callbacks
     pass
@@ -215,6 +229,8 @@ async def mother_admin_callback_router(client: Client, query: CallbackQuery):
 async def step2_bot_token(client, query):
     """Placeholder for the actual step 2 handler"""
     user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: Step 2 Bot Token - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
     session = creation_sessions.get(user_id)
     if not session:
         await query.edit_message_text("Session expired. Please start again.")
@@ -244,20 +260,23 @@ async def step2_bot_token(client, query):
 
 
 @Client.on_callback_query(filters.regex("^back_to_step3$"))
-async def back_to_step3_callback(client, query):
+async def back_to_step3_callback(client, query: CallbackQuery):
     """Handle back to step 3"""
+    user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: Back to Step 3 - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
     await query.answer()
 
-    user_id = query.from_user.id
     session = creation_sessions.get(user_id)
 
     if not session:
-        return await query.edit_message_text(
+        await query.edit_message_text(
             "❌ Session expired! Please start over.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🚀 Start Again", callback_data="start_clone_creation")]
             ])
         )
+        return
 
     # Show step 3 (database) directly
     data = session['data']
@@ -290,14 +309,13 @@ async def back_to_step3_callback(client, query):
         ])
     )
 
-# Placeholder for other callback handlers (Premium, Search, General, etc.)
-# These are kept from the original code to ensure completeness.
-
 # Premium System Callbacks (Priority 3)
 @Client.on_callback_query(filters.regex("^(show_premium_plans|buy_premium)"), group=CALLBACK_PRIORITIES["premium"])
 async def premium_callback_handler(client: Client, query: CallbackQuery):
     """Handle premium-related callbacks"""
-    print(f"DEBUG: Premium callback - {query.data} from user {query.from_user.id}")
+    user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: Premium callback - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     # Import from existing callback handler
     if query.data == "show_premium_plans":
@@ -311,7 +329,9 @@ async def premium_callback_handler(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex("^(rand_|execute_rand|get_token)"), group=CALLBACK_PRIORITIES["search"])
 async def search_callback_handler(client: Client, query: CallbackQuery):
     """Handle search and random file callbacks"""
-    print(f"DEBUG: Search callback - {query.data} from user {query.from_user.id}")
+    user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: Search callback - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     callback_data = query.data
 
@@ -339,7 +359,9 @@ async def search_callback_handler(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history|back_to_start|add_balance|manage_my_clone)$"), group=CALLBACK_PRIORITIES["general"])
 async def general_callback_handler(client: Client, query: CallbackQuery):
     """Handle general purpose callbacks"""
-    print(f"DEBUG: General callback - {query.data} from user {query.from_user.id}")
+    user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: General callback - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     callback_data = query.data
 
@@ -394,7 +416,9 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex("^toggle_feature#"), group=CALLBACK_PRIORITIES["admin"])
 async def feature_toggle_callback(client: Client, query: CallbackQuery):
     """Handle feature toggling callbacks"""
-    print(f"DEBUG: Feature toggle callback - {query.data} from user {query.from_user.id}")
+    user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: Feature toggle callback - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     # Import from admin panel
     from bot.plugins.admin_panel import toggle_feature_handler
@@ -409,6 +433,7 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
 # @Client.on_callback_query(filters.regex(".*"), group=CALLBACK_PRIORITIES["catchall"])
 # async def debug_unhandled_callbacks(client: Client, query: CallbackQuery):
 #     """Debug handler for unhandled callbacks"""
-#     callback_data = query.data
-#     print(f"⚠️ UNHANDLED CALLBACK: {callback_data} from user {query.from_user.id}")
+#     user_id = query.from_user.id
+#     print(f"⚠️ UNHANDLED CALLBACK: {query.data} from user {user_id}")
+#     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 #     pass

@@ -12,7 +12,17 @@ logger = LOGGER(__name__)
 @Client.on_message(filters.command("start") & filters.private)
 async def start_command(client: Client, message: Message):
     """Handle /start command"""
-    user_id = message.from_user.id
+    user = message.from_user
+
+    print(f"🚀 DEBUG COMMAND: /start command from user {user.id}")
+    print(f"👤 DEBUG COMMAND: User details - ID: {user.id}, Username: @{user.username}, First: {user.first_name}")
+
+    # Check if session has expired for the user
+    if await session_expired(user.id):
+        print(f"⏰ DEBUG SESSION: Session expired for user {user.id}, clearing session")
+        await clear_session(user.id)
+    else:
+        print(f"✅ DEBUG SESSION: Session valid for user {user.id}")
 
     # Add user to database
     await add_user(user_id, message.from_user.first_name)

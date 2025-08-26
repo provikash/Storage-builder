@@ -1,103 +1,183 @@
-
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
-class SessionManager:
-    """Manage user sessions for clone creation process"""
-    
-    def __init__(self):
-        self.sessions: Dict[int, Dict[str, Any]] = {}
-        self.session_timeout = 7200  # 2 hours for clone creation
-    
-    def create_session(self, user_id: int, session_data: Dict[str, Any]) -> None:
-        """Create a new session for a user"""
-        session_data['created_at'] = datetime.now()
-        session_data['last_activity'] = datetime.now()
-        self.sessions[user_id] = session_data
+# Session timeout (6 hours) - Extended for clone creation process
+SESSION_TIMEOUT = timedelta(hours=6)
+
+# In-memory storage for user sessions
+user_sessions: Dict[int, Dict[str, Any]] = {}
+
+async def create_session(user_id: int, session_type: str, data: dict = None) -> bool:
+    """Create a new session for a user"""
+    try:
+        print(f"🎬 DEBUG SESSION: Creating session for user {user_id}")
+        print(f"📋 DEBUG SESSION: Session type: {session_type}")
+        print(f"📊 DEBUG SESSION: Session data keys: {list(data.keys()) if data else 'None'}")
+
+        session_data = {
+            'user_id': user_id,
+            'type': session_type,
+            'data': data or {},
+            'started_at': datetime.now(),
+            'last_activity': datetime.now(),
+            'expires_at': datetime.now() + SESSION_TIMEOUT
+        }
+
+        # Store in memory
+        user_sessions[user_id] = session_data
+
+        print(f"✅ DEBUG SESSION: Session created successfully for user {user_id}")
+        print(f"⏰ DEBUG SESSION: Expires at: {session_data['expires_at']}")
         logger.info(f"Created session for user {user_id}")
-    
-    def get_session(self, user_id: int, default: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
-        """Get session data for a user"""
-        session = self.sessions.get(user_id, default)
-        if session:
-            # Update last activity
-            session['last_activity'] = datetime.now()
-            self.sessions[user_id] = session
-        return session
-    
-    def update_session(self, user_id: int, session_data: Dict[str, Any]) -> None:
-        """Update session data for a user"""
-        if user_id in self.sessions:
-            session_data['last_activity'] = datetime.now()
-            # Preserve created_at if it exists
-            if 'created_at' not in session_data and 'created_at' in self.sessions[user_id]:
-                session_data['created_at'] = self.sessions[user_id]['created_at']
-            self.sessions[user_id] = session_data
-            logger.debug(f"Updated session for user {user_id}")
-    
-    def delete_session(self, user_id: int) -> bool:
-        """Delete session for a user"""
-        if user_id in self.sessions:
-            del self.sessions[user_id]
-            logger.info(f"Deleted session for user {user_id}")
-            return True
+        return True
+
+    except Exception as e:
+        print(f"❌ DEBUG SESSION: Error creating session for user {user_id}: {e}")
+        logger.error(f"Error creating session for user {user_id}: {e}")
         return False
-    
-    def has_session(self, user_id: int) -> bool:
-        """Check if user has an active session"""
-        return user_id in self.sessions
-    
-    def is_session_expired(self, user_id: int) -> bool:
-        """Check if user's session has expired"""
-        session = self.sessions.get(user_id)
+
+async def get_session(user_id: int) -> dict:
+    """Get session data for a user"""
+    try:
+        print(f"🔍 DEBUG SESSION: Getting session for user {user_id}")
+        session = user_sessions.get(user_id)
+
         if not session:
+            print(f"❌ DEBUG SESSION: No session found for user {user_id}")
+            return None
+
+        print(f"📋 DEBUG SESSION: Session found for user {user_id}, type: {session.get('type', 'unknown')}")
+        print(f"⏰ DEBUG SESSION: Session expires at: {session.get('expires_at', 'unknown')}")
+
+        # Check if session has expired
+        if datetime.now() > session['expires_at']:
+            print(f"⏰ DEBUG SESSION: Session expired for user {user_id}, clearing...")
+            await clear_session(user_id)
+            return None
+
+        print(f"✅ DEBUG SESSION: Valid session retrieved for user {user_id}")
+        return session
+
+    except Exception as e:
+        print(f"❌ DEBUG SESSION: Error getting session for user {user_id}: {e}")
+        logger.error(f"Error getting session for user {user_id}: {e}")
+        return None
+
+async def clear_session(user_id: int) -> bool:
+    """Clear session data for a user"""
+    try:
+        print(f"🧹 DEBUG SESSION: Clearing session for user {user_id}")
+        if user_id in user_sessions:
+            del user_sessions[user_id]
+            print(f"✅ DEBUG SESSION: Session cleared for user {user_id}")
+            logger.info(f"Cleared session for user {user_id}")
             return True
-        
-        last_activity = session.get('last_activity', session.get('created_at'))
-        if not last_activity:
+        print(f"❌ DEBUG SESSION: No session found to clear for user {user_id}")
+        return False
+    except Exception as e:
+        print(f"❌ DEBUG SESSION: Error clearing session for user {user_id}: {e}")
+        logger.error(f"Error clearing session for user {user_id}: {e}")
+        return False
+
+async def session_expired(user_id: int) -> bool:
+    """Check if user's session has expired"""
+    try:
+        print(f"⏰ DEBUG SESSION: Checking if session expired for user {user_id}")
+        session = user_sessions.get(user_id)
+
+        if not session:
+            print(f"❌ DEBUG SESSION: No session found for user {user_id} - considered expired")
             return True
-        
-        elapsed = (datetime.now() - last_activity).total_seconds()
-        return elapsed > self.session_timeout
-    
-    def cleanup_expired_sessions(self) -> int:
-        """Remove all expired sessions"""
-        expired_users = []
+
         current_time = datetime.now()
-        
-        for user_id, session in self.sessions.items():
-            last_activity = session.get('last_activity', session.get('created_at'))
-            if last_activity:
-                elapsed = (current_time - last_activity).total_seconds()
-                if elapsed > self.session_timeout:
-                    expired_users.append(user_id)
-        
-        for user_id in expired_users:
-            del self.sessions[user_id]
-        
-        if expired_users:
-            logger.info(f"Cleaned up {len(expired_users)} expired sessions")
-        
-        return len(expired_users)
-    
-    def get_all_sessions(self) -> Dict[int, Dict[str, Any]]:
-        """Get all active sessions (for debugging)"""
-        return self.sessions.copy()
-    
-    def get_session_count(self) -> int:
-        """Get total number of active sessions"""
-        return len(self.sessions)
-    
-    async def start_cleanup_task(self):
-        """Start background task to cleanup expired sessions"""
-        while True:
-            try:
-                await asyncio.sleep(300)  # Check every 5 minutes
-                self.cleanup_expired_sessions()
-            except Exception as e:
-                logger.error(f"Error in session cleanup task: {e}")
-                await asyncio.sleep(60)  # Wait a minute before retrying
+        expires_at = session.get('expires_at')
+
+        if not expires_at:
+            print(f"❌ DEBUG SESSION: No expiry time found for user {user_id} - considered expired")
+            return True
+
+        is_expired = current_time > expires_at
+
+        print(f"📊 DEBUG SESSION: User {user_id} session status:")
+        print(f"   Current time: {current_time}")
+        print(f"   Expires at: {expires_at}")
+        print(f"   Is expired: {is_expired}")
+
+        return is_expired
+
+    except Exception as e:
+        print(f"❌ DEBUG SESSION: Error checking session expiry for user {user_id}: {e}")
+        logger.error(f"Error checking session expiry for user {user_id}: {e}")
+        return True
+
+async def update_session_activity(user_id: int) -> bool:
+    """Update last activity timestamp for a session"""
+    try:
+        print(f"🔄 DEBUG SESSION: Updating session activity for user {user_id}")
+        session = user_sessions.get(user_id)
+
+        if session:
+            current_time = datetime.now()
+            session['last_activity'] = current_time
+            # Extend session by 2 more hours from current activity
+            session['expires_at'] = current_time + SESSION_TIMEOUT
+
+            print(f"✅ DEBUG SESSION: Session activity updated for user {user_id}")
+            print(f"   New expiry: {session['expires_at']}")
+            return True
+
+        print(f"❌ DEBUG SESSION: No session to update for user {user_id}")
+        return False
+
+    except Exception as e:
+        print(f"❌ DEBUG SESSION: Error updating session activity for user {user_id}: {e}")
+        logger.error(f"Error updating session activity for user {user_id}: {e}")
+        return False
+
+async def start_cleanup_task():
+    """Start background task to cleanup expired sessions"""
+    while True:
+        try:
+            await asyncio.sleep(300)  # Check every 5 minutes
+            cleanup_count = cleanup_expired_sessions()
+            if cleanup_count > 0:
+                logger.info(f"Cleaned up {cleanup_count} expired sessions")
+        except Exception as e:
+            logger.error(f"Error in session cleanup task: {e}")
+            await asyncio.sleep(60)  # Wait a minute before retrying
+
+def cleanup_expired_sessions() -> int:
+    """Remove all expired sessions"""
+    expired_user_ids = []
+    current_time = datetime.now()
+
+    for user_id, session in user_sessions.items():
+        expires_at = session.get('expires_at')
+        if expires_at and current_time > expires_at:
+            expired_user_ids.append(user_id)
+
+    for user_id in expired_user_ids:
+        print(f"🧹 DEBUG SESSION: Auto-cleaning expired session for user {user_id}")
+        try:
+            del user_sessions[user_id]
+        except KeyError:
+            pass # Session might have been cleared by another process
+
+    if expired_user_ids:
+        logger.info(f"Cleaned up {len(expired_user_ids)} expired sessions")
+    return len(expired_user_ids)
+
+def get_all_sessions() -> Dict[int, Dict[str, Any]]:
+    """Get all active sessions (for debugging)"""
+    print(f"ℹ️ DEBUG SESSION: Retrieving all active sessions ({len(user_sessions)} total)")
+    return user_sessions.copy()
+
+def get_session_count() -> int:
+    """Get total number of active sessions"""
+    count = len(user_sessions)
+    print(f"📊 DEBUG SESSION: Current active session count: {count}")
+    return count

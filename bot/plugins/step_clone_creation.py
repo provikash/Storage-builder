@@ -15,12 +15,13 @@ logger = LOGGER(__name__)
 # Initialize session manager
 session_manager = SessionManager()
 
-@Client.on_callback_query(filters.regex("^start_clone_creation$"))
-async def start_clone_creation_callback(client, query):
-    """Start simplified clone creation process"""
-    await query.answer()
-
+@Client.on_callback_query(filters.regex("^start_clone_creation$"), group=1)
+async def start_clone_creation_callback(client: Client, query: CallbackQuery):
+    """Start the clone creation process"""
     user_id = query.from_user.id
+    print(f"🚀 DEBUG CLONE: start_clone_creation_callback triggered by user {user_id}")
+    print(f"📋 DEBUG CLONE: Query data: '{query.data}'")
+    await query.answer()
 
     # Check if user already has an active clone
     user_clones = await get_user_clones(user_id)
@@ -118,12 +119,13 @@ async def creation_help_callback(client, query):
 
     await query.edit_message_text(text, reply_markup=buttons)
 
-@Client.on_callback_query(filters.regex("^begin_step1_plan$"))
+@Client.on_callback_query(filters.regex("^begin_step1_plan$"), group=1)
 async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
     """Handle begin step 1 - plan selection"""
     await query.answer()
 
     user_id = query.from_user.id
+    print(f"💎 DEBUG CLONE: begin_step1_plan_callback triggered by user {user_id}")
 
     # Create or get session
     session = session_manager.get_session(user_id)
@@ -153,13 +155,14 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
-@Client.on_callback_query(filters.regex("^select_plan:"))
+@Client.on_callback_query(filters.regex("^select_plan:"), group=1)
 async def select_plan_callback(client: Client, query: CallbackQuery):
-    """Handle plan selection callback"""
+    """Handle plan selection in clone creation"""
     await query.answer()
-
     user_id = query.from_user.id
-    plan_id = query.data.split(":", 1)[1]
+    plan_id = query.data.split(':')[1] if ':' in query.data else 'unknown'
+    print(f"💰 DEBUG CLONE: select_plan_callback triggered by user {user_id}")
+    print(f"📋 DEBUG CLONE: Plan selection: '{plan_id}'")
 
     session_manager = SessionManager()
     session = session_manager.get_session(user_id)
@@ -299,6 +302,8 @@ async def handle_creation_input(client: Client, message: Message):
 async def handle_bot_username_input(client: Client, message: Message, bot_username: str, session: dict):
     """Handle and validate bot username"""
     user_id = message.from_user.id
+    print(f"👤 DEBUG CLONE: handle_bot_username_input for user {user_id}")
+    print(f"💬 DEBUG CLONE: Received bot username: '{bot_username}'")
 
     # Validate username format
     if not bot_username or not bot_username.endswith('bot') or len(bot_username) < 5:
@@ -354,6 +359,8 @@ async def handle_bot_username_input(client: Client, message: Message, bot_userna
 async def handle_bot_token_input(client: Client, message: Message, bot_token: str, session: dict):
     """Handle and validate bot token"""
     user_id = message.from_user.id
+    print(f"🔑 DEBUG CLONE: handle_bot_token_input for user {user_id}")
+    print(f"💬 DEBUG CLONE: Received bot token (masked): '{bot_token[:8]}...'")
 
     # Validate token format
     if not bot_token or ':' not in bot_token or len(bot_token) < 20:
@@ -398,7 +405,7 @@ async def handle_bot_token_input(client: Client, message: Message, bot_token: st
                 f"but you entered @{session['data']['bot_username']}.\n\n"
                 "Please ensure the token matches the username or restart.",
                 reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back", callback_data="begin_step1_plan")],
+                    [InlineKeyboardButton("🔙 Back to Plans", callback_data="begin_step1_plan")],
                     [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
                 ])
             )
@@ -452,6 +459,7 @@ async def handle_bot_token_input(client: Client, message: Message, bot_token: st
             ])
         )
     except Exception as e:
+        logger.error(f"Token validation error for user {user_id}: {e}")
         await processing_msg.edit_text(
             f"❌ **Token Validation Failed!**\n\n"
             f"**Error:** {str(e)}\n\n"
@@ -548,6 +556,8 @@ async def back_to_step3_callback(client: Client, query: CallbackQuery):
 async def handle_mongodb_input(client: Client, message: Message, mongodb_url: str, session: dict):
     """Handle and validate MongoDB URL"""
     user_id = message.from_user.id
+    print(f"🗄️ DEBUG CLONE: handle_mongodb_input for user {user_id}")
+    print(f"💬 DEBUG CLONE: Received MongoDB URL: '{mongodb_url}'")
 
     # Validate URL format
     if not mongodb_url.startswith(('mongodb://', 'mongodb+srv://')):
@@ -589,6 +599,7 @@ async def handle_mongodb_input(client: Client, message: Message, mongodb_url: st
         await show_final_confirmation(client, processing_msg, user_id)
 
     except Exception as e:
+        logger.error(f"MongoDB connection error for user {user_id}: {e}")
         await processing_msg.edit_text(
             f"❌ **Database Connection Failed!**\n\n"
             f"**Error:** {str(e)}\n\n"
@@ -650,6 +661,8 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
 
     if not session or session['step'] != 'confirmation':
         return await query.answer("❌ Session expired!", show_alert=True)
+
+    print(f"🎉 DEBUG CLONE: confirm_final_creation triggered by user {user_id}")
 
     try:
         data = session['data']
@@ -728,7 +741,7 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
             await processing_msg.edit_text(text, reply_markup=buttons)
 
     except Exception as e:
-        logger.error(f"Error in final confirmation: {e}")
+        logger.error(f"Error in final confirmation for user {user_id}: {e}")
 
         if user_id in session_manager.sessions:
             session_manager.delete_session(user_id)
@@ -755,6 +768,8 @@ async def handle_creation_cancellation(client: Client, query: CallbackQuery):
         session_manager.delete_session(user_id)
     else:
         step = 'unknown'
+
+    print(f"❌ DEBUG CLONE: cancel_creation triggered by user {user_id}, session was at step: {step}")
 
     text = f"❌ **Clone Creation Cancelled**\n\n"
     text += f"No charges were made to your account.\n"
@@ -789,6 +804,7 @@ async def handle_insufficient_balance(client, query):
 async def back_to_start_callback(client, query):
     """Go back to the main start menu"""
     await query.answer()
+    print(f"⬅️ DEBUG CLONE: back_to_start_callback triggered by user {query.from_user.id}")
     await start_clone_creation_callback(client, query)
 
 
