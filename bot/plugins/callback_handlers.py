@@ -290,7 +290,7 @@ async def search_callback_handler(client: Client, query: CallbackQuery):
         await get_token_callback(client, query)
 
 # General Callbacks (Priority 5)
-@Client.on_callback_query(filters.regex("^(about|help|my_stats|close)$"), group=CALLBACK_PRIORITIES["general"])
+@Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history)$"), group=CALLBACK_PRIORITIES["general"])
 async def general_callback_handler(client: Client, query: CallbackQuery):
     """Handle general purpose callbacks"""
     print(f"DEBUG: General callback - {query.data} from user {query.from_user.id}")
@@ -300,22 +300,15 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
     if callback_data == "about":
         from bot.plugins.callback import about_callback
         await about_callback(client, query)
-    elif callback_data == "help":
-        await query.edit_message_text(
-            "❓ **Help & Support**\n\n"
-            "This is a file sharing bot with clone management capabilities.\n\n"
-            "**For Users:**\n"
-            "• Send files to get sharing links\n"
-            "• Use /search to find files\n"
-            "• Use /premium for premium features\n\n"
-            "**For Admins:**\n"
-            "• Use /admin for admin panel\n"
-            "• Use /createclone to create new clones\n"
-            "• Use /requestclone to request a clone",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="start")]
-            ])
-        )
+    elif callback_data in ["help", "help_menu"]:
+        # These are now handled in start_handler.py
+        pass
+    elif callback_data in ["about_bot"]:
+        # These are now handled in start_handler.py
+        pass
+    elif callback_data in ["user_profile", "transaction_history"]:
+        # These are now handled in start_handler.py
+        pass
     elif callback_data == "my_stats":
         from bot.plugins.callback import my_stats_callback
         await my_stats_callback(client, query)

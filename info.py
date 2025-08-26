@@ -104,7 +104,7 @@ class Config(object):
     PAYMENT_UPI = getenv("PAYMENT_UPI", "your_actual_upi@paytm")
     PAYMENT_PHONE = getenv("PAYMENT_PHONE", "+911234567890")
     ADMIN_USERNAME = getenv("ADMIN_USERNAME", "termuxro")
-    
+
     # Cryptocurrency Payment Options
     CRYPTO_ENABLED = getenv("CRYPTO_ENABLED", "True").lower() in ("true", "1", "yes")
     BITCOIN_ADDRESS = getenv("BITCOIN_ADDRESS", "")

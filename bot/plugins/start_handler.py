@@ -114,22 +114,40 @@ async def show_mother_bot_start(client: Client, message: Message, config: dict):
     buttons = []
     
     # Add create clone and balance buttons for all users
+    # First row - Profile and Create Clone
     buttons.extend([
         [
-            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
-            InlineKeyboardButton("💰 Check Balance", callback_data="check_balance")
-        ],
-        [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")]
+            InlineKeyboardButton("👤 Profile", callback_data="user_profile"),
+            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation")
+        ]
     ])
     
+    # Second row - Balance management
+    buttons.extend([
+        [
+            InlineKeyboardButton("💰 Check Balance", callback_data="check_balance"),
+            InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")
+        ]
+    ])
+    
+    # Admin panel if admin
     if is_admin:
         buttons.append([InlineKeyboardButton("🎛️ Admin Panel", callback_data="mother_admin_panel")])
     
+    # Feature buttons
     buttons.extend([
-        [InlineKeyboardButton("🔍 Search Files", callback_data="search_files")],
-        [InlineKeyboardButton("🎲 Random Files", callback_data="random_files")],
-        [InlineKeyboardButton("💎 Premium", callback_data="premium_info")],
-        [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
+        [
+            InlineKeyboardButton("🔍 Search Files", callback_data="search_files"),
+            InlineKeyboardButton("🎲 Random Files", callback_data="random_files")
+        ],
+        [
+            InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
+            InlineKeyboardButton("❓ Help", callback_data="help_menu")
+        ],
+        [
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}"),
+            InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+        ]
     ])
     
     await message.reply_text(
@@ -203,32 +221,48 @@ async def show_clone_bot_start(client: Client, message: Message, config: dict):
     if is_admin:
         buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_admin_panel")])
     
-    # Add feature buttons based on enabled features
-    feature_buttons = []
+    # First row - Profile and Create Clone
+    buttons.extend([
+        [
+            InlineKeyboardButton("👤 Profile", callback_data="user_profile"),
+            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation")
+        ]
+    ])
+    
+    # Feature buttons based on enabled features
+    feature_row = []
     if config['features'].get('search', True):
-        feature_buttons.append(InlineKeyboardButton("🔍 Search", callback_data="search_files"))
+        feature_row.append(InlineKeyboardButton("🔍 Search", callback_data="search_files"))
     if config['features'].get('upload', True):
-        feature_buttons.append(InlineKeyboardButton("📤 Upload", callback_data="upload_files"))
+        feature_row.append(InlineKeyboardButton("📤 Upload", callback_data="upload_files"))
     
-    if feature_buttons:
-        # Split into rows of 2
-        for i in range(0, len(feature_buttons), 2):
-            buttons.append(feature_buttons[i:i+2])
+    if feature_row:
+        buttons.append(feature_row)
     
+    # Additional features
+    additional_features = []
     if config['features'].get('token_verification', True):
-        buttons.append([InlineKeyboardButton("🎯 Get Token", callback_data="get_token")])
-    
+        additional_features.append(InlineKeyboardButton("🎯 Get Token", callback_data="get_token"))
     if config['features'].get('premium', True):
-        buttons.append([InlineKeyboardButton("💎 Premium", callback_data="premium_info")])
+        additional_features.append(InlineKeyboardButton("💎 Premium", callback_data="premium_info"))
     
+    if additional_features:
+        # Split into rows of 2
+        for i in range(0, len(additional_features), 2):
+            buttons.append(additional_features[i:i+2])
+    
+    # Random files and balance
     buttons.extend([
         [InlineKeyboardButton("🎲 Random Files", callback_data="random_files")],
         [
-            InlineKeyboardButton("🤖 Create Your Clone", callback_data="start_clone_creation"),
-            InlineKeyboardButton("💰 Check Balance", callback_data="check_balance")
+            InlineKeyboardButton("💰 Check Balance", callback_data="check_balance"),
+            InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")
         ],
-        [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")],
-        [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
+        [
+            InlineKeyboardButton("❓ Help", callback_data="help_menu"),
+            InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+        ],
+        [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")]
     ])
     
     await message.reply_text(
@@ -258,6 +292,15 @@ async def show_force_subscribe_message(client: Client, message: Message, force_c
     buttons.append([InlineKeyboardButton("✅ I Joined", callback_data="check_subscription")])
     
     await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+async def get_user_clones(user_id: int):
+    """Get user's clones"""
+    try:
+        from bot.database.clone_db import get_user_clones as db_get_user_clones
+        return await db_get_user_clones(user_id)
+    except Exception as e:
+        print(f"Error getting user clones: {e}")
+        return []
 
 async def send_file_from_id(client: Client, message: Message, converted_id: int):
     """Send file from converted ID"""
@@ -310,7 +353,132 @@ async def check_subscription_callback(client, query):
     else:
         await query.answer("❌ Please join all required channels first!", show_alert=True)
 
-# Clone creation handler is now in step_clone_creation.py
+# Clone creation handler - simplified version
+@Client.on_callback_query(filters.regex("^start_clone_creation$"))
+async def start_clone_creation_callback(client, query):
+    """Start simplified clone creation process"""
+    await query.answer()
+    
+    user_id = query.from_user.id
+    
+    # Check balance first
+    from bot.database.balance_db import get_user_balance
+    current_balance = await get_user_balance(user_id)
+    
+    if current_balance < 3.00:
+        text = f"❌ **Insufficient Balance**\n\n"
+        text += f"💰 **Current Balance:** ${current_balance:.2f}\n"
+        text += f"💵 **Required:** $3.00 (minimum)\n\n"
+        text += f"You need at least $3.00 to create a clone.\n"
+        text += f"Please add balance to your account first.\n\n"
+        text += f"**💡 Clone Plans:**\n"
+        text += f"• Monthly: $3.00\n"
+        text += f"• Quarterly: $8.00\n"
+        text += f"• Semi-Annual: $15.00\n"
+        text += f"• Yearly: $26.00"
+        
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")],
+            [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+            [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+        ])
+        
+        await query.edit_message_text(text, reply_markup=buttons)
+        return
+    
+    # Show clone creation options
+    text = f"🤖 **Create Your Clone Bot**\n\n"
+    text += f"✅ **Balance Check:** ${current_balance:.2f} available\n\n"
+    text += f"**📋 What you need:**\n"
+    text += f"1. **Bot Token** - Get from @BotFather\n"
+    text += f"2. **MongoDB URL** - Database connection\n"
+    text += f"3. **Choose Plan** - Select subscription duration\n\n"
+    text += f"**💰 Available Plans:**\n"
+    text += f"• **Monthly:** $3.00 - 30 days\n"
+    text += f"• **Quarterly:** $8.00 - 90 days (Best Value!)\n"
+    text += f"• **Semi-Annual:** $15.00 - 180 days\n"
+    text += f"• **Yearly:** $26.00 - 365 days\n\n"
+    text += f"**🚀 Process:**\n"
+    text += f"1. Select your plan\n"
+    text += f"2. Provide bot token & database\n"
+    text += f"3. Instant deployment\n"
+    text += f"4. Start using your clone!\n\n"
+    text += f"**✨ Your clone will have all features of this bot!**"
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📅 Monthly ($3)", callback_data="create_clone_monthly"),
+            InlineKeyboardButton("📅 Quarterly ($8)", callback_data="create_clone_quarterly")
+        ],
+        [
+            InlineKeyboardButton("📅 Semi-Annual ($15)", callback_data="create_clone_semi"),
+            InlineKeyboardButton("📅 Yearly ($26)", callback_data="create_clone_yearly")
+        ],
+        [InlineKeyboardButton("❓ How to get Bot Token?", callback_data="how_to_get_token")],
+        [InlineKeyboardButton("❓ How to get MongoDB?", callback_data="how_to_get_mongodb")],
+        [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^how_to_get_token$"))
+async def how_to_get_token_callback(client, query):
+    """Show how to get bot token"""
+    await query.answer()
+    
+    text = f"🤖 **How to Get Bot Token**\n\n"
+    text += f"**Step 1:** Go to @BotFather on Telegram\n"
+    text += f"**Step 2:** Send `/newbot` command\n"
+    text += f"**Step 3:** Choose a name for your bot\n"
+    text += f"**Step 4:** Choose a username (must end with 'bot')\n"
+    text += f"**Step 5:** Copy the token provided\n\n"
+    text += f"**📝 Example:**\n"
+    text += f"• Bot Name: `My File Bot`\n"
+    text += f"• Username: `myfilebot` or `my_file_bot`\n"
+    text += f"• Token: `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`\n\n"
+    text += f"**⚠️ Important:**\n"
+    text += f"• Keep your token secret\n"
+    text += f"• Don't share with others\n"
+    text += f"• Token format: numbers:letters\n\n"
+    text += f"**🔗 Quick Link:** @BotFather"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 Open BotFather", url="https://t.me/BotFather")],
+        [InlineKeyboardButton("« Back to Clone Creation", callback_data="start_clone_creation")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^how_to_get_mongodb$"))
+async def how_to_get_mongodb_callback(client, query):
+    """Show how to get MongoDB"""
+    await query.answer()
+    
+    text = f"🗄️ **How to Get MongoDB URL**\n\n"
+    text += f"**Option 1: MongoDB Atlas (Recommended)**\n"
+    text += f"1. Go to mongodb.com/atlas\n"
+    text += f"2. Create free account\n"
+    text += f"3. Create new cluster (free tier)\n"
+    text += f"4. Create database user\n"
+    text += f"5. Get connection string\n\n"
+    text += f"**Option 2: Use same as Mother Bot**\n"
+    text += f"Contact admin to get shared database access\n\n"
+    text += f"**📝 URL Format:**\n"
+    text += f"`mongodb+srv://username:password@cluster.mongodb.net/dbname`\n\n"
+    text += f"**⚠️ Important:**\n"
+    text += f"• Keep credentials secure\n"
+    text += f"• Use strong passwords\n"
+    text += f"• Free tier has 512MB limit\n\n"
+    text += f"**💡 Need Help?**\n"
+    text += f"Contact admin for assistance with setup"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 MongoDB Atlas", url="https://www.mongodb.com/atlas")],
+        [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+        [InlineKeyboardButton("« Back to Clone Creation", callback_data="start_clone_creation")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^manage_my_clone$"))
 async def manage_my_clone_callback(client, query):
@@ -459,3 +627,221 @@ async def back_to_start_callback(client, query):
         await show_mother_bot_start(client, query.message, config)
     else:
         await show_clone_bot_start(client, query.message, config)
+
+@Client.on_callback_query(filters.regex("^user_profile$"))
+async def user_profile_callback(client, query):
+    """Handle user profile button"""
+    await query.answer()
+    
+    from bot.database.balance_db import get_user_balance, get_user_transactions
+    from bot.database.clone_db import get_user_clones
+    
+    user_id = query.from_user.id
+    user = query.from_user
+    current_balance = await get_user_balance(user_id)
+    recent_transactions = await get_user_transactions(user_id, limit=3)
+    user_clones = await get_user_clones(user_id)
+    active_clones = [clone for clone in user_clones if clone.get('status') == 'active']
+    
+    # Check if user is admin
+    is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
+    
+    text = f"👤 **User Profile**\n\n"
+    text += f"🆔 **User ID:** `{user_id}`\n"
+    text += f"👤 **Name:** {user.first_name}"
+    if user.last_name:
+        text += f" {user.last_name}"
+    text += "\n"
+    if user.username:
+        text += f"🏷️ **Username:** @{user.username}\n"
+    text += f"👑 **Status:** {'Admin' if is_admin else 'User'}\n"
+    text += f"💰 **Current Balance:** ${current_balance:.2f}\n"
+    text += f"🤖 **Active Clones:** {len(active_clones)}\n\n"
+    
+    if recent_transactions:
+        text += "📊 **Recent Transactions:**\n"
+        for trans in recent_transactions:
+            emoji = "➕" if trans['type'] == 'credit' else "➖"
+            date_str = trans['timestamp'].strftime('%m-%d')
+            text += f"{emoji} ${trans['amount']:.2f} - {trans['description']} ({date_str})\n"
+    else:
+        text += "📊 **Recent Transactions:** No transactions yet\n"
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance"),
+            InlineKeyboardButton("📊 Full History", callback_data="transaction_history")
+        ],
+        [InlineKeyboardButton("🤖 My Clones", callback_data="manage_my_clone")],
+        [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^help_menu$"))
+async def help_menu_callback(client, query):
+    """Handle help menu button"""
+    await query.answer()
+    
+    user_id = query.from_user.id
+    is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
+    
+    text = f"❓ **Help & Commands**\n\n"
+    
+    text += "**🔧 Basic Commands:**\n"
+    text += "• `/start` - Start the bot\n"
+    text += "• `/help` - Show help menu\n"
+    text += "• `/mystats` - View your statistics\n"
+    text += "• `/token` - Generate access token\n"
+    text += "• `/rand` - Get random files\n\n"
+    
+    text += "**🔍 Search & Files:**\n"
+    text += "• `/search <query>` - Search for files\n"
+    text += "• Send any file to get a shareable link\n"
+    text += "• Use generated links to access files\n\n"
+    
+    text += "**🤖 Clone Management:**\n"
+    text += "• `/createclone` - Create a new bot clone\n"
+    text += "• `/myclones` - View your clones\n"
+    text += "• Clones operate independently\n"
+    text += "• Each clone costs $3-26 based on plan\n\n"
+    
+    text += "**💰 Balance & Premium:**\n"
+    text += "• `/premium` - View premium plans\n"
+    text += "• Contact admin to add balance\n"
+    text += "• Premium features available\n\n"
+    
+    if is_admin:
+        text += "**👑 Admin Commands:**\n"
+        text += "• `/admin` - Admin panel\n"
+        text += "• `/broadcast` - Send broadcast\n"
+        text += "• `/stats` - Global statistics\n"
+        text += "• `/users` - User management\n\n"
+    
+    text += "**📞 Support:**\n"
+    text += "• Contact admin for issues\n"
+    text += "• Report bugs or suggestions\n"
+    text += "• Get help with clone setup\n\n"
+    
+    text += "**💡 Tips:**\n"
+    text += "• Keep your tokens secure\n"
+    text += "• Join force channels if required\n"
+    text += "• Use premium for better features"
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("💎 Premium", callback_data="premium_info")
+        ],
+        [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+        [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^about_bot$"))
+async def about_bot_callback(client, query):
+    """Handle about bot button"""
+    await query.answer()
+    
+    me = await client.get_me()
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    config = await clone_config_loader.get_bot_config(bot_token)
+    
+    text = f"ℹ️ **About {me.first_name}**\n\n"
+    
+    if config['bot_info'].get('is_mother_bot', False):
+        text += "🤖 **Mother Bot System**\n"
+        text += "The ultimate file-sharing bot with advanced clone management!\n\n"
+        
+        text += "**🌟 Key Features:**\n"
+        text += "• 📁 Unlimited file sharing\n"
+        text += "• 🤖 Create bot clones\n"
+        text += "• 🔍 Advanced search system\n"
+        text += "• 💎 Premium subscriptions\n"
+        text += "• 🔗 Short link generation\n"
+        text += "• 🎯 Token verification\n"
+        text += "• 📊 Analytics & statistics\n"
+        text += "• 👥 Multi-user support\n\n"
+        
+        text += "**💰 Clone Pricing:**\n"
+        text += "• Monthly: $3.00\n"
+        text += "• Quarterly: $8.00\n"
+        text += "• Semi-Annual: $15.00\n"
+        text += "• Yearly: $26.00\n\n"
+    else:
+        text += "📁 **Professional File Sharing Bot**\n"
+        text += "Fast, reliable, and secure file sharing service.\n\n"
+        
+        text += "**✨ Features:**\n"
+        text += "• 📤 File upload & sharing\n"
+        text += "• 🔍 Smart file search\n"
+        text += "• 🔗 Instant link generation\n"
+        text += "• 🎯 Token verification\n"
+        text += "• 💎 Premium options\n"
+        text += "• 🎲 Random file discovery\n\n"
+    
+    text += "**🛠️ Technical Info:**\n"
+    text += f"• Bot ID: `{me.id}`\n"
+    text += f"• Username: @{me.username}\n"
+    text += "• Platform: Telegram\n"
+    text += "• Language: Python\n"
+    text += "• Database: MongoDB\n\n"
+    
+    text += "**👨‍💻 Developer:**\n"
+    text += "• Created with ❤️\n"
+    text += "• Powered by Mother Bot System\n"
+    text += "• Open source project\n\n"
+    
+    text += "**🔗 Links:**\n"
+    text += f"• Bot: @{me.username}\n"
+    if hasattr(Config, 'SUPPORT_CHAT'):
+        text += f"• Support: {Config.SUPPORT_CHAT}\n"
+    if hasattr(Config, 'UPDATES_CHANNEL'):
+        text += f"• Updates: {Config.UPDATES_CHANNEL}\n"
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🤖 Create Your Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")
+        ],
+        [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^transaction_history$"))
+async def transaction_history_callback(client, query):
+    """Handle transaction history button"""
+    await query.answer()
+    
+    from bot.database.balance_db import get_user_transactions
+    
+    user_id = query.from_user.id
+    transactions = await get_user_transactions(user_id, limit=10)
+    
+    text = f"📊 **Transaction History**\n\n"
+    
+    if transactions:
+        for trans in transactions:
+            emoji = "➕" if trans['type'] == 'credit' else "➖"
+            date_str = trans['timestamp'].strftime('%Y-%m-%d %H:%M')
+            text += f"{emoji} **${trans['amount']:.2f}**\n"
+            text += f"   {trans['description']}\n"
+            text += f"   📅 {date_str}\n\n"
+    else:
+        text += "No transactions found.\n\n"
+        text += "💡 **Get Started:**\n"
+        text += "• Create a clone to start earning\n"
+        text += "• Contact admin to add balance\n"
+        text += "• Use premium features"
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("💳 Add Balance", callback_data="add_balance"),
+            InlineKeyboardButton("👤 Profile", callback_data="user_profile")
+        ],
+        [InlineKeyboardButton("« Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
