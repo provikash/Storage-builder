@@ -20,6 +20,15 @@ request_sessions = {}
 
 # Removed conflicting input handler - step_clone_creation.py handles all clone creation input
 
+@Client.on_message(filters.text & filters.private & ~filters.command(["start", "help", "about"]))
+async def handle_clone_creation_input(client: Client, message: Message):
+    """Handle clone creation input steps"""
+    user_id = message.from_user.id
+    session = request_sessions.get(user_id)
+
+    if not session:
+        return  # No active session
+
     # Check if session is expired (2 hours)
     elapsed_time = (datetime.now() - session['started_at']).total_seconds()
     if elapsed_time > 7200:  # 2 hours
@@ -29,7 +38,7 @@ request_sessions = {}
             "Your clone creation session has timed out. Please start again with /createclone"
         )
         return
-    
+
     # Update session activity
     session['last_activity'] = datetime.now()
 
@@ -39,7 +48,7 @@ request_sessions = {}
     if step == 'bot_token':
         print(f"🔑 DEBUG INPUT: Processing bot token for user {user_id}")
         print(f"🔍 DEBUG INPUT: Token length: {len(user_input) if user_input else 0}")
-        
+
         # Validate bot token format
         if not user_input or ':' not in user_input or len(user_input) < 20:
             print(f"❌ DEBUG INPUT: Invalid token format for user {user_id}")
@@ -104,7 +113,7 @@ request_sessions = {}
     elif step == 'mongodb_url':
         print(f"🗄️ DEBUG INPUT: Processing MongoDB URL for user {user_id}")
         print(f"🔍 DEBUG INPUT: URL starts with: '{user_input[:20]}...' (truncated)")
-        
+
         # Validate MongoDB URL format
         if not user_input.startswith(('mongodb://', 'mongodb+srv://')):
             print(f"❌ DEBUG INPUT: Invalid MongoDB URL format for user {user_id}")
@@ -180,16 +189,16 @@ async def handle_plan_selection(client: Client, query: CallbackQuery):
 
     if not session:
         return await query.answer("❌ Session expired! Please start over with /createclone", show_alert=True)
-    
+
     # Check session timeout
     elapsed_time = (datetime.now() - session['started_at']).total_seconds()
     if elapsed_time > 7200:  # 2 hours
         del request_sessions[user_id]
         return await query.answer("❌ Session expired! Please start over with /createclone", show_alert=True)
-    
+
     if session['step'] != 'subscription_plan':
         return await query.answer("❌ Invalid session state! Please start over with /createclone", show_alert=True)
-    
+
     # Update session activity
     session['last_activity'] = datetime.now()
 
@@ -358,7 +367,6 @@ async def notify_admins_new_request(request_data):
         text += f" (@{request_data['requester_info']['username']})"
     text += f"\n🆔 **User ID:** `{request_data['user_id']}`\n"
     text += f"🤖 **Bot:** @{request_data['bot_username']}\n"
-    text += f"🔑 **Token:** `{masked_token}`\n"
     text += f"💰 **Plan:** {request_data['plan_details']['name']} (${request_data['plan_details']['price']})\n"
     text += f"📅 **Submitted:** {request_data['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n\n"
     text += "Use /admin to review and approve/reject this request."
@@ -537,7 +545,7 @@ async def cleanup_expired_sessions():
 
     for user_id in expired_sessions:
         del request_sessions[user_id]
-        
+
     if expired_sessions:
         logger.info(f"Cleaned up {len(expired_sessions)} expired clone creation sessions")
 
