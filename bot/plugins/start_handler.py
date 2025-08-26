@@ -2,9 +2,12 @@ import asyncio
 from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from bot.utils.session_manager import get_session, clear_session, session_expired
+from bot.database.users import add_user, present_user
 from info import Config
-from bot.database import add_user, get_user_balance
-from bot.utils import get_readable_time, handle_force_sub
+from bot.database.premium_db import is_premium_user
+from bot.database import get_user_balance
+from bot.utils import handle_force_sub
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
@@ -25,17 +28,17 @@ async def start_command(client: Client, message: Message):
         print(f"✅ DEBUG SESSION: Session valid for user {user.id}")
 
     # Add user to database
-    await add_user(user_id, message.from_user.first_name)
+    await add_user(user.id, message.from_user.first_name)
 
     # Check force subscription
     if not await handle_force_sub(client, message):
         return
 
     # Get user balance
-    balance = await get_user_balance(user_id)
+    balance = await get_user_balance(user.id)
 
     # Check if user is admin
-    is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
+    is_admin = user.id in [Config.OWNER_ID] + list(Config.ADMINS)
 
     text = f"👋 **Welcome {message.from_user.first_name}!**\n\n"
     text += f"🤖 **Mother Bot + Clone System**\n"

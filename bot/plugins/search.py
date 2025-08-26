@@ -437,6 +437,15 @@ async def handle_random_files(client: Client, message, is_callback: bool = False
                 try:
                     print(f"DEBUG: Fetching message {message_id} from channel {Config.INDEX_CHANNEL_ID}")
 
+                    # Validate channel access first
+                    try:
+                        # Check if bot has access to the channel
+                        await client.get_chat(Config.INDEX_CHANNEL_ID)
+                    except Exception as channel_error:
+                        print(f"ERROR: Cannot access channel {Config.INDEX_CHANNEL_ID}: {channel_error}")
+                        errors_encountered.append(f"Channel access denied: {Config.INDEX_CHANNEL_ID}")
+                        continue
+                    
                     # Get the message from the index channel (where files are stored)
                     db_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
 
