@@ -1,6 +1,6 @@
 import asyncio
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from info import Config
@@ -14,6 +14,78 @@ logger = LOGGER(__name__)
 
 # Initialize session manager
 session_manager = SessionManager()
+
+async def create_clone_directly(user_id: int, data: dict):
+    """Create clone directly without the removed clone_request module"""
+    try:
+        plan_details = data['plan_details']
+        required_amount = plan_details['price']
+        
+        print(f"💰 DEBUG CLONE: Processing payment of ${required_amount} for user {user_id}")
+        
+        # Check and deduct balance
+        current_balance = await get_user_balance(user_id)
+        if current_balance < required_amount:
+            return False, f"Insufficient balance. Required: ${required_amount}, Available: ${current_balance}"
+        
+        # Deduct balance
+        await deduct_balance(user_id, required_amount)
+        print(f"💰 DEBUG CLONE: Balance deducted successfully for user {user_id}")
+        
+        # Create clone record
+        clone_data = {
+            '_id': str(data['bot_id']),
+            'admin_id': user_id,
+            'username': data['bot_username'],
+            'bot_token': data['bot_token'],
+            'mongodb_url': data['mongodb_url'],
+            'status': 'active',
+            'created_at': datetime.now(),
+            'last_seen': datetime.now()
+        }
+        
+        await create_clone(clone_data)
+        print(f"🤖 DEBUG CLONE: Clone record created for bot {data['bot_id']}")
+        
+        # Create subscription
+        subscription_data = {
+            '_id': str(data['bot_id']),
+            'bot_id': str(data['bot_id']),
+            'user_id': user_id,
+            'tier': data['plan_id'],
+            'plan_data': plan_details,
+            'price': required_amount,
+            'status': 'active',
+            'created_at': datetime.now(),
+            'expires_at': datetime.now() + timedelta(days=plan_details['duration_days']),
+            'payment_verified': True
+        }
+        
+        await create_subscription(str(data['bot_id']), user_id, data['plan_id'], True)
+        print(f"📅 DEBUG CLONE: Subscription created for bot {data['bot_id']}")
+        
+        # Start the clone
+        from clone_manager import clone_manager
+        clone_success, clone_message = await clone_manager.start_clone(str(data['bot_id']))
+        
+        result_data = {
+            'clone_created': True,
+            'clone_started': clone_success,
+            'clone_message': clone_message,
+            'bot_id': data['bot_id'],
+            'username': data['bot_username']
+        }
+        
+        if clone_success:
+            print(f"✅ DEBUG CLONE: Clone {data['bot_id']} started successfully")
+        else:
+            print(f"⚠️ DEBUG CLONE: Clone {data['bot_id']} created but failed to start: {clone_message}")
+        
+        return True, result_data
+        
+    except Exception as e:
+        logger.error(f"❌ Error in create_clone_directly for user {user_id}: {e}")
+        return False, str(e)
 
 @Client.on_callback_query(filters.regex("^start_clone_creation$"), group=1)
 async def start_clone_creation_callback(client: Client, query: CallbackQuery):
@@ -723,15 +795,8 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
             f"🕐 **Please wait, this usually takes 1-2 minutes...**"
         )
 
-        # Import the auto-approval function
-        try:
-            from bot.plugins.clone_request import process_clone_auto_approval
-        except ImportError:
-            # Fallback if import fails
-            async def process_clone_auto_approval(user_id, data):
-                return False, "Auto-approval service temporarily unavailable"
-
-        success, result = await process_clone_auto_approval(user_id, data)
+        # Process clone creation directly (since clone_request module was removed)
+        success, result = await create_clone_directly(user_id, data)
 
         if success:
             # Clean up session
