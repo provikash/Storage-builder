@@ -5,7 +5,6 @@ import logging
 import signal
 import sys
 from pathlib import Path
-from pyrogram import idle
 from bot import Bot
 from clone_manager import clone_manager
 import pymongo
@@ -218,6 +217,7 @@ async def main():
         logger.info("="*60)
 
         # Keep the application running using pyrogram's idle
+        from pyrogram import idle
         await idle()
 
     except KeyboardInterrupt:
