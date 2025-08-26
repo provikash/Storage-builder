@@ -5,33 +5,40 @@ from datetime import datetime, timedelta
 from bot.database import add_premium_user, is_premium_user, get_premium_info, remove_premium
 from info import Config
 
-# Premium plan configurations - Token-based system
-PREMIUM_PLANS = {
-    "basic": {
+# Token verification plans - These are for bot command usage, NOT for clone creation
+TOKEN_VERIFICATION_PLANS = {
+    "basic_tokens": {
         "name": "Basic Token Pack",
         "price": "₹29",
         "tokens": 50,
-        "description": "50 Command Tokens"
+        "description": "50 Command Tokens for Bot Usage",
+        "type": "token_verification"
     },
-    "standard": {
+    "standard_tokens": {
         "name": "Standard Token Pack", 
         "price": "₹79",
         "tokens": 150,
-        "description": "150 Command Tokens"
+        "description": "150 Command Tokens for Bot Usage",
+        "type": "token_verification"
     },
-    "premium": {
+    "premium_tokens": {
         "name": "Premium Token Pack",
         "price": "₹149", 
         "tokens": 300,
-        "description": "300 Command Tokens"
+        "description": "300 Command Tokens for Bot Usage",
+        "type": "token_verification"
     },
-    "unlimited": {
-        "name": "Unlimited Access",
+    "unlimited_tokens": {
+        "name": "Unlimited Token Access",
         "price": "₹299",
         "tokens": -1,  # -1 means unlimited
-        "description": "Unlimited Commands for 1 Year"
+        "description": "Unlimited Bot Commands for 1 Year",
+        "type": "token_verification"
     }
 }
+
+# Keep legacy reference for compatibility
+PREMIUM_PLANS = TOKEN_VERIFICATION_PLANS
 
 @Client.on_message(filters.command("premium") & filters.private)
 async def premium_handler(client, message):
@@ -66,13 +73,15 @@ async def premium_handler(client, message):
     buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="close")])
 
     await message.reply_text(
-        "💎 **Upgrade to Premium Membership**\n\n"
-        "🎯 **Premium Benefits:**\n"
-        "• 🚫 **No Ads** - Skip all verification steps\n"
-        "• ⚡ **Instant Access** - Direct file downloads\n"
-        "• 🔥 **Unlimited Downloads** - No restrictions\n"
-        "• 👑 **Premium Support** - Priority assistance\n\n"
-        "💰 **Choose Your Plan:**",
+        "🎫 **Token Verification Plans**\n\n"
+        "⚠️ **Note:** These are for bot command usage only, NOT for clone creation.\n\n"
+        "🎯 **Token Benefits:**\n"
+        "• 🚫 **No Ads** - Skip verification steps when using bot commands\n"
+        "• ⚡ **Instant Access** - Direct file access with tokens\n"
+        "• 🔥 **No Command Limits** - Use bot features freely\n"
+        "• 👑 **Token Support** - Help with token-related issues\n\n"
+        "💰 **Choose Your Token Plan:**\n"
+        "💡 **For clone creation, use /createclone command**",
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
@@ -86,9 +95,10 @@ async def buy_premium_callback(client, query: CallbackQuery):
 
     # Payment instructions
     payment_text = (
-        f"💎 **{plan['name']} Membership**\n"
+        f"🎫 **{plan['name']} - Token Verification**\n"
         f"💰 **Price:** ₹{plan['price']}\n"
-        f"⏱️ **Tokens:** {plan['tokens']} \n\n"
+        f"🎯 **Tokens:** {plan['tokens']} \n\n"
+        f"⚠️ **Important:** This is for bot command usage only, NOT clone creation!\n\n"
         f"💳 **Payment Instructions:**\n"
         f"1. Pay ₹{plan['price']} to the following:\n"
         f"📱 **UPI ID:** `{Config.PAYMENT_UPI}`\n"

@@ -1,4 +1,3 @@
-
 import uvloop
 import asyncio
 import logging
@@ -176,6 +175,19 @@ async def main():
 
         pending_monitor = asyncio.create_task(periodic_pending_check())
         monitoring_tasks.append(pending_monitor)
+
+        # Start session cleanup task if session manager exists
+        if hasattr(clone_manager, 'session_manager'):
+            asyncio.create_task(clone_manager.session_manager.start_cleanup_task())
+
+        # Start clone request session cleanup
+        from bot.plugins.clone_request import cleanup_expired_sessions
+        async def periodic_session_cleanup():
+            while True:
+                await asyncio.sleep(1800)  # Every 30 minutes
+                await cleanup_expired_sessions()
+
+        asyncio.create_task(periodic_session_cleanup())
 
         # Start system monitoring
         try:

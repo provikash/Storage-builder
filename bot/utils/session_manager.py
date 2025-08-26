@@ -11,7 +11,7 @@ class SessionManager:
     
     def __init__(self):
         self.sessions: Dict[int, Dict[str, Any]] = {}
-        self.session_timeout = 1800  # 30 minutes
+        self.session_timeout = 7200  # 2 hours for clone creation
     
     def create_session(self, user_id: int, session_data: Dict[str, Any]) -> None:
         """Create a new session for a user"""

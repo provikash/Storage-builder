@@ -27,14 +27,18 @@ async def handle_clone_request_input(client: Client, message: Message):
     if not session:
         return
 
-    # Check if session is expired (30 minutes)
-    if (datetime.now() - session['started_at']).seconds > 1800:
+    # Check if session is expired (2 hours)
+    elapsed_time = (datetime.now() - session['started_at']).total_seconds()
+    if elapsed_time > 7200:  # 2 hours
         del request_sessions[user_id]
         await message.reply_text(
             "⏰ **Session expired!**\n\n"
             "Your clone creation session has timed out. Please start again with /createclone"
         )
         return
+    
+    # Update session activity
+    session['last_activity'] = datetime.now()
 
     step = session['step']
     user_input = message.text.strip()
@@ -173,8 +177,20 @@ async def handle_plan_selection(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     session = request_sessions.get(user_id)
 
-    if not session or session['step'] != 'subscription_plan':
-        return await query.answer("❌ Session expired! Please start over with /requestclone", show_alert=True)
+    if not session:
+        return await query.answer("❌ Session expired! Please start over with /createclone", show_alert=True)
+    
+    # Check session timeout
+    elapsed_time = (datetime.now() - session['started_at']).total_seconds()
+    if elapsed_time > 7200:  # 2 hours
+        del request_sessions[user_id]
+        return await query.answer("❌ Session expired! Please start over with /createclone", show_alert=True)
+    
+    if session['step'] != 'subscription_plan':
+        return await query.answer("❌ Invalid session state! Please start over with /createclone", show_alert=True)
+    
+    # Update session activity
+    session['last_activity'] = datetime.now()
 
     plan_id = query.data.split(':')[1]
     plans = await get_pricing_tiers()
@@ -514,11 +530,15 @@ async def cleanup_expired_sessions():
     expired_sessions = []
 
     for user_id, session in request_sessions.items():
-        if (current_time - session['started_at']).seconds > 1800:  # 30 minutes
+        elapsed_time = (current_time - session['started_at']).total_seconds()
+        if elapsed_time > 7200:  # 2 hours
             expired_sessions.append(user_id)
 
     for user_id in expired_sessions:
         del request_sessions[user_id]
+        
+    if expired_sessions:
+        logger.info(f"Cleaned up {len(expired_sessions)} expired clone creation sessions")
 
 async def process_clone_auto_approval(user_id: int, request_data: dict):
     """Process auto-approval if balance is sufficient"""
