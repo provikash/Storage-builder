@@ -40,3 +40,15 @@ from .command_usage_db import (
     get_command_stats
 )
 from .mongo_db import MongoDB
+from .balance_db import (
+    get_user_balance,
+    create_user_profile,
+    get_user_profile,
+    update_balance,
+    deduct_balance,
+    add_balance,
+    log_transaction,
+    get_user_transactions,
+    get_all_user_balances,
+    check_sufficient_balance
+)
