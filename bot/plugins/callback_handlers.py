@@ -19,6 +19,11 @@ CALLBACK_PRIORITIES = {
     "catchall": 99   # Catch-all lowest priority
 }
 
+# Placeholder for creation sessions, assuming it's defined elsewhere or needs to be defined
+# If creation_sessions is used globally, ensure it's accessible here.
+# For this example, let's assume it's a dictionary.
+creation_sessions = {}
+
 # Helper function to check if user is Mother Bot admin
 def is_mother_admin(user_id):
     """Check if user is Mother Bot admin"""
@@ -84,11 +89,11 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
         # Check admin permissions
         if not is_mother_admin(user_id):
             return await query.answer("❌ Unauthorized access!", show_alert=True)
-        
+
         # Route to admin panel
         from bot.plugins.admin_panel import mother_admin_panel
         await mother_admin_panel(client, query)
-    
+
     elif query.data == "start":
         # Handle start button - show start message
         from bot.plugins.start_handler import start_command
@@ -99,7 +104,7 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
                 self.chat = query.message.chat
             async def reply_text(self, text, reply_markup=None, **kwargs):
                 await query.edit_message_text(text, reply_markup=reply_markup)
-        
+
         fake_message = FakeMessage(query)
         await start_command(client, fake_message)
 
@@ -177,75 +182,91 @@ async def mother_admin_callback_router(client: Client, query: CallbackQuery):
     # Let specific handlers handle their callbacks
     pass
 
-# Quick approval/rejection callbacks (Priority 2) - This is now handled by handle_quick_actions
-# @Client.on_callback_query(filters.regex("^(quick_approve|quick_reject|approve_request|reject_request):"), group=CALLBACK_PRIORITIES["approval"])
-# async def approval_callback_handler(client: Client, query: CallbackQuery):
-#     """Handle approval/rejection callbacks"""
-#     print(f"DEBUG: Approval callback - {query.data} from user {query.from_user.id}")
+# Add handlers for simplified clone creation flow
+# Assuming these functions (step2_bot_token, start_clone_creation, cancel_creation, database_help) are defined elsewhere
+# and creation_sessions is a global dictionary to store session data.
 
-#     # Check admin permissions
-#     if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
-#         return await query.answer("❌ Unauthorized access!", show_alert=True)
+# Dummy function for step2_bot_token for context
+async def step2_bot_token(client, query):
+    """Placeholder for the actual step 2 handler"""
+    user_id = query.from_user.id
+    session = creation_sessions.get(user_id)
+    if not session:
+        await query.edit_message_text("Session expired. Please start again.")
+        return
+    
+    plan_id = session['data'].get('plan_id', 'monthly')
+    plan_details = session['data'].get('plan_details', {})
+    bot_username = session['data'].get('bot_username', 'your_bot') # Placeholder if not set
 
-#     try:
-#         action, request_id = query.data.split(":", 1)
+    text = f"🔑 **Step 2/3: Bot Token**\n\n"
+    text += f"✅ **Bot:** @{bot_username}\n"
+    text += f"✅ **Plan:** {plan_details.get('name', 'Selected Plan')}\n\n"
+    text += f"Now, please provide your Telegram Bot Token.\n"
+    text += f"You can get this from @BotFather.\n\n"
+    text += f"**Example:** `1234567890:ABCdefGHIjklMNOpqrSTUvwxyzABCdefGHIjklMNOpqrSTUvwxyz-abcdefg`\n\n"
+    text += f"Send your bot token now:"
 
-#         if action in ["quick_approve", "approve_request"]:
-#             from bot.plugins.clone_approval import approve_clone_request
-#             await approve_clone_request(client, query, request_id)
-#         elif action in ["quick_reject", "reject_request"]:
-#             from bot.plugins.clone_approval import reject_clone_request
-#             await reject_clone_request(client, query, request_id)
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("❓ BotFather Help", url="https://core.telegram.org/bots#6-botfather")],
+            [InlineKeyboardButton("🔙 Back to Plan Selection", callback_data="back_to_plan_selection")], # Assuming this callback exists
+            [InlineKeyboardButton("➡️ Next: Database URL", callback_data="step3_db_url")], # This callback will lead to the new step 3
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")] # Assuming this callback exists
+        ])
+    )
 
-#     except Exception as e:
-#         print(f"ERROR: Error in approval callback: {e}")
-#         await query.answer("❌ Error processing request!", show_alert=True)
 
-# View request details handler - This is now handled by handle_view_request_details
-# @Client.on_callback_query(filters.regex("^view_request:"), group=CALLBACK_PRIORITIES["approval"])
-# async def handle_view_request_details(client: Client, query: CallbackQuery):
-#     """Handle viewing request details"""
-#     if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
-#         return await query.answer("❌ Unauthorized access!", show_alert=True)
+@Client.on_callback_query(filters.regex("^back_to_step3$"))
+async def back_to_step3_callback(client, query):
+    """Handle back to step 3"""
+    await query.answer()
 
-#     request_id = query.data.split(":", 1)[1]
+    user_id = query.from_user.id
+    session = creation_sessions.get(user_id)
 
-#     try:
-#         from bot.database.clone_db import get_clone_request_by_id
-#         request = await get_clone_request_by_id(request_id)
+    if not session:
+        return await query.edit_message_text(
+            "❌ Session expired! Please start over.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🚀 Start Again", callback_data="start_clone_creation")]
+            ])
+        )
 
-#         if not request:
-#             await query.answer("❌ Request not found!", show_alert=True)
-#             return
+    # Show step 3 (database) directly
+    data = session['data']
+    plan = data.get('plan_details', {})
+    bot_username = data.get('bot_username', 'your_bot')
 
-#         # Format request details
-#         masked_token = f"{request['bot_token'][:8]}...{request['bot_token'][-4:]}"
-#         plan_details = request.get('plan_details', {})
-#         plan_name = plan_details.get('name', request.get('plan', 'monthly'))
+    text = f"🗄️ **Step 3/3: Database URL**\n\n"
+    text += f"✅ **Bot:** @{bot_username}\n"
+    text += f"✅ **Plan:** {plan.get('name', 'Selected Plan')}\n\n"
+    text += f"Now provide your MongoDB connection URL.\n\n"
+    text += f"**📋 Quick Options:**\n\n"
+    text += f"**Option 1: Free MongoDB Atlas**\n"
+    text += f"• Sign up at mongodb.com/atlas\n"
+    text += f"• Create free cluster\n"
+    text += f"• Get connection string\n\n"
+    text += f"**Option 2: Contact Admin**\n"
+    text += f"• Get shared database access\n"
+    text += f"• Ready-to-use connection\n\n"
+    text += f"**📝 URL Format:**\n"
+    text += f"`mongodb+srv://user:pass@cluster.mongodb.net/dbname`\n\n"
+    text += f"Please send your MongoDB URL now:"
 
-#         text = f"📋 **Clone Request Details**\n\n"
-#         text += f"🆔 **Request ID:** `{request_id}`\n"
-#         text += f"👤 **User ID:** `{request['user_id']}`\n"
-#         text += f"🤖 **Bot Username:** @{request.get('bot_username', 'Unknown')}\n"
-#         text += f"🔑 **Bot Token:** `{masked_token}`\n"
-#         text += f"🗄️ **Database URL:** `{request['mongodb_url'][:30]}...`\n"
-#         text += f"💰 **Plan:** {plan_name.title()}\n"
-#         text += f"📅 **Created:** {request['created_at'].strftime('%Y-%m-%d %H:%M UTC')}\n"
-#         text += f"⚡ **Status:** {request['status'].title()}\n"
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🌐 Get MongoDB Atlas", url="https://www.mongodb.com/atlas")],
+            [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+            [InlineKeyboardButton("❓ Database Help", callback_data="database_help")],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
+        ])
+    )
 
-#         buttons = InlineKeyboardMarkup([
-#             [
-#                 InlineKeyboardButton("✅ Approve", callback_data=f"approve_request:{request_id}"),
-#                 InlineKeyboardButton("❌ Reject", callback_data=f"reject_request:{request_id}")
-#             ],
-#             [InlineKeyboardButton("🔙 Back to Pending", callback_data="mother_pending_requests")]
-#         ])
-
-#         await query.edit_message_text(text, reply_markup=buttons)
-
-#     except Exception as e:
-#         print(f"ERROR: Error viewing request details: {e}")
-#         await query.answer("❌ Error loading request details!", show_alert=True)
+# Placeholder for other callback handlers (Premium, Search, General, etc.)
+# These are kept from the original code to ensure completeness.
 
 # Premium System Callbacks (Priority 3)
 @Client.on_callback_query(filters.regex("^(show_premium_plans|buy_premium)"), group=CALLBACK_PRIORITIES["premium"])

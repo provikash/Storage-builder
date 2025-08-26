@@ -1,3 +1,4 @@
+
 import asyncio
 import uuid
 from datetime import datetime
@@ -16,7 +17,7 @@ creation_sessions = {}
 
 @Client.on_callback_query(filters.regex("^start_clone_creation$"))
 async def start_clone_creation_callback(client, query):
-    """Handle create clone button with step-by-step process"""
+    """Start simplified clone creation process"""
     await query.answer()
     
     user_id = query.from_user.id
@@ -39,7 +40,7 @@ async def start_clone_creation_callback(client, query):
         
         return await query.edit_message_text(text, reply_markup=buttons)
     
-    # Check user balance
+    # Check user balance first
     current_balance = await get_user_balance(user_id)
     
     text = f"🤖 **Create Your Clone Bot**\n\n"
@@ -50,66 +51,206 @@ async def start_clone_creation_callback(client, query):
         text += f"You need at least $3.00 to create a clone.\n"
         text += f"Please add balance to your account first.\n\n"
         text += f"💡 **Clone Plans:**\n"
-        text += f"• Monthly: $3.00\n"
-        text += f"• Quarterly: $8.00\n"
-        text += f"• Semi-Annual: $15.00\n"
-        text += f"• Yearly: $26.00"
+        text += f"• Monthly: $3.00 (30 days)\n"
+        text += f"• Quarterly: $8.00 (90 days) - Best Value!\n"
+        text += f"• Semi-Annual: $15.00 (180 days)\n"
+        text += f"• Yearly: $26.00 (365 days)"
         
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")],
+            [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
             [InlineKeyboardButton("« Back", callback_data="back_to_start")]
         ])
         
         return await query.edit_message_text(text, reply_markup=buttons)
     
-    # Start the creation process
+    # Show simplified creation process
     text += f"✅ **You can create a clone!**\n\n"
-    text += f"🎯 **What you'll need:**\n"
-    text += f"1. Bot token from @BotFather\n"
-    text += f"2. MongoDB database URL\n"
-    text += f"3. Choose subscription plan\n\n"
-    text += f"📝 **Process:**\n"
-    text += f"• Step 1: Provide bot token\n"
-    text += f"• Step 2: Provide database URL\n"
-    text += f"• Step 3: Select plan\n"
-    text += f"• Step 4: Confirm & create\n\n"
-    text += f"Ready to begin?"
+    text += f"🎯 **Simple 3-Step Process:**\n\n"
+    text += f"**Step 1:** Choose your plan\n"
+    text += f"**Step 2:** Provide bot token (from @BotFather)\n"
+    text += f"**Step 3:** Provide database URL\n\n"
+    text += f"💡 **Available Plans:**\n"
+    text += f"• Monthly: $3.00 - Perfect for testing\n"
+    text += f"• Quarterly: $8.00 - Most popular!\n"
+    text += f"• Semi-Annual: $15.00 - Better value\n"
+    text += f"• Yearly: $26.00 - Best savings\n\n"
+    text += f"Your clone will be ready in minutes!"
     
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Start Creation", callback_data="begin_creation")],
-        [InlineKeyboardButton("💰 Check Balance", callback_data="check_balance")],
+        [InlineKeyboardButton("🚀 Start Creating", callback_data="begin_step1_plan")],
+        [InlineKeyboardButton("❓ Need Help?", callback_data="creation_help")],
         [InlineKeyboardButton("« Back", callback_data="back_to_start")]
     ])
     
     await query.edit_message_text(text, reply_markup=buttons)
 
-@Client.on_callback_query(filters.regex("^begin_creation$"))
-async def begin_creation_callback(client, query):
-    """Begin the step-by-step creation process"""
+@Client.on_callback_query(filters.regex("^creation_help$"))
+async def creation_help_callback(client, query):
+    """Show creation help"""
+    await query.answer()
+    
+    text = f"❓ **Clone Creation Help**\n\n"
+    text += f"**🤖 What is a Clone?**\n"
+    text += f"A clone is your personal copy of this bot with all the same features!\n\n"
+    text += f"**📋 What you need:**\n"
+    text += f"1. **Bot Token** - Get free from @BotFather\n"
+    text += f"2. **Database** - MongoDB connection URL\n"
+    text += f"3. **Plan** - Choose subscription duration\n\n"
+    text += f"**🔧 Getting Bot Token:**\n"
+    text += f"• Go to @BotFather\n"
+    text += f"• Send `/newbot`\n"
+    text += f"• Choose name and username\n"
+    text += f"• Copy the token provided\n\n"
+    text += f"**🗄️ Getting Database:**\n"
+    text += f"• Use MongoDB Atlas (free tier)\n"
+    text += f"• Or contact admin for shared database\n\n"
+    text += f"**💰 Payment:**\n"
+    text += f"Payment is deducted from your balance automatically after successful setup."
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 Get Bot Token", url="https://t.me/BotFather")],
+        [InlineKeyboardButton("🗄️ Get MongoDB", url="https://www.mongodb.com/atlas")],
+        [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+        [InlineKeyboardButton("🚀 Start Creating", callback_data="begin_step1_plan")],
+        [InlineKeyboardButton("« Back", callback_data="start_clone_creation")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^begin_step1_plan$"))
+async def step1_choose_plan(client, query):
+    """Step 1: Choose subscription plan"""
     await query.answer()
     
     user_id = query.from_user.id
+    current_balance = await get_user_balance(user_id)
     
     # Initialize session
     creation_sessions[user_id] = {
-        'step': 'bot_token',
+        'step': 'plan_selection',
         'data': {},
         'started_at': datetime.now()
     }
     
-    text = f"🤖 **Step 1/4: Bot Token**\n\n"
-    text += f"Please provide your bot token from @BotFather.\n\n"
-    text += f"📋 **How to get a bot token:**\n"
-    text += f"1. Go to @BotFather on Telegram\n"
-    text += f"2. Send `/newbot` command\n"
-    text += f"3. Follow the instructions\n"
-    text += f"4. Copy the bot token\n\n"
-    text += f"📝 **Format:** `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`\n\n"
-    text += f"⚠️ **Important:** Keep your token secure!\n\n"
+    text = f"📋 **Step 1/3: Choose Your Plan**\n\n"
+    text += f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
+    text += f"Select a subscription plan for your clone:\n\n"
+    
+    from bot.database.subscription_db import PRICING_TIERS
+    
+    buttons = []
+    
+    for plan_id, plan_data in PRICING_TIERS.items():
+        price = plan_data['price']
+        can_afford = current_balance >= price
+        
+        if can_afford:
+            emoji = "✅"
+            callback_data = f"select_plan:{plan_id}"
+        else:
+            emoji = "❌"
+            callback_data = "insufficient_balance"
+        
+        text += f"{emoji} **{plan_data['name']}** - ${price}\n"
+        text += f"   Duration: {plan_data['duration_days']} days\n"
+        
+        if plan_data.get('savings'):
+            text += f"   💡 Save: {plan_data['savings']}\n"
+        text += "\n"
+        
+        if can_afford:
+            buttons.append([InlineKeyboardButton(
+                f"{plan_data['name']} - ${price}",
+                callback_data=callback_data
+            )])
+    
+    if not buttons:
+        text += "❌ **Insufficient balance for any plan**\n"
+        text += "Please add balance to continue."
+        buttons = [
+            [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")],
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
+        ]
+    else:
+        buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")])
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+@Client.on_callback_query(filters.regex("^select_plan:"))
+async def step2_bot_token(client, query):
+    """Step 2: Get bot token"""
+    await query.answer()
+    
+    user_id = query.from_user.id
+    session = creation_sessions.get(user_id)
+    
+    if not session:
+        return await query.answer("❌ Session expired! Please start over.", show_alert=True)
+    
+    plan_id = query.data.split(':')[1]
+    from bot.database.subscription_db import PRICING_TIERS
+    selected_plan = PRICING_TIERS.get(plan_id)
+    
+    if not selected_plan:
+        return await query.answer("❌ Invalid plan selected!", show_alert=True)
+    
+    # Store plan selection
+    session['data']['plan_id'] = plan_id
+    session['data']['plan_details'] = selected_plan
+    session['step'] = 'bot_token'
+    
+    text = f"🤖 **Step 2/3: Bot Token**\n\n"
+    text += f"✅ **Selected Plan:** {selected_plan['name']} (${selected_plan['price']})\n\n"
+    text += f"Now, provide your bot token from @BotFather.\n\n"
+    text += f"**📋 Quick Guide:**\n"
+    text += f"1. Go to @BotFather\n"
+    text += f"2. Send `/newbot`\n"
+    text += f"3. Choose bot name: `My File Bot`\n"
+    text += f"4. Choose username: `myfilebot` (must end with 'bot')\n"
+    text += f"5. Copy the token and send it here\n\n"
+    text += f"**📝 Token Format:**\n"
+    text += f"`123456789:ABCdefGHIjklMNOpqrsTUVwxyz`\n\n"
+    text += f"⚠️ **Keep your token secure!**\n\n"
     text += f"Please send your bot token now:"
     
     buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 Open BotFather", url="https://t.me/BotFather")],
+        [InlineKeyboardButton("❓ Need Help?", callback_data="token_help")],
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^token_help$"))
+async def token_help_callback(client, query):
+    """Show token help"""
+    await query.answer()
+    
+    text = f"🤖 **How to Get Bot Token**\n\n"
+    text += f"**Step-by-step guide:**\n\n"
+    text += f"1. **Open @BotFather**\n"
+    text += f"   Click the link below or search for @BotFather\n\n"
+    text += f"2. **Create Bot**\n"
+    text += f"   Send: `/newbot`\n\n"
+    text += f"3. **Choose Name**\n"
+    text += f"   Example: `My File Sharing Bot`\n\n"
+    text += f"4. **Choose Username**\n"
+    text += f"   Must end with 'bot'\n"
+    text += f"   Example: `myfilesharebot` or `my_file_bot`\n\n"
+    text += f"5. **Copy Token**\n"
+    text += f"   BotFather will give you a token like:\n"
+    text += f"   `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`\n\n"
+    text += f"6. **Send Token**\n"
+    text += f"   Paste the token in this chat\n\n"
+    text += f"⚠️ **Important:**\n"
+    text += f"• Never share your token publicly\n"
+    text += f"• Token gives full control of your bot\n"
+    text += f"• If compromised, regenerate in @BotFather"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🤖 Open BotFather", url="https://t.me/BotFather")],
+        [InlineKeyboardButton("« Back to Step 2", callback_data=f"select_plan:{creation_sessions.get(query.from_user.id, {}).get('data', {}).get('plan_id', 'monthly')}")]
     ])
     
     await query.edit_message_text(text, reply_markup=buttons)
@@ -129,9 +270,9 @@ async def handle_creation_input(client: Client, message: Message):
         return await message.reply_text(
             "⏰ **Session Expired!**\n\n"
             "Your creation session has timed out.\n"
-            "Please start again with the create clone button.",
+            "Please start again.",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation")]
+                [InlineKeyboardButton("🚀 Start Again", callback_data="start_clone_creation")]
             ])
         )
     
@@ -144,23 +285,28 @@ async def handle_creation_input(client: Client, message: Message):
         await handle_mongodb_input(client, message, user_input, session)
 
 async def handle_bot_token_input(client: Client, message: Message, bot_token: str, session: dict):
-    """Handle bot token validation"""
+    """Handle and validate bot token"""
     user_id = message.from_user.id
     
     # Validate token format
     if not bot_token or ':' not in bot_token or len(bot_token) < 20:
         return await message.reply_text(
             "❌ **Invalid Token Format!**\n\n"
-            "Please provide a valid bot token from @BotFather.\n"
-            "Format: `bot_id:token_string`\n\n"
+            "Please provide a valid bot token from @BotFather.\n\n"
+            "**Correct format:** `bot_id:token_string`\n"
+            "**Example:** `123456789:ABCdefGHIjklMNOpqrsTUVwxyz`\n\n"
             "Try again:",
             reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❓ Get Help", callback_data="token_help")],
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
             ])
         )
     
     # Test the bot token
-    processing_msg = await message.reply_text("🔄 **Validating bot token...** Please wait.")
+    processing_msg = await message.reply_text(
+        "🔄 **Validating Bot Token...**\n\n"
+        "Please wait while we verify your token..."
+    )
     
     try:
         from pyrogram import Client as TestClient
@@ -183,20 +329,32 @@ async def handle_bot_token_input(client: Client, message: Message, bot_token: st
         session['data']['bot_id'] = me.id
         session['step'] = 'mongodb_url'
         
-        text = f"✅ **Step 1 Complete!**\n\n"
-        text += f"🤖 **Bot:** @{me.username or f'bot_{me.id}'}\n"
-        text += f"🆔 **Bot ID:** `{me.id}`\n\n"
-        text += f"📝 **Step 2/4: Database URL**\n\n"
-        text += f"Please provide your MongoDB connection URL.\n\n"
-        text += f"📋 **Examples:**\n"
-        text += f"• `mongodb://username:password@host:port/database`\n"
-        text += f"• `mongodb+srv://username:password@cluster.mongodb.net/database`\n\n"
-        text += f"⚠️ **Note:** This will be your clone's private database.\n\n"
+        plan = session['data']['plan_details']
+        
+        text = f"✅ **Step 2 Complete!**\n\n"
+        text += f"🤖 **Bot Verified:** @{me.username or f'bot_{me.id}'}\n"
+        text += f"🆔 **Bot ID:** `{me.id}`\n"
+        text += f"💰 **Plan:** {plan['name']} (${plan['price']})\n\n"
+        text += f"🗄️ **Step 3/3: Database URL**\n\n"
+        text += f"Now provide your MongoDB connection URL.\n\n"
+        text += f"**📋 Quick Options:**\n\n"
+        text += f"**Option 1: Free MongoDB Atlas**\n"
+        text += f"• Sign up at mongodb.com/atlas\n"
+        text += f"• Create free cluster\n"
+        text += f"• Get connection string\n\n"
+        text += f"**Option 2: Contact Admin**\n"
+        text += f"• Get shared database access\n"
+        text += f"• Ready-to-use connection\n\n"
+        text += f"**📝 URL Format:**\n"
+        text += f"`mongodb+srv://user:pass@cluster.mongodb.net/dbname`\n\n"
         text += f"Please send your MongoDB URL now:"
         
         await processing_msg.edit_text(
             text,
             reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🌐 Get MongoDB Atlas", url="https://www.mongodb.com/atlas")],
+                [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+                [InlineKeyboardButton("❓ Database Help", callback_data="database_help")],
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
             ])
         )
@@ -204,38 +362,88 @@ async def handle_bot_token_input(client: Client, message: Message, bot_token: st
     except asyncio.TimeoutError:
         await processing_msg.edit_text(
             "❌ **Token Validation Timeout!**\n\n"
+            "The bot token verification took too long.\n"
             "Please check your token and try again:",
             reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❓ Get Help", callback_data="token_help")],
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
             ])
         )
     except Exception as e:
         await processing_msg.edit_text(
             f"❌ **Token Validation Failed!**\n\n"
-            f"Error: {str(e)}\n\n"
+            f"**Error:** {str(e)}\n\n"
+            f"**Common issues:**\n"
+            f"• Invalid token format\n"
+            f"• Token already in use\n"
+            f"• Bot deleted from @BotFather\n\n"
             f"Please check your token and try again:",
             reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❓ Get Help", callback_data="token_help")],
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
             ])
         )
 
+@Client.on_callback_query(filters.regex("^database_help$"))
+async def database_help_callback(client, query):
+    """Show database help"""
+    await query.answer()
+    
+    text = f"🗄️ **Database Setup Guide**\n\n"
+    text += f"**🌟 Recommended: MongoDB Atlas (Free)**\n\n"
+    text += f"**Step 1:** Visit mongodb.com/atlas\n"
+    text += f"**Step 2:** Create free account\n"
+    text += f"**Step 3:** Build a database\n"
+    text += f"   • Choose FREE shared cluster\n"
+    text += f"   • Select any cloud provider\n"
+    text += f"   • Name your cluster\n\n"
+    text += f"**Step 4:** Create database user\n"
+    text += f"   • Username: yourname\n"
+    text += f"   • Password: strong_password\n\n"
+    text += f"**Step 5:** Network access\n"
+    text += f"   • Add IP: 0.0.0.0/0 (allow all)\n\n"
+    text += f"**Step 6:** Get connection string\n"
+    text += f"   • Click 'Connect'\n"
+    text += f"   • Choose 'Connect your application'\n"
+    text += f"   • Copy the connection string\n"
+    text += f"   • Replace <password> with your password\n\n"
+    text += f"**📝 Final URL looks like:**\n"
+    text += f"`mongodb+srv://user:pass@cluster0.xyz.mongodb.net/mybot`\n\n"
+    text += f"**🔒 Alternative:** Contact admin for shared database"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌐 MongoDB Atlas", url="https://www.mongodb.com/atlas")],
+        [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+        [InlineKeyboardButton("« Back to Step 3", callback_data="back_to_step3")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
 async def handle_mongodb_input(client: Client, message: Message, mongodb_url: str, session: dict):
-    """Handle MongoDB URL validation"""
+    """Handle and validate MongoDB URL"""
     user_id = message.from_user.id
     
     # Validate URL format
     if not mongodb_url.startswith(('mongodb://', 'mongodb+srv://')):
         return await message.reply_text(
             "❌ **Invalid MongoDB URL!**\n\n"
-            "URL must start with `mongodb://` or `mongodb+srv://`\n\n"
+            "**URL must start with:**\n"
+            "• `mongodb://` or\n"
+            "• `mongodb+srv://`\n\n"
+            "**Example:**\n"
+            "`mongodb+srv://user:pass@cluster.mongodb.net/dbname`\n\n"
             "Try again:",
             reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❓ Get Help", callback_data="database_help")],
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
             ])
         )
     
     # Test MongoDB connection
-    processing_msg = await message.reply_text("🔄 **Testing database connection...** Please wait.")
+    processing_msg = await message.reply_text(
+        "🔄 **Testing Database Connection...**\n\n"
+        "Please wait while we verify your database..."
+    )
     
     try:
         from motor.motor_asyncio import AsyncIOMotorClient
@@ -248,87 +456,28 @@ async def handle_mongodb_input(client: Client, message: Message, mongodb_url: st
         
         # Store validated data
         session['data']['mongodb_url'] = mongodb_url
-        session['step'] = 'plan_selection'
+        session['step'] = 'confirmation'
         
-        # Show subscription plans
-        await show_subscription_plans(client, processing_msg, user_id)
+        # Show final confirmation
+        await show_final_confirmation(client, processing_msg, user_id)
         
     except Exception as e:
         await processing_msg.edit_text(
             f"❌ **Database Connection Failed!**\n\n"
-            f"Error: {str(e)}\n\n"
+            f"**Error:** {str(e)}\n\n"
+            f"**Common issues:**\n"
+            f"• Wrong credentials\n"
+            f"• Network restrictions\n"
+            f"• Invalid URL format\n\n"
             f"Please check your URL and try again:",
             reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❓ Get Help", callback_data="database_help")],
                 [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
             ])
         )
 
-async def show_subscription_plans(client: Client, message: Message, user_id: int):
-    """Show available subscription plans"""
-    from bot.database.subscription_db import PRICING_TIERS
-    
-    current_balance = await get_user_balance(user_id)
-    
-    text = f"💰 **Step 3/4: Choose Plan**\n\n"
-    text += f"💵 **Your Balance:** ${current_balance:.2f}\n\n"
-    text += f"📋 **Available Plans:**\n\n"
-    
-    buttons = []
-    
-    for plan_id, plan_data in PRICING_TIERS.items():
-        price = plan_data['price']
-        can_afford = current_balance >= price
-        status = "✅" if can_afford else "❌"
-        
-        text += f"{status} **{plan_data['name']}** - ${price}\n"
-        text += f"   Duration: {plan_data['duration_days']} days\n"
-        if plan_data.get('features'):
-            text += f"   Features: {', '.join(plan_data['features'])}\n"
-        text += "\n"
-        
-        if can_afford:
-            buttons.append([InlineKeyboardButton(
-                f"{plan_data['name']} - ${price}",
-                callback_data=f"select_plan:{plan_id}"
-            )])
-    
-    if not buttons:
-        text += "❌ **Insufficient balance for any plan**\n"
-        text += "Please add balance to continue."
-        buttons = [
-            [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")],
-            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
-        ]
-    else:
-        buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")])
-    
-    await message.edit_text(text, reply_markup=InlineKeyboardMarkup(buttons))
-
-@Client.on_callback_query(filters.regex("^select_plan:"))
-async def handle_plan_selection(client: Client, query: CallbackQuery):
-    """Handle subscription plan selection"""
-    user_id = query.from_user.id
-    session = creation_sessions.get(user_id)
-    
-    if not session or session['step'] != 'plan_selection':
-        return await query.answer("❌ Session expired! Please start over.", show_alert=True)
-    
-    plan_id = query.data.split(':')[1]
-    from bot.database.subscription_db import PRICING_TIERS
-    selected_plan = PRICING_TIERS.get(plan_id)
-    
-    if not selected_plan:
-        return await query.answer("❌ Invalid plan selected!", show_alert=True)
-    
-    session['data']['subscription_plan'] = plan_id
-    session['data']['plan_details'] = selected_plan
-    session['step'] = 'confirmation'
-    
-    # Show confirmation
-    await show_creation_confirmation(client, query, user_id)
-
-async def show_creation_confirmation(client: Client, query: CallbackQuery, user_id: int):
-    """Show creation confirmation"""
+async def show_final_confirmation(client: Client, message: Message, user_id: int):
+    """Show final confirmation before creating clone"""
     session = creation_sessions[user_id]
     data = session['data']
     plan = data['plan_details']
@@ -336,38 +485,39 @@ async def show_creation_confirmation(client: Client, query: CallbackQuery, user_
     current_balance = await get_user_balance(user_id)
     remaining_balance = current_balance - plan['price']
     
-    # Mask sensitive data
+    # Mask sensitive data for display
     masked_token = f"{data['bot_token'][:8]}...{data['bot_token'][-4:]}"
-    masked_db = f"{data['mongodb_url'][:20]}...{data['mongodb_url'][-10:]}"
+    masked_db = f"{data['mongodb_url'][:25]}...{data['mongodb_url'][-10:]}"
     
-    text = f"📋 **Step 4/4: Final Confirmation**\n\n"
-    text += f"🔍 **Review Your Clone:**\n\n"
+    text = f"🎉 **Ready to Create Your Clone!**\n\n"
+    text += f"**📋 Final Review:**\n\n"
     text += f"🤖 **Bot:** @{data['bot_username']}\n"
     text += f"🆔 **Bot ID:** `{data['bot_id']}`\n"
     text += f"🔑 **Token:** `{masked_token}`\n"
     text += f"🗄️ **Database:** `{masked_db}`\n"
-    text += f"💰 **Plan:** {plan['name']} (${plan['price']})\n"
+    text += f"💰 **Plan:** {plan['name']}\n"
     text += f"⏱️ **Duration:** {plan['duration_days']} days\n\n"
-    text += f"💵 **Payment:**\n"
+    text += f"**💳 Payment Summary:**\n"
     text += f"• Current Balance: ${current_balance:.2f}\n"
     text += f"• Plan Cost: ${plan['price']:.2f}\n"
     text += f"• Remaining Balance: ${remaining_balance:.2f}\n\n"
-    text += f"✅ **What happens next:**\n"
-    text += f"• Payment will be deducted automatically\n"
-    text += f"• Your clone will be created instantly\n"
-    text += f"• Bot will start automatically\n\n"
-    text += f"Confirm creation?"
+    text += f"**✅ What happens next:**\n"
+    text += f"• Payment deducted automatically\n"
+    text += f"• Clone created instantly\n"
+    text += f"• Bot starts immediately\n"
+    text += f"• Ready to use in minutes!\n\n"
+    text += f"**Ready to proceed?**"
     
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("✅ Create Clone", callback_data="confirm_creation")],
+        [InlineKeyboardButton("🎉 Create My Clone!", callback_data="confirm_final_creation")],
         [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
     ])
     
-    await query.edit_message_text(text, reply_markup=buttons)
+    await message.edit_text(text, reply_markup=buttons)
 
-@Client.on_callback_query(filters.regex("^confirm_creation$"))
-async def handle_creation_confirmation(client: Client, query: CallbackQuery):
-    """Handle final creation confirmation"""
+@Client.on_callback_query(filters.regex("^confirm_final_creation$"))
+async def handle_final_confirmation(client: Client, query: CallbackQuery):
+    """Handle final creation confirmation and create the clone"""
     user_id = query.from_user.id
     session = creation_sessions.get(user_id)
     
@@ -379,12 +529,14 @@ async def handle_creation_confirmation(client: Client, query: CallbackQuery):
         plan_details = data['plan_details']
         required_amount = plan_details['price']
         
-        # Process creation
+        # Show processing message
         processing_msg = await query.edit_message_text(
-            f"⚙️ **Creating Your Clone...**\n\n"
-            f"💰 **Deducting ${required_amount:.2f}...**\n"
-            f"🤖 **Setting up @{data['bot_username']}...**\n\n"
-            f"Please wait, this may take a moment..."
+            f"🚀 **Creating Your Clone...**\n\n"
+            f"⚙️ **Step 1:** Deducting ${required_amount:.2f} from balance...\n"
+            f"⚙️ **Step 2:** Setting up @{data['bot_username']}...\n"
+            f"⚙️ **Step 3:** Configuring database...\n"
+            f"⚙️ **Step 4:** Starting bot services...\n\n"
+            f"🕐 **Please wait, this usually takes 1-2 minutes...**"
         )
         
         # Import the auto-approval function
@@ -396,66 +548,72 @@ async def handle_creation_confirmation(client: Client, query: CallbackQuery):
             # Clean up session
             del creation_sessions[user_id]
             
-            if isinstance(result, dict):
-                text = f"🎉 **Clone Created Successfully!**\n\n"
-                text += f"🤖 **Bot:** @{result['bot_username']}\n"
-                text += f"💰 **Plan:** {result['plan']}\n"
-                text += f"💵 **Amount Deducted:** ${result['amount_deducted']:.2f}\n"
-                
-                if result['clone_started']:
-                    text += f"\n✅ **Status:** Your bot is running and ready!\n"
-                    text += f"🔗 **Bot Link:** https://t.me/{result['bot_username']}"
-                else:
-                    text += f"\n⚠️ **Status:** Starting up (may take a few minutes)"
-                
-                remaining_balance = await get_user_balance(user_id)
-                text += f"\n💰 **Remaining Balance:** ${remaining_balance:.2f}"
-                
-                buttons = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🤖 Open Bot", url=f"https://t.me/{result['bot_username']}")],
-                    [InlineKeyboardButton("📋 Manage Clone", callback_data="manage_my_clone")],
-                    [InlineKeyboardButton("🏠 Back Home", callback_data="back_to_start")]
-                ])
-                
+            remaining_balance = await get_user_balance(user_id)
+            
+            text = f"🎉 **Clone Created Successfully!**\n\n"
+            text += f"🤖 **Your Bot:** @{data['bot_username']}\n"
+            text += f"🆔 **Bot ID:** `{data['bot_id']}`\n"
+            text += f"💰 **Plan:** {plan_details['name']} ({plan_details['duration_days']} days)\n"
+            text += f"💵 **Amount Paid:** ${required_amount:.2f}\n"
+            text += f"💰 **Remaining Balance:** ${remaining_balance:.2f}\n\n"
+            
+            if isinstance(result, dict) and result.get('clone_started'):
+                text += f"✅ **Status:** Your bot is running and ready!\n\n"
+                text += f"🔗 **Bot Link:** https://t.me/{data['bot_username']}\n\n"
+                text += f"🎯 **What's next?**\n"
+                text += f"• Click 'Open Bot' to start using it\n"
+                text += f"• Your clone has all the features of this bot\n"
+                text += f"• Manage settings anytime\n"
+                text += f"• Monitor usage and statistics"
             else:
-                text = f"🎉 **Clone Created Successfully!**\n\n"
-                text += f"🤖 **Bot:** @{data['bot_username']}\n"
-                text += f"💰 **Plan:** {plan_details['name']}\n"
-                text += f"💵 **Amount Deducted:** ${required_amount:.2f}\n\n"
-                text += f"✅ Your clone is being set up and will be ready shortly!"
-                
-                buttons = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🤖 Open Bot", url=f"https://t.me/{data['bot_username']}")],
-                    [InlineKeyboardButton("🏠 Back Home", callback_data="back_to_start")]
-                ])
+                text += f"🔄 **Status:** Starting up (may take a few more minutes)\n\n"
+                text += f"Your clone is being deployed and will be ready shortly!"
+            
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🤖 Open My Bot", url=f"https://t.me/{data['bot_username']}")],
+                [InlineKeyboardButton("📋 Manage Clone", callback_data="manage_my_clone")],
+                [InlineKeyboardButton("🎯 Create Another", callback_data="start_clone_creation")],
+                [InlineKeyboardButton("🏠 Back Home", callback_data="back_to_start")]
+            ])
             
             await processing_msg.edit_text(text, reply_markup=buttons)
         else:
             # Clean up session
             del creation_sessions[user_id]
             
-            await processing_msg.edit_text(
-                f"❌ **Clone Creation Failed!**\n\n"
-                f"Error: {result}\n\n"
-                f"Your balance has not been deducted.\n"
-                f"Please try again or contact support.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔄 Try Again", callback_data="start_clone_creation")],
-                    [InlineKeyboardButton("🏠 Back Home", callback_data="back_to_start")]
-                ])
-            )
+            text = f"❌ **Clone Creation Failed!**\n\n"
+            text += f"**Error:** {result}\n\n"
+            text += f"**Don't worry:**\n"
+            text += f"• Your balance has NOT been deducted\n"
+            text += f"• You can try again immediately\n"
+            text += f"• Contact admin if problem persists\n\n"
+            text += f"**Common solutions:**\n"
+            text += f"• Check your bot token is correct\n"
+            text += f"• Verify database URL works\n"
+            text += f"• Ensure bot is not already in use"
+            
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Try Again", callback_data="start_clone_creation")],
+                [InlineKeyboardButton("📞 Contact Support", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+                [InlineKeyboardButton("🏠 Back Home", callback_data="back_to_start")]
+            ])
+            
+            await processing_msg.edit_text(text, reply_markup=buttons)
     
     except Exception as e:
-        logger.error(f"Error in creation confirmation: {e}")
+        logger.error(f"Error in final confirmation: {e}")
         
         if user_id in creation_sessions:
             del creation_sessions[user_id]
         
         await query.edit_message_text(
-            "❌ **Error creating clone!**\n\n"
-            "Please try again later or contact support.",
+            "❌ **Unexpected Error!**\n\n"
+            "Something went wrong during clone creation.\n"
+            "Your balance has not been affected.\n\n"
+            "Please try again or contact support.",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔄 Try Again", callback_data="start_clone_creation")],
+                [InlineKeyboardButton("📞 Contact Support", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
                 [InlineKeyboardButton("🏠 Back Home", callback_data="back_to_start")]
             ])
         )
@@ -470,14 +628,24 @@ async def handle_creation_cancellation(client: Client, query: CallbackQuery):
     
     text = f"❌ **Clone Creation Cancelled**\n\n"
     text += f"No charges were made to your account.\n"
-    text += f"You can start creating a clone anytime!"
+    text += f"You can start creating a clone anytime!\n\n"
+    text += f"💡 **Remember:** You need:\n"
+    text += f"• Bot token from @BotFather\n"
+    text += f"• MongoDB database URL\n"
+    text += f"• Sufficient balance for your plan"
     
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation")],
+        [InlineKeyboardButton("🚀 Start Again", callback_data="start_clone_creation")],
+        [InlineKeyboardButton("❓ Get Help", callback_data="creation_help")],
         [InlineKeyboardButton("🏠 Back Home", callback_data="back_to_start")]
     ])
     
     await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^insufficient_balance$"))
+async def handle_insufficient_balance(client, query):
+    """Handle insufficient balance selection"""
+    await query.answer("❌ Insufficient balance for this plan. Please add balance first.", show_alert=True)
 
 # Session cleanup task
 async def cleanup_creation_sessions():
@@ -494,7 +662,6 @@ async def cleanup_creation_sessions():
         logger.info(f"Cleaned up expired session for user {user_id}")
 
 # Schedule cleanup every 10 minutes
-import asyncio
 async def session_cleanup_task():
     """Background task to clean up sessions"""
     while True:
