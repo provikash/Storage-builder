@@ -185,57 +185,57 @@ def get_session_count() -> int:
 
 class SessionManager:
     """Session manager class that wraps the session management functions"""
-    
+
     @property
     def sessions(self):
         """Get reference to user_sessions for compatibility"""
         return user_sessions
-    
+
     @staticmethod
     async def create_session(user_id: int, session_type: str, data: dict = None) -> bool:
         """Create a new session for a user"""
         return await create_session(user_id, session_type, data)
-    
+
     @staticmethod
     async def get_session(user_id: int) -> dict:
         """Get session data for a user"""
         return await get_session(user_id)
-    
+
     @staticmethod
     async def clear_session(user_id: int) -> bool:
         """Clear session data for a user"""
         return await clear_session(user_id)
-    
+
     @staticmethod
     async def session_expired(user_id: int) -> bool:
         """Check if user's session has expired"""
         return await session_expired(user_id)
-    
+
     @staticmethod
     async def update_session_activity(user_id: int) -> bool:
         """Update last activity timestamp for a session"""
         return await update_session_activity(user_id)
-    
+
     @staticmethod
     def get_all_sessions() -> Dict[int, Dict[str, Any]]:
         """Get all active sessions"""
         return get_all_sessions()
-    
+
     @staticmethod
     def get_session_count() -> int:
         """Get total number of active sessions"""
         return get_session_count()
-    
+
     @staticmethod
     async def start_cleanup_task():
         """Start background task to cleanup expired sessions"""
         return await start_cleanup_task()
-    
+
     @staticmethod
     def cleanup_expired_sessions() -> int:
         """Remove all expired sessions"""
         return cleanup_expired_sessions()
-    
+
     @staticmethod
     async def update_session(user_id: int, session_data: dict) -> bool:
         """Update session data for a user"""
@@ -248,12 +248,12 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Error updating session for user {user_id}: {e}")
             return False
-    
+
     @staticmethod
     async def delete_session(user_id: int) -> bool:
         """Delete session for a user"""
         return await clear_session(user_id)
-    
+
     @staticmethod
     async def update_session(user_id: int, session_data: dict) -> bool:
         """Update session data for a user"""
@@ -268,3 +268,6 @@ class SessionManager:
         except Exception as e:
             logger.error(f"Error updating session for user {user_id}: {e}")
             return False
+
+# Create module-level session_manager for backward compatibility
+session_manager = SessionManager()

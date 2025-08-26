@@ -36,12 +36,39 @@ async def create_clone_handler(client: Client, message: Message):
     text += "Choose a subscription plan to get started:\n\n"
     
     buttons = []
-    for tier in pricing_tiers:
-        price_text = f"${tier['price']:.2f}"
-        duration_text = f"{tier['duration_days']} days"
+    
+    # Handle pricing tiers data structure
+    if pricing_tiers:
+        # If pricing_tiers returns a list of tier IDs, get the actual tier data
+        for tier_id in pricing_tiers:
+            if isinstance(tier_id, str):
+                from bot.database.subscription_db import get_pricing_tier
+                tier = await get_pricing_tier(tier_id)
+                if tier:
+                    price_text = f"${tier['price']:.2f}"
+                    duration_text = f"{tier['duration_days']} days"
+                    plan_text = f"💎 {tier['name']} - {price_text}/{duration_text}"
+                    buttons.append([InlineKeyboardButton(plan_text, callback_data=f"select_plan:{tier['_id']}")])
+            else:
+                # If it's already a dict
+                price_text = f"${tier_id['price']:.2f}"
+                duration_text = f"{tier_id['duration_days']} days"
+                plan_text = f"💎 {tier_id['name']} - {price_text}/{duration_text}"
+                buttons.append([InlineKeyboardButton(plan_text, callback_data=f"select_plan:{tier_id['_id']}")])
+    else:
+        # Fallback to default plans
+        default_plans = [
+            {"_id": "monthly", "name": "Monthly Plan", "price": 3.0, "duration_days": 30},
+            {"_id": "quarterly", "name": "3 Months Plan", "price": 8.0, "duration_days": 90},
+            {"_id": "semi_annual", "name": "6 Months Plan", "price": 15.0, "duration_days": 180},
+            {"_id": "yearly", "name": "Yearly Plan", "price": 26.0, "duration_days": 365}
+        ]
         
-        plan_text = f"💎 {tier['name']} - {price_text}/{duration_text}"
-        buttons.append([InlineKeyboardButton(plan_text, callback_data=f"select_plan:{tier['_id']}")])
+        for tier in default_plans:
+            price_text = f"${tier['price']:.2f}"
+            duration_text = f"{tier['duration_days']} days"
+            plan_text = f"💎 {tier['name']} - {price_text}/{duration_text}"
+            buttons.append([InlineKeyboardButton(plan_text, callback_data=f"select_plan:{tier['_id']}")])
     
     buttons.append([InlineKeyboardButton("❓ How it works", callback_data="clone_info")])
     
@@ -53,8 +80,9 @@ async def set_bot_token(client: Client, message: Message):
     user_id = message.from_user.id
 
     # Check if user has an active clone creation session
-    from bot.utils.session_manager import session_manager
-    session = session_manager.get_session(user_id, 'clone_creation')
+    from bot.utils.session_manager import SessionManager
+    session_manager = SessionManager()
+    session = await session_manager.get_session(user_id)
     
     if not session:
         return await message.reply_text(
@@ -94,13 +122,15 @@ async def set_bot_token(client: Client, message: Message):
             return await processing_msg.edit_text("❌ This bot token is already in use!")
 
         # Store token in session and proceed to payment
-        session['bot_token'] = bot_token
-        session['bot_info'] = {
-            'id': me.id,
-            'username': me.username,
-            'first_name': me.first_name
-        }
-        session_manager.update_session(user_id, 'clone_creation', session)
+        session_data = await session_manager.get_session(user_id)
+        if session_data:
+            session_data['bot_token'] = bot_token
+            session_data['bot_info'] = {
+                'id': me.id,
+                'username': me.username,
+                'first_name': me.first_name
+            }
+            await session_manager.update_session(user_id, session_data)
 
         # Get plan details for payment
         plan_id = session['plan_id']
@@ -387,8 +417,9 @@ async def select_plan_callback(client, query):
     plan_id = query.data.split(":")[1]
     
     # Store selected plan in session
-    from bot.utils.session_manager import session_manager
-    session_manager.create_session(user_id, 'clone_creation', {'plan_id': plan_id})
+    from bot.utils.session_manager import SessionManager
+    session_manager = SessionManager()
+    await session_manager.create_session(user_id, 'clone_creation', {'plan_id': plan_id})
     
     await query.edit_message_text(
         "🤖 **Create Your Bot Clone**\n\n"
@@ -453,8 +484,9 @@ async def proceed_payment_callback(client, query):
     await query.answer()
     user_id = query.from_user.id
     
-    from bot.utils.session_manager import session_manager
-    session = session_manager.get_session(user_id, 'clone_creation')
+    from bot.utils.session_manager import SessionManager
+    session_manager = SessionManager()
+    session = await session_manager.get_session(user_id)
     
     if not session:
         return await query.edit_message_text("❌ Session expired. Please start over with `/createclone`")
@@ -509,7 +541,7 @@ async def proceed_payment_callback(client, query):
         
         if success:
             # Clear session
-            session_manager.clear_session(user_id, 'clone_creation')
+            await session_manager.clear_session(user_id)
             
             await query.edit_message_text(
                 f"🎉 **Clone Created Successfully!**\n\n"
@@ -535,8 +567,9 @@ async def cancel_creation_callback(client, query):
     await query.answer()
     user_id = query.from_user.id
     
-    from bot.utils.session_manager import session_manager
-    session_manager.clear_session(user_id, 'clone_creation')
+    from bot.utils.session_manager import SessionManager
+    session_manager = SessionManager()
+    await session_manager.clear_session(user_id)
     
     await query.edit_message_text(
         "❌ **Clone creation cancelled.**\n\n"

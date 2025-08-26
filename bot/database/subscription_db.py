@@ -96,19 +96,13 @@ async def activate_subscription(bot_id: str):
         return False
 
 async def get_pricing_tiers():
-    """Get available clone pricing tiers"""
+    """Get all available pricing tiers"""
     try:
-        # Try to get from database first
-        pricing_doc = await pricing_collection.find_one({"_id": "pricing_tiers"})
-        if pricing_doc:
-            return pricing_doc["tiers"]
-        else:
-            # Insert default tiers
-            await init_pricing_tiers()
-            return PRICING_TIERS
+        tiers = await pricing_collection.find({}).to_list(None)
+        return tiers if tiers else []
     except Exception as e:
         logger.error(f"Error getting pricing tiers: {e}")
-        return PRICING_TIERS
+        return []
 
 async def get_token_plans():
     """Get available token verification plans"""
