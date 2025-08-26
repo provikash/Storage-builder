@@ -144,7 +144,7 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
             'data': {},
             'started_at': datetime.now()
         }
-        session_manager.create_session(user_id, session_data)
+        await session_manager.create_session(user_id, 'clone_creation', session_data)
         session = await session_manager.get_session(user_id)
 
     # Get clone pricing tiers (excluding token verification plans)
@@ -764,8 +764,7 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
     except Exception as e:
         logger.error(f"Error in final confirmation for user {user_id}: {e}")
 
-        if user_id in session_manager.sessions:
-            await session_manager.delete_session(user_id)
+        await session_manager.delete_session(user_id)
 
         await query.edit_message_text(
             "❌ **Unexpected Error!**\n\n"
@@ -784,11 +783,9 @@ async def handle_creation_cancellation(client: Client, query: CallbackQuery):
     """Handle creation cancellation"""
     user_id = query.from_user.id
 
-    if user_id in session_manager.sessions:
-        step = session_manager.sessions[user_id].get('step', 'unknown')
-        await session_manager.delete_session(user_id)
-    else:
-        step = 'unknown'
+    session = await session_manager.get_session(user_id)
+    step = session.get('step', 'unknown') if session else 'unknown'
+    await session_manager.delete_session(user_id)
 
     print(f"❌ DEBUG CLONE: cancel_creation triggered by user {user_id}, session was at step: {step}")
 

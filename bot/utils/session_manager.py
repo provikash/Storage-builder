@@ -186,6 +186,11 @@ def get_session_count() -> int:
 class SessionManager:
     """Session manager class that wraps the session management functions"""
     
+    @property
+    def sessions(self):
+        """Get reference to user_sessions for compatibility"""
+        return user_sessions
+    
     @staticmethod
     async def create_session(user_id: int, session_type: str, data: dict = None) -> bool:
         """Create a new session for a user"""
