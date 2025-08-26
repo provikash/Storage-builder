@@ -16,7 +16,9 @@ async def handle_all_callbacks(client: Client, query: CallbackQuery):
         "verify_", "deactivate_", "extend_", "toggle_", "settings_",
         "subscription_", "statistics_", "global_", "force_", "request_",
         "approve_request", "reject_request", "rand_", "about", "help",
-        "close", "get_token", "show_premium_plans", "buy_premium"
+        "close", "get_token", "show_premium_plans", "buy_premium",
+        "begin_step1_plan", "select_plan:", "step2_bot_token", "step3_db_url",
+        "cancel_creation", "database_help", "admin_panel", "create_clone_button"
     ]
     
     if any(callback_data.startswith(pattern) for pattern in handled_patterns):
@@ -67,6 +69,11 @@ async def handle_all_callbacks(client: Client, query: CallbackQuery):
             await query.message.delete()
         except:
             await query.edit_message_text("✅ Session closed.")
+    
+    elif callback_data.startswith("select_plan:") or callback_data == "begin_step1_plan":
+        # Redirect to clone creation handler
+        from bot.plugins.step_clone_creation import clone_creation_callback_handler
+        await clone_creation_callback_handler(client, query)
     
     else:
         # Unknown callback
