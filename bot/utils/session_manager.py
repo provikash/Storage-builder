@@ -181,3 +181,52 @@ def get_session_count() -> int:
     count = len(user_sessions)
     print(f"📊 DEBUG SESSION: Current active session count: {count}")
     return count
+
+
+class SessionManager:
+    """Session manager class that wraps the session management functions"""
+    
+    @staticmethod
+    async def create_session(user_id: int, session_type: str, data: dict = None) -> bool:
+        """Create a new session for a user"""
+        return await create_session(user_id, session_type, data)
+    
+    @staticmethod
+    async def get_session(user_id: int) -> dict:
+        """Get session data for a user"""
+        return await get_session(user_id)
+    
+    @staticmethod
+    async def clear_session(user_id: int) -> bool:
+        """Clear session data for a user"""
+        return await clear_session(user_id)
+    
+    @staticmethod
+    async def session_expired(user_id: int) -> bool:
+        """Check if user's session has expired"""
+        return await session_expired(user_id)
+    
+    @staticmethod
+    async def update_session_activity(user_id: int) -> bool:
+        """Update last activity timestamp for a session"""
+        return await update_session_activity(user_id)
+    
+    @staticmethod
+    def get_all_sessions() -> Dict[int, Dict[str, Any]]:
+        """Get all active sessions"""
+        return get_all_sessions()
+    
+    @staticmethod
+    def get_session_count() -> int:
+        """Get total number of active sessions"""
+        return get_session_count()
+    
+    @staticmethod
+    async def start_cleanup_task():
+        """Start background task to cleanup expired sessions"""
+        return await start_cleanup_task()
+    
+    @staticmethod
+    def cleanup_expired_sessions() -> int:
+        """Remove all expired sessions"""
+        return cleanup_expired_sessions()
