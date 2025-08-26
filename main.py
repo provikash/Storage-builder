@@ -193,14 +193,7 @@ async def main():
         if hasattr(clone_manager, 'session_manager'):
             asyncio.create_task(clone_manager.session_manager.start_cleanup_task())
 
-        # Start clone request session cleanup
-        from bot.plugins.clone_request import cleanup_expired_sessions
-        async def periodic_session_cleanup():
-            while True:
-                await asyncio.sleep(1800)  # Every 30 minutes
-                await cleanup_expired_sessions()
-
-        asyncio.create_task(periodic_session_cleanup())
+        # Clone request feature removed - users create clones directly
 
         # Start system monitoring
         try:

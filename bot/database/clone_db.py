@@ -436,6 +436,24 @@ async def get_clone_request_by_id(request_id: str):
         logger.error(f"ERROR: Error getting clone request {request_id}: {e}")
         return None
 
+async def get_clone_by_token(bot_token: str):
+    """Get clone by bot token"""
+    try:
+        clone = await clones_collection.find_one({"bot_token": bot_token})
+        return clone
+    except Exception as e:
+        logger.error(f"ERROR: Error getting clone by token: {e}")
+        return None
+
+async def get_user_clones(user_id: int):
+    """Get all clones for a specific user"""
+    try:
+        clones = await clones_collection.find({"admin_id": user_id}).to_list(None)
+        return clones
+    except Exception as e:
+        logger.error(f"ERROR: Error getting user clones for {user_id}: {e}")
+        return []
+
 async def get_pending_clone_request(user_id: int):
     """Get pending clone request for user"""
     try:

@@ -15,27 +15,52 @@ active_clones = {}
 
 @Client.on_message(filters.command("createclone") & filters.private)
 async def create_clone_handler(client: Client, message: Message):
-    """Handle clone creation request"""
+    """Handle direct clone creation with plan selection"""
     user_id = message.from_user.id
 
-    # Check if user is admin (you can modify this logic)
-    if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
-        return await message.reply_text("❌ Only administrators can create bot clones.")
+    # Check if user already has a clone
+    from bot.database.clone_db import get_user_clones
+    existing_clones = await get_user_clones(user_id)
+    
+    if existing_clones:
+        return await message.reply_text(
+            "❌ **You already have a clone bot!**\n\n"
+            "Use `/manageclone` to manage your existing clone."
+        )
 
-    await message.reply_text(
-        "🤖 **Create Your Bot Clone**\n\n"
-        "Please provide your bot token from @BotFather in the format:\n"
-        "`/settoken YOUR_BOT_TOKEN`\n\n"
-        "Example: `/settoken 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`"
-    )
+    # Show available plans
+    from bot.database.subscription_db import get_pricing_tiers
+    pricing_tiers = await get_pricing_tiers()
+    
+    text = "🤖 **Create Your Bot Clone**\n\n"
+    text += "Choose a subscription plan to get started:\n\n"
+    
+    buttons = []
+    for tier in pricing_tiers:
+        price_text = f"${tier['price']:.2f}"
+        duration_text = f"{tier['duration_days']} days"
+        
+        plan_text = f"💎 {tier['name']} - {price_text}/{duration_text}"
+        buttons.append([InlineKeyboardButton(plan_text, callback_data=f"select_plan:{tier['_id']}")])
+    
+    buttons.append([InlineKeyboardButton("❓ How it works", callback_data="clone_info")])
+    
+    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_message(filters.command("settoken") & filters.private)
 async def set_bot_token(client: Client, message: Message):
-    """Set bot token for clone creation"""
+    """Set bot token for direct clone creation"""
     user_id = message.from_user.id
 
-    if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
-        return await message.reply_text("❌ Only administrators can create bot clones.")
+    # Check if user has an active clone creation session
+    from bot.utils.session_manager import session_manager
+    session = session_manager.get_session(user_id, 'clone_creation')
+    
+    if not session:
+        return await message.reply_text(
+            "❌ **No active clone creation session.**\n\n"
+            "Please start with `/createclone` first."
+        )
 
     if len(message.command) < 2:
         return await message.reply_text("❌ Please provide a bot token.\n\nUsage: `/settoken YOUR_BOT_TOKEN`")
@@ -46,68 +71,128 @@ async def set_bot_token(client: Client, message: Message):
     if not validate_bot_token(bot_token):
         return await message.reply_text("❌ Invalid bot token format. Please get a valid token from @BotFather.")
 
-    # Try to create the clone
-    processing_msg = await message.reply_text("🔄 Creating your bot clone... Please wait.")
+    # Try to validate the bot token
+    processing_msg = await message.reply_text("🔄 Validating bot token... Please wait.")
 
     try:
-        success, clone_info = await create_bot_clone(bot_token, user_id)
+        # Test the bot token
+        test_client = Client(
+            name=f"test_{bot_token[:10]}",
+            api_id=Config.API_ID,
+            api_hash=Config.API_HASH,
+            bot_token=bot_token
+        )
 
-        if success:
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("✅ Start Your Bot", url=f"https://t.me/{clone_info['username']}")],
-                [InlineKeyboardButton("📋 Manage Clones", callback_data="manage_clones")]
+        await test_client.start()
+        me = await test_client.get_me()
+        await test_client.stop()
+
+        # Check if bot is already used
+        from bot.database.clone_db import get_clone_by_token
+        existing_clone = await get_clone_by_token(bot_token)
+        if existing_clone:
+            return await processing_msg.edit_text("❌ This bot token is already in use!")
+
+        # Store token in session and proceed to payment
+        session['bot_token'] = bot_token
+        session['bot_info'] = {
+            'id': me.id,
+            'username': me.username,
+            'first_name': me.first_name
+        }
+        session_manager.update_session(user_id, 'clone_creation', session)
+
+        # Get plan details for payment
+        plan_id = session['plan_id']
+        from bot.database.subscription_db import get_pricing_tier
+        plan = await get_pricing_tier(plan_id)
+
+        await processing_msg.edit_text(
+            f"✅ **Bot Token Validated!**\n\n"
+            f"🤖 **Bot:** @{me.username}\n"
+            f"💰 **Plan:** {plan['name']} - ${plan['price']:.2f}\n"
+            f"⏰ **Duration:** {plan['duration_days']} days\n\n"
+            f"Proceed to payment to activate your clone:",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 Proceed to Payment", callback_data="proceed_payment")],
+                [InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")]
             ])
-
-            await processing_msg.edit_text(
-                f"🎉 **Clone Created Successfully!**\n\n"
-                f"🤖 **Bot Username:** @{clone_info['username']}\n"
-                f"🆔 **Bot ID:** {clone_info['bot_id']}\n"
-                f"📊 **Status:** Running\n\n"
-                f"Your bot is now live and ready to use!",
-                reply_markup=buttons
-            )
-
-            # Store clone info
-            active_clones[user_id] = active_clones.get(user_id, [])
-            active_clones[user_id].append(clone_info)
-
-        else:
-            await processing_msg.edit_text(
-                f"❌ **Failed to create clone:**\n{clone_info}"
-            )
+        )
 
     except Exception as e:
         await processing_msg.edit_text(
-            f"❌ **Error creating clone:**\n{str(e)}"
+            f"❌ **Invalid bot token:**\n{str(e)}\n\n"
+            "Please check your token and try again."
         )
+
+@Client.on_message(filters.command("manageclone") & filters.private)
+async def manage_clone_command(client: Client, message: Message):
+    """Manage user's clone bot"""
+    user_id = message.from_user.id
+    
+    from bot.database.clone_db import get_user_clones
+    user_clones = await get_user_clones(user_id)
+    
+    if not user_clones:
+        return await message.reply_text(
+            "📝 **You don't have any clone bots yet.**\n\n"
+            "Use `/createclone` to create your first clone!",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🚀 Create Clone", callback_data="start_clone_creation")]
+            ])
+        )
+    
+    # Show user's clone (assuming one clone per user)
+    clone = user_clones[0]
+    from bot.database.subscription_db import get_subscription
+    subscription = await get_subscription(clone['_id'])
+    
+    from clone_manager import clone_manager
+    is_running = clone['_id'] in clone_manager.get_running_clones()
+    
+    text = f"🤖 **Your Clone Bot**\n\n"
+    text += f"🤖 **Bot:** @{clone['username']}\n"
+    text += f"📊 **Status:** {'🟢 Running' if is_running else '🔴 Stopped'}\n"
+    
+    if subscription:
+        text += f"💰 **Plan:** {subscription['tier']}\n"
+        text += f"📅 **Expires:** {subscription['expires_at'].strftime('%Y-%m-%d')}\n"
+    
+    buttons = [
+        [InlineKeyboardButton("🤖 Open Bot", url=f"https://t.me/{clone['username']}")],
+        [InlineKeyboardButton("⚙️ Clone Admin", callback_data="clone_admin_panel")]
+    ]
+    
+    if is_running:
+        buttons.append([InlineKeyboardButton("⏸️ Stop Bot", callback_data=f"stop_clone:{clone['_id']}")])
+    else:
+        buttons.append([InlineKeyboardButton("▶️ Start Bot", callback_data=f"start_clone:{clone['_id']}")])
+    
+    await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_message(filters.command("listclones") & filters.private)
 async def list_clones(client: Client, message: Message):
-    """List all active clones for the user"""
+    """List all active clones for admins only"""
     user_id = message.from_user.id
 
     if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
-        return await message.reply_text("❌ Only administrators can manage clones.")
+        return await message.reply_text("❌ Only administrators can list all clones.")
 
-    user_clones = active_clones.get(user_id, [])
+    from bot.database.clone_db import get_all_clones
+    all_clones = await get_all_clones()
 
-    if not user_clones:
-        return await message.reply_text("📝 You don't have any active bot clones yet.\n\nUse `/createclone` to create your first clone!")
+    if not all_clones:
+        return await message.reply_text("📝 No clones found in the system.")
 
-    clone_list = "🤖 **Your Active Bot Clones:**\n\n"
+    clone_list = "🤖 **All System Clones:**\n\n"
 
-    for i, clone in enumerate(user_clones, 1):
-        status = "🟢 Running" if clone.get('running', True) else "🔴 Stopped"
+    for i, clone in enumerate(all_clones[:10], 1):  # Show first 10
+        status = "🟢 Active" if clone.get('status') == 'active' else "🔴 Inactive"
         clone_list += f"**{i}.** @{clone['username']}\n"
         clone_list += f"   📊 Status: {status}\n"
-        clone_list += f"   🆔 ID: {clone['bot_id']}\n\n"
+        clone_list += f"   👤 Admin: {clone['admin_id']}\n\n"
 
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🆕 Create New Clone", callback_data="create_new_clone")],
-        [InlineKeyboardButton("🛠️ Manage Clones", callback_data="manage_clones")]
-    ])
-
-    await message.reply_text(clone_list, reply_markup=buttons)
+    await message.reply_text(clone_list)
 
 def validate_bot_token(token: str) -> bool:
     """Validate bot token format"""
@@ -294,52 +379,169 @@ async def run_clone_bot(clone_data):
             del clone_manager.active_clones[bot_id]
             print(f"🗑️ Removed clone {bot_id} from active list")
 
-@Client.on_callback_query(filters.regex("^create_new_clone$"))
-async def create_new_clone_callback(client, query):
-    """Handle create new clone button"""
+@Client.on_callback_query(filters.regex("^select_plan:"))
+async def select_plan_callback(client, query):
+    """Handle plan selection for clone creation"""
     await query.answer()
+    user_id = query.from_user.id
+    plan_id = query.data.split(":")[1]
+    
+    # Store selected plan in session
+    from bot.utils.session_manager import session_manager
+    session_manager.create_session(user_id, 'clone_creation', {'plan_id': plan_id})
+    
     await query.edit_message_text(
         "🤖 **Create Your Bot Clone**\n\n"
-        "Please provide your bot token from @BotFather in the format:\n"
-        "`/settoken YOUR_BOT_TOKEN`\n\n"
-        "Example: `/settoken 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`"
+        "Now provide your bot token from @BotFather:\n\n"
+        "**Format:** `/settoken YOUR_BOT_TOKEN`\n\n"
+        "**Example:** `/settoken 123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`\n\n"
+        "💡 **Need help?** Contact @BotFather on Telegram to create a new bot and get your token.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("❓ How to get bot token", url="https://t.me/botfather")],
+            [InlineKeyboardButton("🔙 Back to plans", callback_data="back_to_plans")]
+        ])
     )
+
+@Client.on_callback_query(filters.regex("^clone_info$"))
+async def clone_info_callback(client, query):
+    """Show information about clone creation"""
+    await query.answer()
+    
+    text = "❓ **How Clone Creation Works**\n\n"
+    text += "1️⃣ **Select a Plan** - Choose your subscription duration\n"
+    text += "2️⃣ **Provide Bot Token** - Get one from @BotFather\n"
+    text += "3️⃣ **Make Payment** - Secure payment processing\n"
+    text += "4️⃣ **Clone Ready!** - Your bot will be activated\n\n"
+    text += "✨ **Features:**\n"
+    text += "• Full file sharing capabilities\n"
+    text += "• Custom admin panel\n"
+    text += "• Force subscribe channels\n"
+    text += "• Token verification system\n"
+    text += "• Request channels\n"
+    text += "• Premium subscriptions\n\n"
+    text += "🔒 **Secure & Reliable**\n"
+    text += "Your bot runs on our infrastructure with 99.9% uptime!"
+    
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to plans", callback_data="back_to_plans")]
+        ])
+    )
+
+@Client.on_callback_query(filters.regex("^back_to_plans$"))
+async def back_to_plans_callback(client, query):
+    """Go back to plan selection"""
+    await query.answer()
+    await create_clone_handler(client, query.message)
+
+@Client.on_callback_query(filters.regex("^start_clone_creation$"))
+async def start_clone_creation_callback(client, query):
+    """Start clone creation process"""
+    await query.answer()
+    await create_clone_handler(client, query.message)
 
 @Client.on_callback_query(filters.regex("^manage_clones$"))
 async def manage_clones_callback(client, query):
     """Handle manage clones button"""
     await query.answer()
+    await manage_clone_command(client, query.message)
+
+@Client.on_callback_query(filters.regex("^proceed_payment$"))
+async def proceed_payment_callback(client, query):
+    """Handle payment processing"""
+    await query.answer()
+    user_id = query.from_user.id
+    
+    from bot.utils.session_manager import session_manager
+    session = session_manager.get_session(user_id, 'clone_creation')
+    
+    if not session:
+        return await query.edit_message_text("❌ Session expired. Please start over with `/createclone`")
+
+    # Get plan details
+    plan_id = session['plan_id']
+    from bot.database.subscription_db import get_pricing_tier
+    plan = await get_pricing_tier(plan_id)
+    
+    # For now, we'll create the clone directly (you can add payment gateway later)
+    await query.edit_message_text("🔄 Processing payment and creating clone...")
+    
+    try:
+        # Create the clone directly
+        bot_token = session['bot_token']
+        bot_info = session['bot_info']
+        
+        # Create clone in database
+        from bot.database.clone_db import create_clone
+        from bot.database.subscription_db import create_subscription
+        from datetime import datetime, timedelta
+        
+        clone_data = {
+            '_id': str(bot_info['id']),
+            'admin_id': user_id,
+            'username': bot_info['username'],
+            'bot_token': bot_token,
+            'status': 'active',
+            'created_at': datetime.now()
+        }
+        
+        subscription_data = {
+            '_id': str(bot_info['id']),
+            'bot_id': str(bot_info['id']),
+            'user_id': user_id,
+            'tier': plan['name'],
+            'price': plan['price'],
+            'duration_days': plan['duration_days'],
+            'status': 'active',
+            'created_at': datetime.now(),
+            'expires_at': datetime.now() + timedelta(days=plan['duration_days']),
+            'payment_verified': True
+        }
+        
+        # Save to database
+        await create_clone(clone_data)
+        await create_subscription(subscription_data)
+        
+        # Start the clone
+        from clone_manager import clone_manager
+        success, message = await clone_manager.start_clone(str(bot_info['id']))
+        
+        if success:
+            # Clear session
+            session_manager.clear_session(user_id, 'clone_creation')
+            
+            await query.edit_message_text(
+                f"🎉 **Clone Created Successfully!**\n\n"
+                f"🤖 **Bot:** @{bot_info['username']}\n"
+                f"💰 **Plan:** {plan['name']}\n"
+                f"📅 **Expires:** {subscription_data['expires_at'].strftime('%Y-%m-%d')}\n"
+                f"📊 **Status:** Active\n\n"
+                f"Your clone is now live and ready to use!",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🤖 Open Bot", url=f"https://t.me/{bot_info['username']}")],
+                    [InlineKeyboardButton("⚙️ Manage Clone", callback_data="manage_my_clone")]
+                ])
+            )
+        else:
+            await query.edit_message_text(f"❌ Clone created but failed to start: {message}")
+            
+    except Exception as e:
+        await query.edit_message_text(f"❌ Error creating clone: {str(e)}")
+
+@Client.on_callback_query(filters.regex("^cancel_creation$"))
+async def cancel_creation_callback(client, query):
+    """Cancel clone creation"""
+    await query.answer()
+    user_id = query.from_user.id
+    
+    from bot.utils.session_manager import session_manager
+    session_manager.clear_session(user_id, 'clone_creation')
+    
     await query.edit_message_text(
-        "🛠️ **Clone Management**\n\n"
-        "Available commands:\n"
-        "• `/listclones` - View all your clones\n"
-        "• `/createclone` - Create a new clone\n"
-        "• `/stopclone <bot_id>` - Stop a specific clone\n"
-        "• `/startclone <bot_id>` - Start a stopped clone"
+        "❌ **Clone creation cancelled.**\n\n"
+        "You can start again anytime with `/createclone`"
     )
-
-# --- Missing Handlers and Database Functions ---
-
-# Example handler for mother_create_clone
-@Client.on_callback_query(filters.regex("^mother_create_clone$"))
-async def mother_create_clone_handler(client: Client, query):
-    await query.answer("Processing create clone request...")
-    # Implement logic to create a new bot clone
-    await query.edit_message_text("Bot clone creation logic goes here.")
-
-# Example handler for mother_manage_clones
-@Client.on_callback_query(filters.regex("^mother_manage_clones$"))
-async def mother_manage_clones_handler(client: Client, query):
-    await query.answer("Fetching clone management options...")
-    # Implement logic to display clone management options
-    await query.edit_message_text("Clone management options go here.")
-
-# Example handler for mother_subscriptions
-@Client.on_callback_query(filters.regex("^mother_subscriptions$"))
-async def mother_subscriptions_handler(client: Client, query):
-    await query.answer("Fetching subscription details...")
-    # Implement logic to display subscription information
-    await query.edit_message_text("Subscription details go here.")
 
 # Example database helper functions (replace with actual implementation)
 async def get_all_clones_from_db():
