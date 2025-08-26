@@ -382,47 +382,8 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
     from bot.plugins.admin_panel import toggle_feature_handler
     await toggle_feature_handler(client, query)
 
-# Clone creation callbacks (Priority 2)
-@Client.on_callback_query(filters.regex("^(start_clone_creation|begin_step1_plan|select_plan:|creation_help|token_help|database_help|back_to_step3|confirm_final_creation|cancel_creation|insufficient_balance)"), group=CALLBACK_PRIORITIES["approval"])
-async def clone_creation_callback_handler(client: Client, query: CallbackQuery):
-    """Handle clone creation callbacks"""
-    print(f"DEBUG: Clone creation callback - {query.data} from user {query.from_user.id}")
-    
-    try:
-        # Import handlers from step_clone_creation
-        from bot.plugins import step_clone_creation
-        
-        # Route to appropriate handler based on callback data
-        if query.data == "start_clone_creation":
-            await step_clone_creation.start_clone_creation_callback(client, query)
-        elif query.data == "begin_step1_plan":
-            await step_clone_creation.step1_choose_plan(client, query)
-        elif query.data.startswith("select_plan:"):
-            await step_clone_creation.step2_bot_token(client, query)
-        elif query.data == "creation_help":
-            await step_clone_creation.creation_help_callback(client, query)
-        elif query.data == "token_help":
-            await step_clone_creation.token_help_callback(client, query)
-        elif query.data == "database_help":
-            await step_clone_creation.database_help_callback(client, query)
-        elif query.data == "back_to_step3":
-            await back_to_step3_callback(client, query)
-        elif query.data == "confirm_final_creation":
-            await step_clone_creation.handle_final_confirmation(client, query)
-        elif query.data == "cancel_creation":
-            await step_clone_creation.handle_creation_cancellation(client, query)
-        elif query.data == "insufficient_balance":
-            await step_clone_creation.handle_insufficient_balance(client, query)
-            
-        # Mark as handled to prevent "unhandled" logs
-        print(f"✅ Successfully handled callback: {query.data}")
-        
-    except Exception as e:
-        print(f"❌ Error in clone creation callback handler: {e}")
-        try:
-            await query.answer("❌ An error occurred. Please try again.", show_alert=True)
-        except:
-            pass
+# Clone creation callbacks are now handled directly in step_clone_creation.py
+# This handler is removed to prevent conflicts
 
 # Debug callback for unhandled cases (disabled to prevent conflicts)
 # This handler is commented out to prevent callback conflicts

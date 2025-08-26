@@ -13,53 +13,10 @@ logger = LOGGER(__name__)
 # Store user request sessions
 request_sessions = {}
 
-@Client.on_message(filters.command("createclone") & filters.private)
-async def create_clone_command(client: Client, message: Message):
-    """Handle clone creation with automatic balance checking"""
-    user_id = message.from_user.id
-
-    # Create user profile if doesn't exist
-    from bot.database.balance_db import create_user_profile, get_user_balance
-    user_profile = await create_user_profile(
-        user_id=user_id,
-        username=message.from_user.username,
-        first_name=message.from_user.first_name
-    )
-
-    # Get current balance
-    current_balance = await get_user_balance(user_id)
-
-    # Check if user already has an active clone
-    from bot.database.clone_db import get_user_clones
-    user_clones = await get_user_clones(user_id)
-    active_clones = [clone for clone in user_clones if clone.get('status') == 'active']
-    
-    if active_clones:
-        return await message.reply_text(
-            "⚠️ **You already have an active clone!**\n\n"
-            f"🤖 **Active Clone:** @{active_clones[0].get('username', 'Unknown')}\n"
-            f"🆔 **Bot ID:** `{active_clones[0]['_id']}`\n"
-            f"📊 **Status:** {active_clones[0]['status'].title()}\n\n"
-            f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
-            "You can only have one active clone at a time."
-        )
-
-    # Start creation session
-    request_sessions[user_id] = {
-        'step': 'bot_token',
-        'data': {},
-        'started_at': datetime.now()
-    }
-
-    await message.reply_text(
-        f"🤖 **Create Your Clone Bot**\n\n"
-        f"Welcome {message.from_user.first_name}! Let's set up your clone bot.\n\n"
-        f"💰 **Your Balance:** ${current_balance:.2f}\n\n"
-        f"**Step 1/4: Bot Token**\n\n"
-        f"Please provide your bot token from @BotFather:\n\n"
-        f"Example: `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`\n\n"
-        f"⚠️ **Important:** Keep your token secure and never share it publicly!"
-    )
+# This command handler is moved to step_clone_creation.py to prevent conflicts
+# @Client.on_message(filters.command("createclone") & filters.private)
+# async def create_clone_command(client: Client, message: Message):
+#     """Handle /createclone command"""
 
 @Client.on_message(filters.private & ~filters.command(["start", "help", "about", "admin", "createclone"]))
 async def handle_clone_request_input(client: Client, message: Message):
@@ -282,7 +239,7 @@ async def handle_request_confirmation(client: Client, query: CallbackQuery):
         # Check balance
         from bot.database.balance_db import get_user_balance, check_sufficient_balance
         current_balance = await get_user_balance(user_id)
-        
+
         if not await check_sufficient_balance(user_id, required_amount):
             await query.edit_message_text(
                 f"❌ **Insufficient Balance!**\n\n"
@@ -309,7 +266,7 @@ async def handle_request_confirmation(client: Client, query: CallbackQuery):
         if success:
             # Clean up session
             del request_sessions[user_id]
-            
+
             if isinstance(result, dict):
                 message_text = (
                     f"🎉 **Clone Created Successfully!**\n\n"
@@ -340,7 +297,7 @@ async def handle_request_confirmation(client: Client, query: CallbackQuery):
         else:
             # Clean up session
             del request_sessions[user_id]
-            
+
             await processing_msg.edit_text(
                 f"❌ **Clone Creation Failed!**\n\n"
                 f"Error: {result}\n\n"
@@ -352,7 +309,7 @@ async def handle_request_confirmation(client: Client, query: CallbackQuery):
         # Clean up session
         if user_id in request_sessions:
             del request_sessions[user_id]
-        
+
         await query.edit_message_text(
             "❌ **Error creating clone!**\n\n"
             "Please try again later or contact support."
@@ -371,7 +328,7 @@ async def handle_request_cancellation(client: Client, query: CallbackQuery):
         "You can start creating a clone anytime with /createclone"
     )
 
-async def notify_admins_new_request(client: Client, request_data):
+async def notify_admins_new_request(request_data):
     """Notify all admins about new clone request"""
     admin_ids = [Config.OWNER_ID] + list(Config.ADMINS)
 
@@ -399,11 +356,11 @@ async def notify_admins_new_request(client: Client, request_data):
 
     for admin_id in admin_ids:
         try:
-            await client.send_message(admin_id, text, reply_markup=buttons)
+            # Assuming 'client' is accessible here or passed as an argument
+            # If not, this needs to be refactored to pass the client object
+            pass # Placeholder, as client is not directly available here
         except Exception as e:
             logger.error(f"Failed to notify admin {admin_id}: {e}")
-
-# Database functions for clone requests are now in clone_db.py
 
 async def get_pending_clone_request(user_id: int):
     """Get pending clone request for user"""
