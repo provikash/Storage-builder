@@ -52,10 +52,10 @@ async def start_clone_creation_callback(client: Client, query: CallbackQuery):
         text += f"You need at least $3.00 to create a clone.\n"
         text += f"Please add balance to your account first.\n\n"
         text += f"💡 **Clone Plans:**\n"
-        text += f"• Monthly: $3.00 (30 days)\n"
-        text += f"• Quarterly: $8.00 (90 days) - Best Value!\n"
-        text += f"• Semi-Annual: $15.00 (180 days)\n"
-        text += f"• Yearly: $26.00 (365 days)"
+        text += f"• Monthly Plan: $3.00 (30 days)\n"
+        text += f"• 3 Months Plan: $8.00 (90 days) - Best Value!\n"
+        text += f"• 6 Months Plan: $15.00 (180 days)\n"
+        text += f"• Yearly Plan: $26.00 (365 days)"
 
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("💳 Add Balance", callback_data="add_balance")],
@@ -71,11 +71,11 @@ async def start_clone_creation_callback(client: Client, query: CallbackQuery):
     text += f"**Step 1:** Choose your plan\n"
     text += f"**Step 2:** Provide bot token (from @BotFather)\n"
     text += f"**Step 3:** Provide database URL\n\n"
-    text += f"💡 **Available Plans:**\n"
-    text += f"• Monthly: $3.00 - Perfect for testing\n"
-    text += f"• Quarterly: $8.00 - Most popular!\n"
-    text += f"• Semi-Annual: $15.00 - Better value\n"
-    text += f"• Yearly: $26.00 - Best savings\n\n"
+    text += f"💡 **Available Clone Plans:**\n"
+    text += f"• Monthly Plan: $3.00 (30 days) - Perfect for testing\n"
+    text += f"• 3 Months Plan: $8.00 (90 days) - Most popular!\n"
+    text += f"• 6 Months Plan: $15.00 (180 days) - Better value\n"
+    text += f"• Yearly Plan: $26.00 (365 days) - Best savings\n\n"
     text += f"Your clone will be ready in minutes!"
 
     buttons = InlineKeyboardMarkup([
@@ -126,6 +126,14 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
 
     user_id = query.from_user.id
     print(f"💎 DEBUG CLONE: begin_step1_plan_callback triggered by user {user_id}")
+    
+    # Get clone pricing tiers (excluding token verification plans)
+    from bot.database.subscription_db import get_pricing_tiers
+    pricing_tiers = await get_pricing_tiers()
+    print(f"💎 DEBUG CLONE: Available pricing tiers: {list(pricing_tiers.keys())}")
+    
+    for tier_name, tier_data in pricing_tiers.items():
+        print(f"💎 DEBUG CLONE: Plan {tier_name}: {tier_data['name']} - ${tier_data['price']}")
 
     # Create or get session
     session = session_manager.get_session(user_id)
@@ -139,16 +147,22 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
         session_manager.create_session(user_id, session_data)
         session = session_manager.get_session(user_id)
 
-    # Get pricing tiers
+    # Get clone pricing tiers (excluding token verification plans)
     from bot.database.subscription_db import get_pricing_tiers
     pricing_tiers = await get_pricing_tiers()
 
-    text = f"💎 **Step 1/3: Choose Your Plan**\n\n"
-    text += f"Select the subscription plan that best fits your needs:\n\n"
+    text = f"💎 **Step 1/3: Choose Your Clone Plan**\n\n"
+    text += f"Select the subscription plan for your clone bot:\n\n"
+
+    # Display available plans with better formatting
+    for tier_name, tier_data in pricing_tiers.items():
+        text += f"**{tier_data['name']}** - ${tier_data['price']:.2f}\n"
+        text += f"• Duration: {tier_data['duration_days']} days\n"
+        text += f"• Features: {', '.join(tier_data['features'])}\n\n"
 
     buttons = []
     for tier_name, tier_data in pricing_tiers.items():
-        plan_text = f"{tier_data['name']} - ${tier_data['price']}/{tier_data['duration_days']}d"
+        plan_text = f"{tier_data['name']} - ${tier_data['price']:.2f}"
         buttons.append([InlineKeyboardButton(plan_text, callback_data=f"select_plan:{tier_name}")])
 
     buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")])
@@ -175,13 +189,20 @@ async def select_plan_callback(client: Client, query: CallbackQuery):
             ])
         )
 
-    # Get plan details
+    # Get plan details - ensure we're only using clone plans
     from bot.database.subscription_db import get_pricing_tiers
     pricing_tiers = await get_pricing_tiers()
     plan_details = pricing_tiers.get(plan_id)
 
     if not plan_details:
+        print(f"❌ DEBUG CLONE: Invalid plan selected: '{plan_id}'. Available plans: {list(pricing_tiers.keys())}")
         return await query.answer("❌ Invalid plan selected!", show_alert=True)
+
+    # Validate that it's a valid clone plan (not a token plan)
+    valid_clone_plans = ["monthly", "quarterly", "semi_annual", "yearly"]
+    if plan_id not in valid_clone_plans:
+        print(f"❌ DEBUG CLONE: Plan '{plan_id}' is not a valid clone plan")
+        return await query.answer("❌ Invalid clone plan selected!", show_alert=True)
 
     # Check if user has sufficient balance
     from bot.database.balance_db import get_user_balance

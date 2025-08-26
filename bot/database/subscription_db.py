@@ -12,15 +12,19 @@ subscription_db = subscription_client[Config.DATABASE_NAME]
 subscriptions_collection = subscription_db.subscriptions
 pricing_collection = subscription_db.pricing
 
-# Pricing tiers
+# Clone subscription pricing tiers (for clone creation only)
 PRICING_TIERS = {
+    "monthly": {"name": "Monthly Plan", "price": 3.00, "duration_days": 30, "features": ["Basic Clone Features", "File Sharing", "Standard Support"]},
+    "quarterly": {"name": "3 Months Plan", "price": 8.00, "duration_days": 90, "features": ["Extended Clone Features", "File Sharing", "Priority Support"]},
+    "semi_annual": {"name": "6 Months Plan", "price": 15.00, "duration_days": 180, "features": ["Premium Clone Features", "File Sharing", "Advanced Support"]},
+    "yearly": {"name": "Yearly Plan", "price": 26.00, "duration_days": 365, "features": ["All Clone Features", "File Sharing", "Premium Support", "Custom Settings"]}
+}
+
+# Token verification plans (separate from clone plans)
+TOKEN_PLANS = {
     "basic": {"name": "Basic", "price": 5.00, "duration_days": 30, "tokens": 1000, "features": ["Search", "Download", "Basic Support"]},
     "premium": {"name": "Premium", "price": 10.00, "duration_days": 30, "tokens": 5000, "features": ["Search", "Download", "Upload", "Premium Support", "Auto Delete"]},
-    "unlimited": {"name": "Unlimited", "price": 20.00, "duration_days": 30, "tokens": -1, "features": ["All Features", "Priority Support", "Custom Channels"]},
-    "monthly": {"name": "Monthly Plan", "price": 3.00, "duration_days": 30, "tokens": 1000, "features": ["Basic Features"]},
-    "quarterly": {"name": "3 Months Plan", "price": 8.00, "duration_days": 90, "tokens": 3000, "features": ["Extended Features"]},
-    "semi_annual": {"name": "6 Months Plan", "price": 15.00, "duration_days": 180, "tokens": 6000, "features": ["Premium Features"]},
-    "yearly": {"name": "Yearly Plan", "price": 26.00, "duration_days": 365, "tokens": 12000, "features": ["All Features", "Priority Support"]}
+    "unlimited": {"name": "Unlimited", "price": 20.00, "duration_days": 30, "tokens": -1, "features": ["All Features", "Priority Support", "Custom Channels"]}
 }
 
 async def init_pricing_tiers():
@@ -92,7 +96,7 @@ async def activate_subscription(bot_id: str):
         return False
 
 async def get_pricing_tiers():
-    """Get available pricing tiers"""
+    """Get available clone pricing tiers"""
     try:
         # Try to get from database first
         pricing_doc = await pricing_collection.find_one({"_id": "pricing_tiers"})
@@ -105,6 +109,25 @@ async def get_pricing_tiers():
     except Exception as e:
         logger.error(f"Error getting pricing tiers: {e}")
         return PRICING_TIERS
+
+async def get_token_plans():
+    """Get available token verification plans"""
+    try:
+        # Try to get from database first
+        token_doc = await pricing_collection.find_one({"_id": "token_plans"})
+        if token_doc:
+            return token_doc["plans"]
+        else:
+            # Insert default token plans
+            await pricing_collection.update_one(
+                {"_id": "token_plans"},
+                {"$set": {"plans": TOKEN_PLANS, "updated_at": datetime.now()}},
+                upsert=True
+            )
+            return TOKEN_PLANS
+    except Exception as e:
+        logger.error(f"Error getting token plans: {e}")
+        return TOKEN_PLANS
 
 async def get_subscription(bot_id: str):
     """Get subscription by bot ID"""

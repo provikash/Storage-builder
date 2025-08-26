@@ -3,6 +3,8 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 from datetime import datetime, timedelta
 
 from bot.database import add_premium_user, is_premium_user, get_premium_info, remove_premium
+from bot.database.subscription_db import get_token_plans
+from bot.database.balance_db import get_user_balance, deduct_balance
 from info import Config
 
 # Token verification plans - These are for bot command usage, NOT for clone creation
@@ -15,7 +17,7 @@ TOKEN_VERIFICATION_PLANS = {
         "type": "token_verification"
     },
     "standard_tokens": {
-        "name": "Standard Token Pack", 
+        "name": "Standard Token Pack",
         "price": "₹79",
         "tokens": 150,
         "description": "150 Command Tokens for Bot Usage",
@@ -23,7 +25,7 @@ TOKEN_VERIFICATION_PLANS = {
     },
     "premium_tokens": {
         "name": "Premium Token Pack",
-        "price": "₹149", 
+        "price": "₹149",
         "tokens": 300,
         "description": "300 Command Tokens for Bot Usage",
         "type": "token_verification"
@@ -65,7 +67,7 @@ async def premium_handler(client, message):
     for plan_key, plan_info in PREMIUM_PLANS.items():
         buttons.append([
             InlineKeyboardButton(
-                f"💎 {plan_info['name']} - ₹{plan_info['price']}", 
+                f"💎 {plan_info['name']} - ₹{plan_info['price']}",
                 callback_data=f"buy_premium:{plan_key}"
             )
         ])
@@ -124,7 +126,7 @@ async def show_premium_plans_callback(client, query: CallbackQuery):
     for plan_key, plan_info in PREMIUM_PLANS.items():
         buttons.append([
             InlineKeyboardButton(
-                f"💎 {plan_info['name']} - ₹{plan_info['price']}", 
+                f"💎 {plan_info['name']} - ₹{plan_info['price']}",
                 callback_data=f"buy_premium:{plan_key}"
             )
         ])
@@ -149,7 +151,7 @@ async def add_premium_command(client, message):
     user_id = message.from_user.id
     if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
         return await message.reply_text("❌ This command is only available to administrators.")
-    
+
     if len(message.command) < 3:
         return await message.reply_text("Usage: `/addpremium <user_id> <plan_type>`\n\nPlans: basic, standard, premium, unlimited")
 
@@ -191,7 +193,7 @@ async def remove_premium_command(client, message):
     user_id = message.from_user.id
     if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
         return await message.reply_text("❌ This command is only available to administrators.")
-    
+
     if len(message.command) < 2:
         return await message.reply_text("Usage: `/removepremium <user_id>`")
 

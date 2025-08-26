@@ -566,12 +566,9 @@ async def process_clone_auto_approval(user_id: int, request_data: dict):
 
         plan_name = request_data.get('plan_details', {}).get('name', 'Monthly Plan').lower()
 
-        # Map plan names to valid plan keys
+        # Map plan names to valid clone plan keys (removed token verification plans)
         plan_mapping = {
             'monthly plan': 'monthly',
-            'basic': 'basic',
-            'premium': 'premium',
-            'unlimited': 'unlimited',
             '3 months plan': 'quarterly',
             '6 months plan': 'semi_annual',
             'yearly plan': 'yearly'
