@@ -31,7 +31,7 @@ class CloneManager:
             # Allow active subscriptions or payment verified subscriptions
             is_active_status = subscription['status'] == 'active'
             is_payment_verified = subscription.get('payment_verified', False)
-            
+
             if not is_active_status and not is_payment_verified:
                 # Only fail if both conditions are false
                 if subscription['status'] in ['expired', 'cancelled']:
@@ -48,20 +48,40 @@ class CloneManager:
                         {"$set": {"status": "pending_subscription", "last_check": datetime.now()}}
                     )
                     return True, f"Clone {bot_id} subscription pending - retry scheduled"
-            
-            
+
+
 
             if bot_id in self.active_clones:
                 return True, "Clone already running"
 
-            # Create bot instance
+            # Create bot instance with simple file sharing plugins
             bot_token = clone.get('bot_token') or clone.get('token')
+
+            # Define plugin list for clone bots (exclude clone management)
+            clone_plugins = {
+                "root": "bot/plugins",
+                "include": [
+                    "simple_file_sharing",
+                    "search",
+                    "genlink",
+                    "channel",
+                    "callback_handlers"
+                ],
+                "exclude": [
+                    "clone_management",
+                    "step_clone_creation",
+                    "mother_admin",
+                    "admin_commands",
+                    "balance_management"
+                ]
+            }
+
             clone_bot = Client(
                 f"clone_{bot_id}",
                 api_id=Config.API_ID,
                 api_hash=Config.API_HASH,
                 bot_token=bot_token,
-                plugins=dict(root="bot/plugins")
+                plugins=clone_plugins
             )
 
             # Start the bot
@@ -217,12 +237,12 @@ class CloneManager:
         """Retry starting a clone with pending subscription after delay"""
         max_retries = 12  # 12 retries = 1 hour of checking (5 min intervals)
         retry_count = 0
-        
+
         try:
             while retry_count < max_retries:
                 await asyncio.sleep(delay)
                 retry_count += 1
-                
+
                 # Check if subscription is now active
                 subscription = await get_subscription(bot_id)
                 if subscription and subscription['status'] == 'active':
@@ -241,14 +261,14 @@ class CloneManager:
                     break
                 else:
                     logger.info(f"⏳ Clone {bot_id} subscription still pending (attempt {retry_count}/{max_retries})")
-            
+
             if retry_count >= max_retries:
                 logger.warning(f"⚠️ Max retries reached for clone {bot_id} - marking as failed")
                 await clones_collection.update_one(
                     {"_id": bot_id},
                     {"$set": {"status": "pending_timeout", "last_check": datetime.now()}}
                 )
-                
+
         except Exception as e:
             logger.error(f"❌ Error retrying pending clone {bot_id}: {e}")
 
@@ -284,15 +304,15 @@ class CloneManager:
         """Check and attempt to start pending clones"""
         try:
             from bot.database.subscription_db import subscriptions_collection
-            
+
             # Find clones with pending_subscription status
             pending_clones = await clones_collection.find({
                 "status": "pending_subscription"
             }).to_list(None)
-            
+
             for clone in pending_clones:
                 bot_id = clone['_id']
-                
+
                 # Check if subscription is now active
                 subscription = await get_subscription(bot_id)
                 if subscription and subscription['status'] == 'active':
@@ -302,7 +322,7 @@ class CloneManager:
                         logger.info(f"✅ Successfully started pending clone {bot_id}")
                     else:
                         logger.warning(f"⚠️ Failed to start clone {bot_id}: {message}")
-                        
+
         except Exception as e:
             logger.error(f"❌ Error checking pending clones: {e}")
 
@@ -318,31 +338,31 @@ class CloneManager:
             # Get all clones from database
             all_clones = await get_all_clones()
             deleted_count = 0
-            
+
             for clone in all_clones:
                 bot_id = clone['_id']
                 try:
                     # Delete from database
                     from bot.database.clone_db import delete_clone, delete_clone_config
                     from bot.database.subscription_db import delete_subscription
-                    
+
                     await delete_clone(bot_id)
-                    await delete_clone_config(bot_id) 
+                    await delete_clone_config(bot_id)
                     await delete_subscription(bot_id)
-                    
+
                     deleted_count += 1
                     logger.info(f"🗑️ Deleted clone {bot_id}")
-                    
+
                 except Exception as e:
                     logger.error(f"❌ Error deleting clone {bot_id}: {e}")
 
             # Clear internal tracking
             self.active_clones.clear()
             self.clone_tasks.clear()
-            
+
             logger.info(f"🗑️ Mass deletion completed: {deleted_count} clones deleted")
             return deleted_count, len(all_clones)
-            
+
         except Exception as e:
             logger.error(f"❌ Error in mass clone deletion: {e}")
             return 0, 0

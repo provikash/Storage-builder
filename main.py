@@ -94,7 +94,37 @@ async def start_mother_bot():
     try:
         logger.info("📡 Initializing Mother Bot...")
         print("📡 DEBUG BOT: Initializing Mother Bot...")
-        app = Bot()
+        
+        # Initialize and start Mother Bot with full plugin access
+        mother_bot_plugins = {
+            "root": "bot/plugins",
+            "include": [
+                "start_handler",
+                "step_clone_creation",
+                "clone_management", 
+                "mother_admin",
+                "admin_commands",
+                "admin_panel",
+                "balance_management",
+                "search",
+                "genlink", 
+                "channel",
+                "callback_handlers",
+                "premium",
+                "token",
+                "stats",
+                "broadcast"
+            ]
+        }
+
+        app = Client(
+            "mother_bot", 
+            api_id=Config.API_ID,
+            api_hash=Config.API_HASH,
+            bot_token=Config.BOT_TOKEN,
+            plugins=mother_bot_plugins
+        )
+        
         await app.start()
 
         me = await app.get_me()

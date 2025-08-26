@@ -285,12 +285,16 @@ class CloneConfigLoader:
         return {
             "search": True,
             "upload": True,
-            "token_verification": True,
-            "premium": True,
+            "download": True,
+            "file_sharing": True,
+            "token_verification": False,  # Simplified for clones
+            "premium": False,  # Simplified for clones
             "auto_delete": True,
-            "batch_links": True,
+            "batch_links": False,  # Simplified for clones
             "clone_creation": False,  # Only mother bot can create clones
-            "admin_panel": False
+            "admin_panel": False,  # Only mother bot has admin panel
+            "force_subscribe": True,  # Basic channel subscription
+            "request_channel": True   # Basic request functionality
         }
     
     def _get_default_token_settings(self):
