@@ -126,11 +126,12 @@ async def step1_choose_plan(client, query):
     user_id = query.from_user.id
     current_balance = await get_user_balance(user_id)
     
-    # Initialize session
+    # Initialize session with timestamp for uniqueness
+    current_time = datetime.now()
     creation_sessions[user_id] = {
         'step': 'plan_selection',
         'data': {},
-        'started_at': datetime.now()
+        'started_at': current_time
     }
     
     text = f"📋 **Step 1/3: Choose Your Plan**\n\n"
@@ -175,7 +176,16 @@ async def step1_choose_plan(client, query):
     else:
         buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="cancel_creation")])
     
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    # Add timestamp to make content unique
+    text += f"\n🕐 **Session started:** {current_time.strftime('%H:%M:%S')}"
+    
+    try:
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await query.answer("ℹ️ Plan selection is already displayed above.", show_alert=False)
+        else:
+            await query.answer("❌ Error loading plans. Please try again.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^select_plan:"))
 async def step2_bot_token(client, query):
@@ -227,6 +237,10 @@ async def token_help_callback(client, query):
     """Show token help"""
     await query.answer()
     
+    user_id = query.from_user.id
+    session = creation_sessions.get(user_id, {})
+    plan_id = session.get('data', {}).get('plan_id', 'monthly')
+    
     text = f"🤖 **How to Get Bot Token**\n\n"
     text += f"**Step-by-step guide:**\n\n"
     text += f"1. **Open @BotFather**\n"
@@ -246,14 +260,21 @@ async def token_help_callback(client, query):
     text += f"⚠️ **Important:**\n"
     text += f"• Never share your token publicly\n"
     text += f"• Token gives full control of your bot\n"
-    text += f"• If compromised, regenerate in @BotFather"
+    text += f"• If compromised, regenerate in @BotFather\n\n"
+    text += f"💡 **Tip:** After getting your token, come back here and send it!"
     
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🤖 Open BotFather", url="https://t.me/BotFather")],
-        [InlineKeyboardButton("« Back to Step 2", callback_data=f"select_plan:{creation_sessions.get(query.from_user.id, {}).get('data', {}).get('plan_id', 'monthly')}")]
+        [InlineKeyboardButton("« Back to Step 2", callback_data=f"select_plan:{plan_id}")]
     ])
     
-    await query.edit_message_text(text, reply_markup=buttons)
+    try:
+        await query.edit_message_text(text, reply_markup=buttons)
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await query.answer("ℹ️ Help information is already displayed above.", show_alert=False)
+        else:
+            await query.answer("❌ Error loading help. Please try again.", show_alert=True)
 
 @Client.on_message(filters.private & ~filters.command(["start", "help", "about", "admin"]))
 async def handle_creation_input(client: Client, message: Message):
@@ -624,7 +645,10 @@ async def handle_creation_cancellation(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     
     if user_id in creation_sessions:
+        step = creation_sessions[user_id].get('step', 'unknown')
         del creation_sessions[user_id]
+    else:
+        step = 'unknown'
     
     text = f"❌ **Clone Creation Cancelled**\n\n"
     text += f"No charges were made to your account.\n"
@@ -632,7 +656,8 @@ async def handle_creation_cancellation(client: Client, query: CallbackQuery):
     text += f"💡 **Remember:** You need:\n"
     text += f"• Bot token from @BotFather\n"
     text += f"• MongoDB database URL\n"
-    text += f"• Sufficient balance for your plan"
+    text += f"• Sufficient balance for your plan\n\n"
+    text += f"🔄 **Session was at step:** {step}"
     
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 Start Again", callback_data="start_clone_creation")],
@@ -640,7 +665,13 @@ async def handle_creation_cancellation(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🏠 Back Home", callback_data="back_to_start")]
     ])
     
-    await query.edit_message_text(text, reply_markup=buttons)
+    try:
+        await query.edit_message_text(text, reply_markup=buttons)
+    except Exception as e:
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            await query.answer("✅ Creation already cancelled. You can start again anytime.", show_alert=False)
+        else:
+            await query.answer("❌ Error cancelling. Please try again.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^insufficient_balance$"))
 async def handle_insufficient_balance(client, query):

@@ -388,38 +388,48 @@ async def clone_creation_callback_handler(client: Client, query: CallbackQuery):
     """Handle clone creation callbacks"""
     print(f"DEBUG: Clone creation callback - {query.data} from user {query.from_user.id}")
     
-    # Import handlers from step_clone_creation
-    from bot.plugins import step_clone_creation
-    
-    # Route to appropriate handler based on callback data
-    if query.data == "start_clone_creation":
-        await step_clone_creation.start_clone_creation_callback(client, query)
-    elif query.data == "begin_step1_plan":
-        await step_clone_creation.step1_choose_plan(client, query)
-    elif query.data.startswith("select_plan:"):
-        await step_clone_creation.step2_bot_token(client, query)
-    elif query.data == "creation_help":
-        await step_clone_creation.creation_help_callback(client, query)
-    elif query.data == "token_help":
-        await step_clone_creation.token_help_callback(client, query)
-    elif query.data == "database_help":
-        await step_clone_creation.database_help_callback(client, query)
-    elif query.data == "back_to_step3":
-        await back_to_step3_callback(client, query)
-    elif query.data == "confirm_final_creation":
-        await step_clone_creation.handle_final_confirmation(client, query)
-    elif query.data == "cancel_creation":
-        await step_clone_creation.handle_creation_cancellation(client, query)
-    elif query.data == "insufficient_balance":
-        await step_clone_creation.handle_insufficient_balance(client, query)
+    try:
+        # Import handlers from step_clone_creation
+        from bot.plugins import step_clone_creation
+        
+        # Route to appropriate handler based on callback data
+        if query.data == "start_clone_creation":
+            await step_clone_creation.start_clone_creation_callback(client, query)
+        elif query.data == "begin_step1_plan":
+            await step_clone_creation.step1_choose_plan(client, query)
+        elif query.data.startswith("select_plan:"):
+            await step_clone_creation.step2_bot_token(client, query)
+        elif query.data == "creation_help":
+            await step_clone_creation.creation_help_callback(client, query)
+        elif query.data == "token_help":
+            await step_clone_creation.token_help_callback(client, query)
+        elif query.data == "database_help":
+            await step_clone_creation.database_help_callback(client, query)
+        elif query.data == "back_to_step3":
+            await back_to_step3_callback(client, query)
+        elif query.data == "confirm_final_creation":
+            await step_clone_creation.handle_final_confirmation(client, query)
+        elif query.data == "cancel_creation":
+            await step_clone_creation.handle_creation_cancellation(client, query)
+        elif query.data == "insufficient_balance":
+            await step_clone_creation.handle_insufficient_balance(client, query)
+            
+        # Mark as handled to prevent "unhandled" logs
+        print(f"✅ Successfully handled callback: {query.data}")
+        
+    except Exception as e:
+        print(f"❌ Error in clone creation callback handler: {e}")
+        try:
+            await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+        except:
+            pass
 
-# Debug callback for unhandled cases
-@Client.on_callback_query(filters.regex(".*"), group=CALLBACK_PRIORITIES["catchall"])
-async def debug_unhandled_callbacks(client: Client, query: CallbackQuery):
-    """Debug handler for unhandled callbacks"""
-    callback_data = query.data
-
-    print(f"⚠️ UNHANDLED CALLBACK: {callback_data} from user {query.from_user.id}")
-
-    # Don't respond to avoid conflicts, just log
-    pass
+# Debug callback for unhandled cases (disabled to prevent conflicts)
+# This handler is commented out to prevent callback conflicts
+# Uncomment only for debugging purposes
+# @Client.on_callback_query(filters.regex(".*"), group=CALLBACK_PRIORITIES["catchall"])
+# async def debug_unhandled_callbacks(client: Client, query: CallbackQuery):
+#     """Debug handler for unhandled callbacks"""
+#     callback_data = query.data
+#     print(f"⚠️ UNHANDLED CALLBACK: {callback_data} from user {query.from_user.id}")
+#     pass
