@@ -79,7 +79,7 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
             await query.answer("❌ Error processing request!", show_alert=True)
 
 # Handle start message admin buttons
-@Client.on_callback_query(filters.regex("^(admin_panel|start)$"), group=CALLBACK_PRIORITIES["admin"])
+@Client.on_callback_query(filters.regex("^(admin_panel|start|create_clone_button)$"), group=CALLBACK_PRIORITIES["admin"])
 async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
     """Handle admin panel and start buttons from start message"""
     user_id = query.from_user.id
@@ -93,6 +93,13 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
         # Route to admin panel
         from bot.plugins.admin_panel import mother_admin_panel
         await mother_admin_panel(client, query)
+
+    elif query.data == "create_clone_button":
+        # Handle create clone button - route to clone creation
+        from bot.plugins.step_clone_creation import start_clone_creation_callback
+        # Convert to proper callback format
+        query.data = "start_clone_creation"
+        await start_clone_creation_callback(client, query)
 
     elif query.data == "start":
         # Handle start button - show start message
@@ -311,7 +318,7 @@ async def search_callback_handler(client: Client, query: CallbackQuery):
         await get_token_callback(client, query)
 
 # General Callbacks (Priority 5)
-@Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history)$"), group=CALLBACK_PRIORITIES["general"])
+@Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history|back_to_start|add_balance|manage_my_clone)$"), group=CALLBACK_PRIORITIES["general"])
 async def general_callback_handler(client: Client, query: CallbackQuery):
     """Handle general purpose callbacks"""
     print(f"DEBUG: General callback - {query.data} from user {query.from_user.id}")
@@ -323,13 +330,41 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
         await about_callback(client, query)
     elif callback_data in ["help", "help_menu"]:
         # These are now handled in start_handler.py
-        pass
+        from bot.plugins.start_handler import help_callback
+        await help_callback(client, query)
     elif callback_data in ["about_bot"]:
+        # These are now handled in start_handler.py  
+        from bot.plugins.start_handler import about_callback
+        await about_callback(client, query)
+    elif callback_data in ["user_profile"]:
         # These are now handled in start_handler.py
-        pass
-    elif callback_data in ["user_profile", "transaction_history"]:
+        from bot.plugins.start_handler import profile_callback
+        await profile_callback(client, query)
+    elif callback_data in ["transaction_history"]:
         # These are now handled in start_handler.py
-        pass
+        from bot.plugins.start_handler import transaction_history_callback
+        await transaction_history_callback(client, query)
+    elif callback_data == "back_to_start":
+        # Handle back to start - show start message
+        from bot.plugins.start_handler import start_command
+        # Convert callback to message-like object
+        class FakeMessage:
+            def __init__(self, query):
+                self.from_user = query.from_user
+                self.chat = query.message.chat
+            async def reply_text(self, text, reply_markup=None, **kwargs):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+
+        fake_message = FakeMessage(query)
+        await start_command(client, fake_message)
+    elif callback_data == "add_balance":
+        # Handle add balance
+        from bot.plugins.balance_management import show_balance_options
+        await show_balance_options(client, query)
+    elif callback_data == "manage_my_clone":
+        # Handle manage clone
+        from bot.plugins.clone_management import manage_user_clone
+        await manage_user_clone(client, query)
     elif callback_data == "my_stats":
         from bot.plugins.callback import my_stats_callback
         await my_stats_callback(client, query)
@@ -346,6 +381,37 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
     # Import from admin panel
     from bot.plugins.admin_panel import toggle_feature_handler
     await toggle_feature_handler(client, query)
+
+# Clone creation callbacks (Priority 2)
+@Client.on_callback_query(filters.regex("^(start_clone_creation|begin_step1_plan|select_plan:|creation_help|token_help|database_help|back_to_step3|confirm_final_creation|cancel_creation|insufficient_balance)"), group=CALLBACK_PRIORITIES["approval"])
+async def clone_creation_callback_handler(client: Client, query: CallbackQuery):
+    """Handle clone creation callbacks"""
+    print(f"DEBUG: Clone creation callback - {query.data} from user {query.from_user.id}")
+    
+    # Import handlers from step_clone_creation
+    from bot.plugins import step_clone_creation
+    
+    # Route to appropriate handler based on callback data
+    if query.data == "start_clone_creation":
+        await step_clone_creation.start_clone_creation_callback(client, query)
+    elif query.data == "begin_step1_plan":
+        await step_clone_creation.step1_choose_plan(client, query)
+    elif query.data.startswith("select_plan:"):
+        await step_clone_creation.step2_bot_token(client, query)
+    elif query.data == "creation_help":
+        await step_clone_creation.creation_help_callback(client, query)
+    elif query.data == "token_help":
+        await step_clone_creation.token_help_callback(client, query)
+    elif query.data == "database_help":
+        await step_clone_creation.database_help_callback(client, query)
+    elif query.data == "back_to_step3":
+        await back_to_step3_callback(client, query)
+    elif query.data == "confirm_final_creation":
+        await step_clone_creation.handle_final_confirmation(client, query)
+    elif query.data == "cancel_creation":
+        await step_clone_creation.handle_creation_cancellation(client, query)
+    elif query.data == "insufficient_balance":
+        await step_clone_creation.handle_insufficient_balance(client, query)
 
 # Debug callback for unhandled cases
 @Client.on_callback_query(filters.regex(".*"), group=CALLBACK_PRIORITIES["catchall"])
