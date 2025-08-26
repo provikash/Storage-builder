@@ -7,6 +7,8 @@ from pathlib import Path
 from bot import Bot
 from clone_manager import clone_manager
 import pymongo
+from pyrogram import Client
+from info import Config
 
 # Setup logging first
 from bot.logging import LOGGER
