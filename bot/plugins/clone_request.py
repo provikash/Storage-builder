@@ -399,6 +399,8 @@ async def get_pending_clone_request(user_id: int):
 async def get_all_pending_requests():
     """Get all pending clone requests"""
     try:
+        from bot.database.clone_db import clone_db
+        clone_requests = clone_db.clone_requests
         requests = await clone_requests.find({"status": "pending"}).to_list(None)
         return requests
     except Exception as e:
@@ -732,7 +734,10 @@ async def submit_clone_request(user_id: int):
                 "failure_reason": auto_result
             }
 
-            await store_clone_request(request_doc)
+            # Store clone request in database
+            from bot.database.clone_db import clone_db
+            clone_requests = clone_db.clone_requests
+            await clone_requests.insert_one(request_doc)
 
             from bot import Bot
             bot = Bot()

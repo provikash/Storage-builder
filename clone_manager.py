@@ -5,7 +5,7 @@ from pyrogram import Client
 from pyrogram.errors import AuthKeyUnregistered, AccessTokenExpired, AccessTokenInvalid
 from info import Config
 from bot.database.clone_db import *
-from bot.database.subscription_db import get_subscription
+from bot.database.subscription_db import get_subscription, subscriptions_collection
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
@@ -42,6 +42,7 @@ class CloneManager:
                     # Schedule retry after 5 minutes
                     asyncio.create_task(self._retry_pending_clone(bot_id, 300))
                     # Update database to reflect pending status
+                    from bot.database.clone_db import clones_collection
                     await clones_collection.update_one(
                         {"_id": bot_id},
                         {"$set": {"status": "pending_subscription", "last_check": datetime.now()}}

@@ -705,7 +705,12 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
         )
 
         # Import the auto-approval function
-        from bot.plugins.clone_request import process_clone_auto_approval
+        try:
+            from bot.plugins.clone_request import process_clone_auto_approval
+        except ImportError:
+            # Fallback if import fails
+            async def process_clone_auto_approval(user_id, data):
+                return False, "Auto-approval service temporarily unavailable"
 
         success, result = await process_clone_auto_approval(user_id, data)
 

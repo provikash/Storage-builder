@@ -192,7 +192,7 @@ async def create_clone_command(client: Client, message: Message):
             await processing_msg.edit_text(f"❌ **Failed to create clone:**\n{result}")
 
     except Exception as e:
-        await processing_msg.edit_text(f"❌ **Error creating clone:**\n{str(e)}")
+        await processing_msg.edit_text(f"❌ **Failed to create clone:**\n{str(e)}")
 
 @Client.on_message(filters.command("setglobalchannels") & filters.private)
 async def set_global_channels(client: Client, message: Message):
@@ -400,8 +400,8 @@ async def add_force_channel(client: Client, message: Message):
 
     expected_admin = config['bot_info'].get('admin_id')
     if user_id != expected_admin:
-        print(f"DEBUG: addforce access denied for user {user_id}, expected admin: {expected_admin}")
-        return await message.reply_text("❌ Only clone admin can modify settings.")
+        print(f"DEBUG: addforce access denied for user {user_id}, expected {expected_admin}")
+        return await message.reply_text("❌ Only the clone admin can manage force channels.")
 
     print(f"DEBUG: addforce access granted for user {user_id}")
 
