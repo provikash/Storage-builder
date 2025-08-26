@@ -29,7 +29,7 @@ async def create_clone_directly(user_id: int, data: dict):
             return False, f"Insufficient balance. Required: ${required_amount}, Available: ${current_balance}"
         
         # Deduct balance
-        await deduct_balance(user_id, required_amount)
+        await deduct_balance(user_id, required_amount, f"Clone creation - {plan_details['name']}")
         print(f"💰 DEBUG CLONE: Balance deducted successfully for user {user_id}")
         
         # Create clone record
