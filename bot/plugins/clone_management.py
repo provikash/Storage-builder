@@ -6,7 +6,9 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from info import Config
 from bot.database import add_user, present_user
-from logger import logger
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
 
 # Store active clones
 active_clones = {}
