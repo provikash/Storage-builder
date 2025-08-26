@@ -5,7 +5,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from info import Config
 from bot.utils import encode, get_message_id
 
-MAX_ATTEMPTS = 3 
+MAX_ATTEMPTS = 3
 
 async def get_valid_post(client: Client, user_id: int, prompt_text: str) -> int:
     """
@@ -41,6 +41,30 @@ async def get_valid_post(client: Client, user_id: int, prompt_text: str) -> int:
     )
     return 0
 
+async def get_shortlink(client, url):
+    """Generate a short link"""
+    try:
+        # Get bot username properly
+        if hasattr(client, 'me') and client.me and hasattr(client.me, 'username'):
+            bot_username = client.me.username
+        else:
+            # Fallback: get bot info
+            me = await client.get_me()
+            bot_username = me.username
+
+        # Create short link
+        base_url = f"https://t.me/{bot_username}?start="
+
+        # Encode the URL
+        encoded = encode(url)
+        short_link = f"{base_url}{encoded}"
+
+        return short_link
+
+    except Exception as e:
+        print(f"Shortlink error: {e}")
+        return url
+
 @Client.on_message(filters.private & filters.command("batch"))
 async def batch_link_generator(client: Client, message: Message):
     # Check if user is admin
@@ -67,7 +91,7 @@ async def batch_link_generator(client: Client, message: Message):
     await message.reply_text(
         f"<b>✅ Batch Link Generated</b>\n\n{full_link}",
         quote=True,
-        reply_markup=button 
+        reply_markup=button
     )
 
 @Client.on_message(filters.private & filters.command("genlink"))
@@ -75,7 +99,7 @@ async def single_link_generator(client: Client, message: Message):
     # Check if user is admin
     if message.from_user.id not in Config.ADMINS and message.from_user.id != Config.OWNER_ID:
         return await message.reply_text("❌ This command is only available to administrators.")
-    
+
     user_id = message.from_user.id
 
     prompt = "📩 Forward the message from the DB Channel (or send the link):"

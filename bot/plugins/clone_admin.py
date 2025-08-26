@@ -92,9 +92,10 @@ async def clone_settings_callback(client: Client, query: CallbackQuery):
     buttons = []
     for feature, enabled in features.items():
         status = "✅" if enabled else "❌"
+        feature_name = feature.replace('_', ' ').title()
         buttons.append([
             InlineKeyboardButton(
-                f"{status} {feature.title()}", 
+                f"{status} {feature_name}", 
                 callback_data=f"clone_toggle_{feature}"
             )
         ])
@@ -203,6 +204,46 @@ async def add_force_channel(client: Client, message: Message):
     })
     
     await message.reply_text(f"✅ Added force channel: {channel_id}")
+
+@Client.on_message(filters.command("togglerandom") & filters.private)
+async def toggle_random_button(client: Client, message: Message):
+    """Toggle random button on/off"""
+    user_id = message.from_user.id
+    clone_id = clone_admin_sessions.get(user_id)
+    
+    if not clone_id:
+        return await message.reply_text("❌ Use /cloneadmin first.")
+    
+    config = await get_clone_config(clone_id)
+    current_state = config['features'].get('random_button', False)
+    new_state = not current_state
+    
+    await update_clone_config(clone_id, {
+        "features.random_button": new_state
+    })
+    
+    status = "enabled" if new_state else "disabled"
+    await message.reply_text(f"✅ Random button {status}!")
+
+@Client.on_message(filters.command("togglerecent") & filters.private)
+async def toggle_recent_button(client: Client, message: Message):
+    """Toggle recent button on/off"""
+    user_id = message.from_user.id
+    clone_id = clone_admin_sessions.get(user_id)
+    
+    if not clone_id:
+        return await message.reply_text("❌ Use /cloneadmin first.")
+    
+    config = await get_clone_config(clone_id)
+    current_state = config['features'].get('recent_button', False)
+    new_state = not current_state
+    
+    await update_clone_config(clone_id, {
+        "features.recent_button": new_state
+    })
+    
+    status = "enabled" if new_state else "disabled"
+    await message.reply_text(f"✅ Recent button {status}!")
 
 @Client.on_message(filters.command("removeforce") & filters.private)
 async def remove_force_channel(client: Client, message: Message):

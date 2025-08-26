@@ -437,3 +437,122 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
 #     print(f"⚠️ UNHANDLED CALLBACK: {query.data} from user {user_id}")
 #     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 #     pass
+from pyrogram import Client, filters
+from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from bot.database.index_db import collection as files_collection
+from bot.utils.encoder import encode
+from info import Config
+import random
+from datetime import datetime, timedelta
+
+@Client.on_callback_query(filters.regex("^random_files$"))
+async def handle_random_files(client: Client, query: CallbackQuery):
+    """Handle random files callback"""
+    user_id = query.from_user.id
+    
+    # Check user permissions
+    from bot.database.users import present_user
+    user_data = await present_user(user_id)
+    
+    if not user_data:
+        return await query.answer("❌ Please start the bot first!", show_alert=True)
+    
+    has_tokens = user_data.get('tokens', 0) > 0 or user_data.get('tokens', 0) == -1
+    if not has_tokens:
+        return await query.answer("❌ You need tokens to access files!", show_alert=True)
+    
+    # Get random files
+    try:
+        random_files = await files_collection.aggregate([
+            {"$sample": {"size": 10}}
+        ]).to_list(length=10)
+        
+        if not random_files:
+            return await query.answer("❌ No files found!", show_alert=True)
+        
+        # Create file list
+        text = "🎲 **Random Files**\n\n"
+        buttons = []
+        
+        for i, file_info in enumerate(random_files, 1):
+            file_name = file_info.get('file_name', 'Unknown File')
+            file_id = file_info.get('file_id')
+            
+            if len(file_name) > 50:
+                file_name = file_name[:47] + "..."
+            
+            text += f"{i}. {file_name}\n"
+            
+            # Create proper link
+            encoded_data = encode(f"files#{file_id}")
+            buttons.append([InlineKeyboardButton(f"📁 {i}. Get File", callback_data=f"files#{file_id}")])
+        
+        buttons.append([InlineKeyboardButton("🔄 More Random", callback_data="random_files")])
+        buttons.append([InlineKeyboardButton("🔙 Back", callback_data="back_to_start")])
+        
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        
+    except Exception as e:
+        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^recent_files$"))
+async def handle_recent_files(client: Client, query: CallbackQuery):
+    """Handle recent files callback"""
+    user_id = query.from_user.id
+    
+    # Check user permissions
+    from bot.database.users import present_user
+    user_data = await present_user(user_id)
+    
+    if not user_data:
+        return await query.answer("❌ Please start the bot first!", show_alert=True)
+    
+    has_tokens = user_data.get('tokens', 0) > 0 or user_data.get('tokens', 0) == -1
+    if not has_tokens:
+        return await query.answer("❌ You need tokens to access files!", show_alert=True)
+    
+    # Get recent files (last 24 hours)
+    try:
+        twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
+        
+        recent_files = await files_collection.find({
+            "date": {"$gte": twenty_four_hours_ago}
+        }).sort("date", -1).limit(10).to_list(length=10)
+        
+        if not recent_files:
+            # Fallback to latest files if no files in last 24 hours
+            recent_files = await files_collection.find({}).sort("_id", -1).limit(10).to_list(length=10)
+        
+        if not recent_files:
+            return await query.answer("❌ No files found!", show_alert=True)
+        
+        # Create file list
+        text = "⏰ **Recent Files**\n\n"
+        buttons = []
+        
+        for i, file_info in enumerate(recent_files, 1):
+            file_name = file_info.get('file_name', 'Unknown File')
+            file_id = file_info.get('file_id')
+            
+            if len(file_name) > 50:
+                file_name = file_name[:47] + "..."
+            
+            text += f"{i}. {file_name}\n"
+            
+            # Create proper link
+            buttons.append([InlineKeyboardButton(f"📁 {i}. Get File", callback_data=f"files#{file_id}")])
+        
+        buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="recent_files")])
+        buttons.append([InlineKeyboardButton("🔙 Back", callback_data="back_to_start")])
+        
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        
+    except Exception as e:
+        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^back_to_start$"))
+async def handle_back_to_start(client: Client, query: CallbackQuery):
+    """Handle back to start callback"""
+    from bot.plugins.simple_file_sharing import send_start_message
+    await send_start_message(client, query.message, is_callback=True)
+

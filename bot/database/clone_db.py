@@ -96,7 +96,9 @@ async def create_clone_config(clone_id: str):
             "token_verification": True,
             "premium": True,
             "auto_delete": True,
-            "batch_links": True
+            "batch_links": True,
+            "random_button": True,
+            "recent_button": True
         },
         "token_settings": {
             "mode": "one_time",  # or "command_limit"

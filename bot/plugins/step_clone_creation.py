@@ -15,23 +15,55 @@ logger = LOGGER(__name__)
 # Initialize session manager
 session_manager = SessionManager()
 
+async def notify_mother_bot_admins(user_id: int, clone_data: dict, plan_details: dict):
+    """Notify mother bot admins about a new clone creation."""
+    try:
+        if not Config.OWNER_ID: # Assuming OWNER_ID is a list or single ID of mother bot admins
+            logger.warning("No OWNER_ID configured, cannot notify admins about new clone.")
+            return
+
+        user_info = await client.get_users(user_id) # Assuming 'client' is accessible here, or passed as argument
+        user_name = f"@{user_info.username}" if user_info.username else f"{user_info.first_name} {user_id}"
+
+        message_text = (
+            f"📣 **New Clone Bot Created!**\n\n"
+            f"👤 **User:** {user_name} (ID: `{user_id}`)\n"
+            f"🤖 **Clone Bot:** @{clone_data['bot_username']} (ID: `{clone_data['bot_id']}`)\n"
+            f"💰 **Plan:** {plan_details['name']} (${plan_details['price']})\n"
+            f"📅 **Created At:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+            f"🔗 **Bot Link:** https://t.me/{clone_data['bot_username']}"
+        )
+
+        # Ensure Config.OWNER_ID is iterable
+        admin_ids = [Config.OWNER_ID] if isinstance(Config.OWNER_ID, int) else Config.OWNER_ID
+
+        for admin_id in admin_ids:
+            try:
+                await client.send_message(admin_id, message_text)
+                logger.info(f"Notified admin {admin_id} about new clone creation by user {user_id}")
+            except Exception as e:
+                logger.error(f"Failed to send notification to admin {admin_id}: {e}")
+
+    except Exception as e:
+        logger.error(f"Error in notify_mother_bot_admins for user {user_id}: {e}")
+
 async def create_clone_directly(user_id: int, data: dict):
     """Create clone directly without the removed clone_request module"""
     try:
         plan_details = data['plan_details']
         required_amount = plan_details['price']
-        
+
         print(f"💰 DEBUG CLONE: Processing payment of ${required_amount} for user {user_id}")
-        
+
         # Check and deduct balance
         current_balance = await get_user_balance(user_id)
         if current_balance < required_amount:
             return False, f"Insufficient balance. Required: ${required_amount}, Available: ${current_balance}"
-        
+
         # Deduct balance
         await deduct_balance(user_id, required_amount, f"Clone creation - {plan_details['name']}")
         print(f"💰 DEBUG CLONE: Balance deducted successfully for user {user_id}")
-        
+
         # Create clone record
         clone_data = {
             '_id': str(data['bot_id']),
@@ -43,10 +75,10 @@ async def create_clone_directly(user_id: int, data: dict):
             'created_at': datetime.now(),
             'last_seen': datetime.now()
         }
-        
+
         await create_clone(clone_data)
         print(f"🤖 DEBUG CLONE: Clone record created for bot {data['bot_id']}")
-        
+
         # Create subscription
         subscription_data = {
             '_id': str(data['bot_id']),
@@ -60,29 +92,30 @@ async def create_clone_directly(user_id: int, data: dict):
             'expires_at': datetime.now() + timedelta(days=plan_details['duration_days']),
             'payment_verified': True
         }
-        
+
         await create_subscription(str(data['bot_id']), user_id, data['plan_id'], True)
         print(f"📅 DEBUG CLONE: Subscription created for bot {data['bot_id']}")
-        
+
         # Start the clone
         from clone_manager import clone_manager
-        clone_success, clone_message = await clone_manager.start_clone(str(data['bot_id']))
-        
-        result_data = {
-            'clone_created': True,
-            'clone_started': clone_success,
-            'clone_message': clone_message,
-            'bot_id': data['bot_id'],
-            'username': data['bot_username']
-        }
-        
-        if clone_success:
-            print(f"✅ DEBUG CLONE: Clone {data['bot_id']} started successfully")
+        success, message = await clone_manager.start_clone(str(data['bot_id']))
+
+        if success:
+            print(f"🎉 DEBUG CLONE: Clone started successfully for user {user_id}")
+
+            # Send notification to mother bot admins
+            await notify_mother_bot_admins(user_id, data, plan_details)
+
+            return True, {
+                'bot_id': data['bot_id'],
+                'bot_username': data['bot_username'],
+                'plan': plan_details['name'],
+                'expires_at': subscription_data['expires_at']
+            }
         else:
-            print(f"⚠️ DEBUG CLONE: Clone {data['bot_id']} created but failed to start: {clone_message}")
-        
-        return True, result_data
-        
+            print(f"❌ DEBUG CLONE: Failed to start clone: {message}")
+            return False, f"Clone created but failed to start: {message}"
+
     except Exception as e:
         logger.error(f"❌ Error in create_clone_directly for user {user_id}: {e}")
         return False, str(e)
@@ -202,7 +235,7 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
     # Get clone pricing tiers (excluding token verification plans)
     from bot.database.subscription_db import get_pricing_tiers, PRICING_TIERS
     pricing_tiers = await get_pricing_tiers()
-    
+
     # Use PRICING_TIERS if get_pricing_tiers returns empty list or None
     if not pricing_tiers:
         pricing_tiers = PRICING_TIERS
@@ -232,7 +265,7 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
     # Get clone pricing tiers (excluding token verification plans)
     from bot.database.subscription_db import get_pricing_tiers, PRICING_TIERS
     pricing_tiers = await get_pricing_tiers()
-    
+
     # Use PRICING_TIERS if get_pricing_tiers returns empty list or None
     if not pricing_tiers or isinstance(pricing_tiers, list):
         pricing_tiers = PRICING_TIERS
@@ -278,11 +311,11 @@ async def select_plan_callback(client: Client, query: CallbackQuery):
     # Get plan details - ensure we're only using clone plans
     from bot.database.subscription_db import get_pricing_tiers, PRICING_TIERS
     pricing_tiers = await get_pricing_tiers()
-    
+
     # Use PRICING_TIERS if get_pricing_tiers returns empty list or None
     if not pricing_tiers or isinstance(pricing_tiers, list):
         pricing_tiers = PRICING_TIERS
-    
+
     plan_details = pricing_tiers.get(plan_id)
 
     if not plan_details:
