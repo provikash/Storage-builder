@@ -18,21 +18,7 @@ request_sessions = {}
 # async def create_clone_command(client: Client, message: Message):
 #     """Handle /createclone command"""
 
-@Client.on_message(filters.private & ~filters.command(["start", "help", "about", "admin", "createclone"]))
-async def handle_clone_request_input(client: Client, message: Message):
-    """Handle user input during clone request process"""
-    user_id = message.from_user.id
-    session = request_sessions.get(user_id)
-    
-    print(f"📝 DEBUG INPUT: Clone request input from user {user_id}")
-    print(f"📋 DEBUG INPUT: Message text: '{message.text[:50]}...' (truncated)")
-    print(f"🔍 DEBUG INPUT: Session exists: {session is not None}")
-    
-    if session:
-        print(f"🎯 DEBUG INPUT: Current step: {session.get('step', 'unknown')}")
-        print(f"⏰ DEBUG INPUT: Session started: {session.get('started_at', 'unknown')}")
-
-    if not session:
+# Removed conflicting input handler - step_clone_creation.py handles all clone creation input
         return
 
     # Check if session is expired (2 hours)

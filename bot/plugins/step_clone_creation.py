@@ -539,6 +539,7 @@ async def back_to_step3_callback(client: Client, query: CallbackQuery):
     session = await session_manager.get_session(user_id)
 
     if not session or session['step'] != 'mongodb_url':
+        await session_manager.delete_session(user_id)
         return await query.edit_message_text(
             "❌ Session expired or not at the correct step. Please start over.",
             reply_markup=InlineKeyboardMarkup([
@@ -582,6 +583,7 @@ async def handle_mongodb_input(client: Client, message: Message, mongodb_url: st
 
     # Validate URL format
     if not mongodb_url.startswith(('mongodb://', 'mongodb+srv://')):
+        await session_manager.delete_session(user_id)
         return await message.reply_text(
             "❌ **Invalid MongoDB URL!**\n\n"
             "**URL must start with:**\n"
@@ -621,6 +623,7 @@ async def handle_mongodb_input(client: Client, message: Message, mongodb_url: st
 
     except Exception as e:
         logger.error(f"MongoDB connection error for user {user_id}: {e}")
+        await session_manager.delete_session(user_id)
         await processing_msg.edit_text(
             f"❌ **Database Connection Failed!**\n\n"
             f"**Error:** {str(e)}\n\n"
@@ -681,6 +684,7 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
     session = await session_manager.get_session(user_id)
 
     if not session or session['step'] != 'confirmation':
+        await session_manager.delete_session(user_id)
         return await query.answer("❌ Session expired!", show_alert=True)
 
     print(f"🎉 DEBUG CLONE: confirm_final_creation triggered by user {user_id}")

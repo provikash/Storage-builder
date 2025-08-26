@@ -253,3 +253,18 @@ class SessionManager:
     async def delete_session(user_id: int) -> bool:
         """Delete session for a user"""
         return await clear_session(user_id)
+    
+    @staticmethod
+    async def update_session(user_id: int, session_data: dict) -> bool:
+        """Update session data for a user"""
+        try:
+            if user_id in user_sessions:
+                user_sessions[user_id].update(session_data)
+                await update_session_activity(user_id)
+                print(f"✅ DEBUG SESSION: Session updated for user {user_id}")
+                return True
+            print(f"❌ DEBUG SESSION: No session found to update for user {user_id}")
+            return False
+        except Exception as e:
+            logger.error(f"Error updating session for user {user_id}: {e}")
+            return False
