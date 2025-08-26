@@ -124,17 +124,18 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
     await query.answer()
 
     user_id = query.from_user.id
-    session_manager = SessionManager()
 
-    # Get or create session
+    # Create or get session
     session = session_manager.get_session(user_id)
     if not session:
-        return await query.edit_message_text(
-            "❌ Session expired! Please start again.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🚀 Start Again", callback_data="start_clone_creation")]
-            ])
-        )
+        # Create new session
+        session_data = {
+            'step': 'plan_selection',
+            'data': {},
+            'started_at': datetime.now()
+        }
+        session_manager.create_session(user_id, session_data)
+        session = session_manager.get_session(user_id)
 
     # Get pricing tiers
     from bot.database.subscription_db import get_pricing_tiers

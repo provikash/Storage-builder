@@ -69,7 +69,7 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
         if query.data.startswith("mother_") or query.data.startswith("back_to_mother"):
             # Don't handle here, let the dedicated mother_admin_callbacks handle it
             pass
-        # Check if this is a clone bot callback  
+        # Check if this is a clone bot callback
         elif query.data.startswith("clone_") or query.data.startswith("back_to_clone"):
             # Don't handle here, let the dedicated clone_admin_callbacks handle it
             pass
@@ -79,13 +79,15 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
             await query.answer("❌ Error processing request!", show_alert=True)
 
 # Handle start message admin buttons
-@Client.on_callback_query(filters.regex("^(admin_panel|start|create_clone_button)$"), group=CALLBACK_PRIORITIES["admin"])
+@Client.on_callback_query(filters.regex("^(admin_panel|start|create_clone_button|create_clone_monthly|create_clone_quarterly|create_clone_semi_annual|create_clone_yearly)$"), group=CALLBACK_PRIORITIES["admin"])
 async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
     """Handle admin panel and start buttons from start message"""
     user_id = query.from_user.id
     print(f"DEBUG: Start admin button - {query.data} from user {user_id}")
 
-    if query.data == "admin_panel":
+    callback_data = query.data
+
+    if callback_data == "admin_panel":
         # Check admin permissions
         if not is_mother_admin(user_id):
             return await query.answer("❌ Unauthorized access!", show_alert=True)
@@ -94,14 +96,30 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
         from bot.plugins.admin_panel import mother_admin_panel
         await mother_admin_panel(client, query)
 
-    elif query.data == "create_clone_button":
+    elif callback_data == "create_clone_button":
         # Handle create clone button - route to clone creation
         from bot.plugins.step_clone_creation import start_clone_creation_callback
         # Convert to proper callback format
         query.data = "start_clone_creation"
         await start_clone_creation_callback(client, query)
 
-    elif query.data == "start":
+    elif callback_data.startswith("create_clone_"):
+        # Handle direct plan selection callbacks
+        plan_mapping = {
+            "create_clone_monthly": "monthly",
+            "create_clone_quarterly": "quarterly",
+            "create_clone_semi_annual": "semi_annual",
+            "create_clone_yearly": "yearly"
+        }
+
+        plan_id = plan_mapping.get(callback_data)
+        if plan_id:
+            # Redirect to plan selection with the specific plan
+            from bot.plugins.step_clone_creation import select_plan_callback
+            query.data = f"select_plan:{plan_id}"
+            await select_plan_callback(client, query)
+
+    elif callback_data == "start":
         # Handle start button - show start message
         from bot.plugins.start_handler import start_command
         # Convert callback to message-like object
@@ -201,7 +219,7 @@ async def step2_bot_token(client, query):
     if not session:
         await query.edit_message_text("Session expired. Please start again.")
         return
-    
+
     plan_id = session['data'].get('plan_id', 'monthly')
     plan_details = session['data'].get('plan_details', {})
     bot_username = session['data'].get('bot_username', 'your_bot') # Placeholder if not set
@@ -333,7 +351,7 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
         from bot.plugins.start_handler import help_callback
         await help_callback(client, query)
     elif callback_data in ["about_bot"]:
-        # These are now handled in start_handler.py  
+        # These are now handled in start_handler.py
         from bot.plugins.start_handler import about_callback
         await about_callback(client, query)
     elif callback_data in ["user_profile"]:

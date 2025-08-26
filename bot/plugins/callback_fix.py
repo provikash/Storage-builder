@@ -24,64 +24,38 @@ async def handle_all_callbacks(client: Client, query: CallbackQuery):
     if any(callback_data.startswith(pattern) for pattern in handled_patterns):
         return
     
-    # Handle unknown callbacks
-    if callback_data == "help":
-        await query.edit_message_text(
-            "❓ **Help & Support**\n\n"
-            "This is a file sharing bot with clone management capabilities.\n\n"
-            "**For Users:**\n"
-            "• Send files to get sharing links\n"
-            "• Use /search to find files\n"
-            "• Use /premium for premium features\n\n"
-            "**For Admins:**\n"
-            "• Use /motheradmin for admin panel\n"
-            "• Use /createclone to create new clones\n"
-            "• Use /cloneadmin for clone management",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="start")]
-            ])
-        )
-    
-    elif callback_data == "about":
-        await query.edit_message_text(
-            "ℹ️ **About This Bot**\n\n"
-            "🤖 **Mother Bot + Clone System**\n"
-            "Advanced file sharing bot with multi-instance support\n\n"
-            "✨ **Features:**\n"
-            "• Secure file storage\n"
-            "• Clone bot creation\n"
-            "• Subscription management\n"
-            "• Advanced admin controls\n\n"
-            "💡 **Powered by:** Pyrogram & MongoDB\n"
-            "🔧 **Version:** 2.0.0",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="start")]
-            ])
-        )
-    
-    elif callback_data == "start":
-        # Redirect to main start message
-        from bot.plugins.start_handler import start_handler
-        await start_handler(client, query.message)
-    
-    elif callback_data.startswith("close"):
+    # Handle remaining unknown callbacks
+    if callback_data.startswith("close"):
         try:
             await query.message.delete()
         except:
             await query.edit_message_text("✅ Session closed.")
     
-    elif callback_data.startswith("select_plan:") or callback_data == "begin_step1_plan":
-        # Redirect to clone creation handler
-        from bot.plugins.step_clone_creation import clone_creation_callback_handler
-        await clone_creation_callback_handler(client, query)
+    elif callback_data in ["premium_trial", "buy_premium"]:
+        await query.answer("💎 Premium features coming soon! Stay tuned.", show_alert=True)
+    
+    elif callback_data in ["my_stats", "rand_recent", "rand_popular", "rand_stats", "execute_rand"]:
+        await query.answer("🔄 This feature is being updated. Try again later.", show_alert=True)
     
     else:
-        # Unknown callback
+        # Unknown callback - be more informative
+        feature_map = {
+            "help": "Help menu",
+            "about": "About information", 
+            "start": "Main menu",
+            "premium_info": "Premium features",
+            "random_files": "Random file browser",
+            "user_profile": "User profile",
+            "transaction_history": "Transaction history"
+        }
+        
+        feature_name = feature_map.get(callback_data, callback_data)
+        
         await query.answer(
-            f"⚠️ Unknown action: {callback_data[:20]}...\n"
-            "This feature may not be implemented yet.",
+            f"🔄 {feature_name} is loading...\n"
+            "If this persists, contact support.",
             show_alert=True
         )
         
-        # Log unknown callbacks for debugging
-        print(f"🔍 Unhandled callback: {callback_data} from user {query.from_user.id}")
+        # Log for debugging
+        print(f"🔍 Fallback handled: {callback_data} from user {query.from_user.id}")

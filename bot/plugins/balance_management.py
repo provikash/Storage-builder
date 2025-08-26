@@ -6,6 +6,41 @@ from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
+@Client.on_callback_query(filters.regex("^add_balance$"))
+async def show_balance_options(client: Client, query: CallbackQuery):
+    """Show balance addition options"""
+    await query.answer()
+    
+    user_id = query.from_user.id
+    current_balance = await get_user_balance(user_id)
+    
+    text = f"💳 **Add Balance**\n\n"
+    text += f"💰 **Current Balance:** ${current_balance:.2f}\n\n"
+    text += f"💵 **Quick Add Options:**\n\n"
+    text += f"Choose an amount to add to your balance:\n"
+    text += f"• Perfect for creating clones\n"
+    text += f"• Instant credit after payment\n"
+    text += f"• Secure payment processing\n\n"
+    text += f"💡 **Minimum clone cost:** $3.00"
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("💵 $5", callback_data="add_balance_5"),
+            InlineKeyboardButton("💰 $10", callback_data="add_balance_10")
+        ],
+        [
+            InlineKeyboardButton("💎 $25", callback_data="add_balance_25"),
+            InlineKeyboardButton("🎯 $50", callback_data="add_balance_50")
+        ],
+        [
+            InlineKeyboardButton("💳 Custom Amount", callback_data="add_balance_custom"),
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")
+        ],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
 @Client.on_message(filters.command("balance") & filters.private)
 async def check_balance_command(client: Client, message: Message):
     """Check user balance and transaction history"""

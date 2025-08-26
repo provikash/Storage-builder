@@ -112,6 +112,81 @@ def validate_bot_token(token: str) -> bool:
     pattern = r'^\d{8,10}:[a-zA-Z0-9_-]{35}$'
     return bool(re.match(pattern, token))
 
+@Client.on_callback_query(filters.regex("^manage_my_clone$"))
+async def manage_user_clone(client: Client, query: CallbackQuery):
+    """Handle user clone management"""
+    await query.answer()
+    user_id = query.from_user.id
+    
+    # Import here to avoid circular imports
+    from bot.database.clone_db import get_user_clones
+    
+    try:
+        user_clones = await get_user_clones(user_id)
+        
+        if not user_clones:
+            text = f"🤖 **No Clones Found**\n\n"
+            text += f"You don't have any clone bots yet.\n"
+            text += f"Create your first clone to get started!\n\n"
+            text += f"💡 **What is a Clone?**\n"
+            text += f"A clone is your personal copy of this bot with all features!"
+            
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🚀 Create Clone", callback_data="start_clone_creation")],
+                [InlineKeyboardButton("❓ Learn More", callback_data="creation_help")],
+                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+            ])
+            
+            return await query.edit_message_text(text, reply_markup=buttons)
+        
+        # Show user's clones
+        clone = user_clones[0]  # Show first clone
+        status_emoji = "✅" if clone.get('status') == 'active' else "⏸️"
+        
+        text = f"🤖 **Your Clone Bot**\n\n"
+        text += f"{status_emoji} **Bot:** @{clone.get('username', 'Unknown')}\n"
+        text += f"🆔 **Bot ID:** `{clone['_id']}`\n"
+        text += f"📊 **Status:** {clone.get('status', 'Unknown').title()}\n"
+        text += f"📅 **Created:** {clone.get('created_at', 'Unknown')}\n\n"
+        
+        if clone.get('status') == 'active':
+            text += f"🔗 **Bot Link:** https://t.me/{clone.get('username', '')}\n\n"
+            text += f"🎛️ **Management Options:**"
+        else:
+            text += f"⚠️ **Status:** Your clone is not currently active."
+        
+        buttons = []
+        if clone.get('status') == 'active':
+            buttons.extend([
+                [InlineKeyboardButton("🤖 Open Bot", url=f"https://t.me/{clone.get('username', '')}")],
+                [
+                    InlineKeyboardButton("⏸️ Stop Bot", callback_data=f"stop_clone:{clone['_id']}"),
+                    InlineKeyboardButton("🔄 Restart", callback_data=f"restart_clone:{clone['_id']}")
+                ],
+                [InlineKeyboardButton("⚙️ Settings", callback_data=f"clone_settings:{clone['_id']}")]
+            ])
+        else:
+            buttons.append([InlineKeyboardButton("▶️ Start Bot", callback_data=f"start_clone:{clone['_id']}")])
+        
+        buttons.extend([
+            [InlineKeyboardButton("💰 Extend Subscription", callback_data=f"extend_clone:{clone['_id']}")],
+            [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+        ])
+        
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        
+    except Exception as e:
+        logger.error(f"Error in manage_user_clone: {e}")
+        await query.edit_message_text(
+            "❌ **Error Loading Clones**\n\n"
+            "There was an error loading your clone information.\n"
+            "Please try again or contact support.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Try Again", callback_data="manage_my_clone")],
+                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+            ])
+        )
+
 async def create_bot_clone(bot_token: str, owner_id: int) -> tuple:
     """Create a new bot clone with the provided token"""
     try:
