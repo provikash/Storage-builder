@@ -19,7 +19,6 @@ request_sessions = {}
 #     """Handle /createclone command"""
 
 # Removed conflicting input handler - step_clone_creation.py handles all clone creation input
-        return
 
     # Check if session is expired (2 hours)
     elapsed_time = (datetime.now() - session['started_at']).total_seconds()
