@@ -230,3 +230,21 @@ class SessionManager:
     def cleanup_expired_sessions() -> int:
         """Remove all expired sessions"""
         return cleanup_expired_sessions()
+    
+    @staticmethod
+    async def update_session(user_id: int, session_data: dict) -> bool:
+        """Update session data for a user"""
+        try:
+            if user_id in user_sessions:
+                user_sessions[user_id] = session_data
+                await update_session_activity(user_id)
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error updating session for user {user_id}: {e}")
+            return False
+    
+    @staticmethod
+    async def delete_session(user_id: int) -> bool:
+        """Delete session for a user"""
+        return await clear_session(user_id)

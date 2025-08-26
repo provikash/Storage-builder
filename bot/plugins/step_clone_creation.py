@@ -126,17 +126,17 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
 
     user_id = query.from_user.id
     print(f"💎 DEBUG CLONE: begin_step1_plan_callback triggered by user {user_id}")
-    
+
     # Get clone pricing tiers (excluding token verification plans)
     from bot.database.subscription_db import get_pricing_tiers
     pricing_tiers = await get_pricing_tiers()
     print(f"💎 DEBUG CLONE: Available pricing tiers: {list(pricing_tiers.keys())}")
-    
+
     for tier_name, tier_data in pricing_tiers.items():
         print(f"💎 DEBUG CLONE: Plan {tier_name}: {tier_data['name']} - ${tier_data['price']}")
 
     # Create or get session
-    session = session_manager.get_session(user_id)
+    session = await session_manager.get_session(user_id)
     if not session:
         # Create new session
         session_data = {
@@ -145,7 +145,7 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
             'started_at': datetime.now()
         }
         session_manager.create_session(user_id, session_data)
-        session = session_manager.get_session(user_id)
+        session = await session_manager.get_session(user_id)
 
     # Get clone pricing tiers (excluding token verification plans)
     from bot.database.subscription_db import get_pricing_tiers
@@ -179,7 +179,7 @@ async def select_plan_callback(client: Client, query: CallbackQuery):
     print(f"📋 DEBUG CLONE: Plan selection: '{plan_id}'")
 
     session_manager = SessionManager()
-    session = session_manager.get_session(user_id)
+    session = await session_manager.get_session(user_id)
 
     if not session:
         return await query.edit_message_text(
@@ -226,7 +226,7 @@ async def select_plan_callback(client: Client, query: CallbackQuery):
     session['data']['plan_id'] = plan_id
     session['data']['plan_details'] = plan_details
     session['step'] = 'bot_username'
-    session_manager.update_session(user_id, session)
+    await session_manager.update_session(user_id, session)
 
     text = f"✅ **Plan Selected: {plan_details['name']}**\n\n"
     text += f"💰 **Cost:** ${plan_details['price']}\n"
@@ -251,7 +251,7 @@ async def token_help_callback(client, query):
     await query.answer()
 
     user_id = query.from_user.id
-    session = session_manager.get_session(user_id, {})
+    session = await session_manager.get_session(user_id, {})
     plan_id = session.get('data', {}).get('plan_id', 'monthly')
 
     text = f"🤖 **How to Get Bot Token**\n\n"
@@ -293,14 +293,14 @@ async def token_help_callback(client, query):
 async def handle_creation_input(client: Client, message: Message):
     """Handle user input during creation process"""
     user_id = message.from_user.id
-    session = session_manager.get_session(user_id)
+    session = await session_manager.get_session(user_id)
 
     if not session:
         return
 
     # Check session timeout (30 minutes)
     if (datetime.now() - session['started_at']).seconds > 1800:
-        session_manager.delete_session(user_id)
+        await session_manager.delete_session(user_id)
         return await message.reply_text(
             "⏰ **Session Expired!**\n\n"
             "Your creation session has timed out.\n"
@@ -359,7 +359,7 @@ async def handle_bot_username_input(client: Client, message: Message, bot_userna
     # Store bot username and proceed to token step
     session['data']['bot_username'] = bot_username
     session['step'] = 'bot_token'
-    session_manager.update_session(user_id, session)
+    await session_manager.update_session(user_id, session)
 
     text = f"✅ **Bot Username Set: @{bot_username}**\n\n"
     text += f"🤖 **Step 2/3: Bot Token**\n\n"
@@ -437,7 +437,7 @@ async def handle_bot_token_input(client: Client, message: Message, bot_token: st
         session['data']['bot_token'] = bot_token
         session['data']['bot_id'] = me.id
         session['step'] = 'mongodb_url'
-        session_manager.update_session(user_id, session)
+        await session_manager.update_session(user_id, session)
 
         plan = session['data']['plan_details']
 
@@ -536,7 +536,7 @@ async def back_to_step3_callback(client: Client, query: CallbackQuery):
     """Go back to database URL input step"""
     await query.answer()
     user_id = query.from_user.id
-    session = session_manager.get_session(user_id)
+    session = await session_manager.get_session(user_id)
 
     if not session or session['step'] != 'mongodb_url':
         return await query.edit_message_text(
@@ -614,7 +614,7 @@ async def handle_mongodb_input(client: Client, message: Message, mongodb_url: st
         # Store validated data
         session['data']['mongodb_url'] = mongodb_url
         session['step'] = 'confirmation'
-        session_manager.update_session(user_id, session)
+        await session_manager.update_session(user_id, session)
 
         # Show final confirmation
         await show_final_confirmation(client, processing_msg, user_id)
@@ -637,7 +637,7 @@ async def handle_mongodb_input(client: Client, message: Message, mongodb_url: st
 
 async def show_final_confirmation(client: Client, message: Message, user_id: int):
     """Show final confirmation before creating clone"""
-    session = session_manager.get_session(user_id)
+    session = await session_manager.get_session(user_id)
     data = session['data']
     plan = data['plan_details']
 
@@ -678,7 +678,7 @@ async def show_final_confirmation(client: Client, message: Message, user_id: int
 async def handle_final_confirmation(client: Client, query: CallbackQuery):
     """Handle final creation confirmation and create the clone"""
     user_id = query.from_user.id
-    session = session_manager.get_session(user_id)
+    session = await session_manager.get_session(user_id)
 
     if not session or session['step'] != 'confirmation':
         return await query.answer("❌ Session expired!", show_alert=True)
@@ -707,7 +707,7 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
 
         if success:
             # Clean up session
-            session_manager.delete_session(user_id)
+            await session_manager.delete_session(user_id)
 
             remaining_balance = await get_user_balance(user_id)
 
@@ -740,7 +740,7 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
             await processing_msg.edit_text(text, reply_markup=buttons)
         else:
             # Clean up session
-            session_manager.delete_session(user_id)
+            await session_manager.delete_session(user_id)
 
             text = f"❌ **Clone Creation Failed!**\n\n"
             text += f"**Error:** {result}\n\n"
@@ -765,7 +765,7 @@ async def handle_final_confirmation(client: Client, query: CallbackQuery):
         logger.error(f"Error in final confirmation for user {user_id}: {e}")
 
         if user_id in session_manager.sessions:
-            session_manager.delete_session(user_id)
+            await session_manager.delete_session(user_id)
 
         await query.edit_message_text(
             "❌ **Unexpected Error!**\n\n"
@@ -786,7 +786,7 @@ async def handle_creation_cancellation(client: Client, query: CallbackQuery):
 
     if user_id in session_manager.sessions:
         step = session_manager.sessions[user_id].get('step', 'unknown')
-        session_manager.delete_session(user_id)
+        await session_manager.delete_session(user_id)
     else:
         step = 'unknown'
 
@@ -840,7 +840,7 @@ async def cleanup_creation_sessions():
             expired_session_ids.append(user_id)
 
     for user_id in expired_session_ids:
-        session_manager.delete_session(user_id)
+        await session_manager.delete_session(user_id)
         logger.info(f"Cleaned up expired session for user {user_id}")
 
 # Schedule cleanup every 10 minutes
