@@ -3,9 +3,10 @@ import os
 import subprocess
 import json
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from info import Config
 from bot.database import add_user, present_user
+from logger import logger
 
 # Store active clones
 active_clones = {}
