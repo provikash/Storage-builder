@@ -463,3 +463,113 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     ])
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from bot.database import add_user, present_user
+from bot.utils import handle_force_sub
+from info import Config
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
+
+@Client.on_message(filters.command("start") & filters.private)
+async def start_command(client: Client, message: Message):
+    """Handle /start command for mother bot"""
+    user_id = message.from_user.id
+    
+    try:
+        # Add user to database
+        if not await present_user(user_id):
+            await add_user(user_id)
+        
+        # Check force subscription if enabled
+        force_sub_result = await handle_force_sub(client, message)
+        if force_sub_result:
+            return
+        
+        # Welcome message
+        welcome_text = (
+            f"👋 **Welcome {message.from_user.first_name}!**\n\n"
+            f"🤖 **Mother Bot System**\n"
+            f"Your gateway to advanced file sharing and bot management!\n\n"
+            f"✨ **What I can do:**\n"
+            f"• 📂 Advanced file sharing\n"
+            f"• 🔍 Smart search capabilities\n"
+            f"• 🤖 Create your own clone bots\n"
+            f"• 💎 Premium subscriptions\n"
+            f"• 🔐 Token verification system\n\n"
+            f"🚀 **Get Started:**\n"
+            f"Use the buttons below to explore features!"
+        )
+        
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🤖 Create Clone", callback_data="create_clone_button"),
+                InlineKeyboardButton("💎 Premium", callback_data="show_premium_plans")
+            ],
+            [
+                InlineKeyboardButton("📊 Statistics", callback_data="show_stats"),
+                InlineKeyboardButton("ℹ️ About", callback_data="about")
+            ],
+            [
+                InlineKeyboardButton("❓ Help", callback_data="help"),
+                InlineKeyboardButton("👨‍💼 Contact Admin", url=f"https://t.me/{getattr(Config, 'OWNER_USERNAME', 'admin')}")
+            ]
+        ])
+        
+        await message.reply_text(
+            welcome_text,
+            reply_markup=buttons,
+            quote=True
+        )
+        
+        logger.info(f"Start command processed for user {user_id}")
+        
+    except Exception as e:
+        logger.error(f"Error in start command for user {user_id}: {e}")
+        await message.reply_text(
+            "❌ An error occurred while processing your request. Please try again later.",
+            quote=True
+        )
+
+@Client.on_message(filters.command("help") & filters.private)
+async def help_command(client: Client, message: Message):
+    """Handle /help command"""
+    user_id = message.from_user.id
+    
+    try:
+        help_text = (
+            "🆘 **Help & Commands**\n\n"
+            "**🤖 Bot Commands:**\n"
+            "• `/start` - Welcome message\n"
+            "• `/help` - Show this help\n"
+            "• `/createclone` - Create your clone bot\n"
+            "• `/mystats` - View your statistics\n"
+            "• `/premium` - Premium plans\n\n"
+            "**🔍 Search:**\n"
+            "• Send any text to search files\n"
+            "• Use specific keywords for better results\n\n"
+            "**💎 Premium Features:**\n"
+            "• Unlimited searches\n"
+            "• Priority support\n"
+            "• Advanced clone features\n\n"
+            "**🤖 Clone Creation:**\n"
+            "• Get your own bot instance\n"
+            "• Custom settings & branding\n"
+            "• Independent file database\n\n"
+            "**📞 Need Support?**\n"
+            f"Contact: @{getattr(Config, 'OWNER_USERNAME', 'admin')}"
+        )
+        
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🏠 Back to Main", callback_data="start"),
+                InlineKeyboardButton("👨‍💼 Contact Admin", url=f"https://t.me/{getattr(Config, 'OWNER_USERNAME', 'admin')}")
+            ]
+        ])
+        
+        await message.reply_text(help_text, reply_markup=buttons, quote=True)
+        
+    except Exception as e:
+        logger.error(f"Error in help command for user {user_id}: {e}")
+        await message.reply_text("❌ Error showing help. Please try again later.", quote=True)

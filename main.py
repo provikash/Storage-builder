@@ -101,7 +101,6 @@ async def start_mother_bot():
         mother_bot_plugins = {
             "root": "bot/plugins",
             "include": [
-                "start_handler",
                 "step_clone_creation",
                 "clone_management", 
                 "mother_admin",
@@ -127,12 +126,25 @@ async def start_mother_bot():
             plugins=mother_bot_plugins
         )
         
-        await app.start()
-
-        me = await app.get_me()
-        logger.info(f"✅ Mother Bot @{me.username} started successfully!")
-        print(f"✅ DEBUG BOT: Mother Bot @{me.username} started successfully!")
-        return app
+        # Start with retry logic for rate limiting
+        max_start_retries = 3
+        for attempt in range(max_start_retries):
+            try:
+                await app.start()
+                logger.info(f"✅ Mother Bot client started successfully!")
+                print(f"✅ DEBUG BOT: Mother Bot client started successfully!")
+                return app
+            except Exception as start_error:
+                if "FLOOD_WAIT" in str(start_error):
+                    import re
+                    wait_time = int(re.search(r'(\d+)', str(start_error)).group(1)) if re.search(r'(\d+)', str(start_error)) else 15
+                    logger.warning(f"FloodWait during start, waiting {wait_time} seconds (attempt {attempt + 1}/{max_start_retries})")
+                    await asyncio.sleep(wait_time + 2)
+                else:
+                    logger.error(f"Start attempt {attempt + 1} failed: {start_error}")
+                    if attempt == max_start_retries - 1:
+                        raise
+                    await asyncio.sleep(5)
 
     except Exception as e:
         logger.error(f"❌ Failed to start Mother Bot: {e}")
@@ -194,9 +206,30 @@ async def main():
         if not await initialize_databases():
             sys.exit(1)
 
+        # Add startup delay to prevent immediate rate limiting
+        await asyncio.sleep(2)
+        
         # Start mother bot
         app = await start_mother_bot()
-        me = await app.get_me()
+        
+        # Get bot info with retry logic for FloodWait
+        me = None
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                me = await app.get_me()
+                break
+            except Exception as e:
+                if "FLOOD_WAIT" in str(e):
+                    import re
+                    wait_time = int(re.search(r'(\d+)', str(e)).group(1)) if re.search(r'(\d+)', str(e)) else 15
+                    logger.warning(f"FloodWait detected, waiting {wait_time} seconds (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(wait_time + 2)  # Add 2 extra seconds as buffer
+                else:
+                    logger.error(f"Failed to get bot info: {e}")
+                    if attempt == max_retries - 1:
+                        raise
+                    await asyncio.sleep(5)
 
         # Start clone system
         clone_task = await start_clone_system()
