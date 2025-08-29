@@ -375,7 +375,7 @@ async def token_help_callback(client, query):
     await query.answer()
 
     user_id = query.from_user.id
-    session = await session_manager.get_session(user_id, {})
+    session = await session_manager.get_session(user_id)
     plan_id = session.get('data', {}).get('plan_id', 'monthly')
 
     text = f"🤖 **How to Get Bot Token**\n\n"

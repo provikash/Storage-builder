@@ -65,63 +65,46 @@ async def start_command(client: Client, message: Message):
     # Create feature buttons with proper layout
     buttons = []
 
-    # Row 1: Main features (removed search features)
+    # Row 1: File Features (Random, Recent, Popular)
     buttons.append([
-        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
-        InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+        InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+        InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
     ])
 
-    # Row 2: Clone management (if applicable)
-    clone_buttons = []
-    if user_id in Config.ADMINS:
-        clone_buttons.append(InlineKeyboardButton("👥 My Clones", callback_data="my_clones"))
-        clone_buttons.append(InlineKeyboardButton("➕ Create Clone", callback_data="create_clone"))
-
-    if clone_buttons:
-        buttons.append(clone_buttons)
-
-    # Row 3: Balance management (if applicable)  
-    balance_buttons = []
-    if user_id in Config.ADMINS:
-        balance_buttons.append(InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin"))
-
-    if balance_buttons:
-        buttons.append(balance_buttons)
-
-    # Row 4: Help & Commands (Moved from Row 6 in original code)
     buttons.append([
-        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
+        InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files"),
         InlineKeyboardButton("📊 My Stats", callback_data="user_stats")
     ])
 
-    # Row 5: Profile and Random Files (Profile moved from Row 1, Random Files removed)
+    # Row 2: User Features
     buttons.append([
-        InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+        InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info")
     ])
 
-    # Row 6: Admin specific buttons (Moved from Row 4)
+    # Row 3: Clone Management
+    buttons.append([
+        InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+        InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list")
+    ])
+
+    # Row 4: Balance Management
     if is_admin:
         buttons.append([
-            InlineKeyboardButton("🔗 Generate Link", callback_data="genlink_help"),
-            InlineKeyboardButton("📦 Batch Mode", callback_data="batch_help")
-        ])
-        buttons.append([
-            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin"),
             InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")
         ])
-        buttons.append([
-            InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list"),
-            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin")
-        ])
     else:
-        buttons.append([
-            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
-            InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list")
-        ])
         buttons.append([
             InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_user"),
             InlineKeyboardButton("💳 Balance Info", callback_data="balance_info")
         ])
+
+    # Row 5: Help & About
+    buttons.append([
+        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
+        InlineKeyboardButton("ℹ️ About Bot", callback_data="about_bot")
+    ])
 
     await message.reply_text(
         text,
@@ -279,31 +262,54 @@ async def premium_info_callback(client: Client, query: CallbackQuery):
 
 @Client.on_callback_query(filters.regex("^random_files$"))
 async def random_files_callback(client: Client, query: CallbackQuery):
-    """Show random files menu"""
+    """Execute random files directly"""
     await query.answer()
+    
+    # Import and execute random files function
+    try:
+        from bot.plugins.callback_handlers import handle_random_files
+        await handle_random_files(client, query)
+    except ImportError:
+        await query.edit_message_text(
+            "❌ Random files feature temporarily unavailable.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+            ])
+        )
 
-    text = f"🔍 **Random Files**\n\n"
-    text += f"Discover amazing files from our database!\n\n"
-    text += f"📋 **Options:**\n"
-    text += f"• 🆕 Latest uploads\n"
-    text += f"• 🔥 Popular files\n"
-    text += f"• 🎲 Completely random\n"
-    text += f"• 📊 File statistics\n\n"
-    text += f"🎯 **Choose what you want to explore:**"
+@Client.on_callback_query(filters.regex("^recent_files$"))
+async def recent_files_callback(client: Client, query: CallbackQuery):
+    """Execute recent files directly"""
+    await query.answer()
+    
+    # Import and execute recent files function
+    try:
+        from bot.plugins.callback_handlers import handle_recent_files
+        await handle_recent_files(client, query)
+    except ImportError:
+        await query.edit_message_text(
+            "❌ Recent files feature temporarily unavailable.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+            ])
+        )
 
-    buttons = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("🆕 Latest", callback_data="rand_recent"),
-            InlineKeyboardButton("🔥 Popular", callback_data="rand_popular")
-        ],
-        [
-            InlineKeyboardButton("🎲 Random", callback_data="execute_rand"),
-            InlineKeyboardButton("📊 Stats", callback_data="rand_stats")
-        ],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
-    ])
-
-    await query.edit_message_text(text, reply_markup=buttons)
+@Client.on_callback_query(filters.regex("^popular_files$"))
+async def popular_files_callback(client: Client, query: CallbackQuery):
+    """Execute popular files directly"""
+    await query.answer()
+    
+    # Import and execute popular files function
+    try:
+        from bot.plugins.callback_handlers import handle_popular_files
+        await handle_popular_files(client, query)
+    except ImportError:
+        await query.edit_message_text(
+            "❌ Popular files feature temporarily unavailable.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+            ])
+        )
 
 # Add new callback handlers for PS-LinkVault features
 @Client.on_callback_query(filters.regex("^user_stats$"))
@@ -446,51 +452,42 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     # Rebuild buttons
     buttons = []
 
-    # Row 1: Main Features
+    # Row 1: File Features (Random, Recent, Popular)
     buttons.append([
-        InlineKeyboardButton("📊 My Stats", callback_data="user_stats"),
-        InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+        InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+        InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
     ])
 
-    # Row 2: File Operations
-    if is_admin:
-        buttons.append([
-            InlineKeyboardButton("🔗 Generate Link", callback_data="genlink_help"),
-            InlineKeyboardButton("📦 Batch Mode", callback_data="batch_help")
-        ])
-    else:
-        buttons.append([
-            InlineKeyboardButton("🔍 Search Files", callback_data="search_files"),
-            InlineKeyboardButton("🎲 Random Files", callback_data="random_files")
-        ])
-
-    # Row 3: Token & Premium
     buttons.append([
-        InlineKeyboardButton("🔑 Get Token", callback_data="get_token"),
+        InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files"),
+        InlineKeyboardButton("📊 My Stats", callback_data="user_stats")
+    ])
+
+    # Row 2: User Features
+    buttons.append([
+        InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
         InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info")
     ])
 
-    # Row 4: Clone Management and Commands
+    # Row 3: Clone Management
+    buttons.append([
+        InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+        InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list")
+    ])
+
+    # Row 4: Balance Management
     if is_admin:
         buttons.append([
-            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin"),
             InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")
         ])
-        buttons.append([
-            InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list"),
-            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin")
-        ])
     else:
-        buttons.append([
-            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
-            InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list")
-        ])
         buttons.append([
             InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_user"),
             InlineKeyboardButton("💳 Balance Info", callback_data="balance_info")
         ])
 
-    # Row 6: Help & About
+    # Row 5: Help & About
     buttons.append([
         InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
         InlineKeyboardButton("ℹ️ About Bot", callback_data="about_bot")

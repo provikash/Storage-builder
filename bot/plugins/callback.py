@@ -345,20 +345,6 @@ async def rand_stats_callback(client, query: CallbackQuery):
         print(f"ERROR in rand_stats_callback: {e}")
         await query.answer("❌ Error retrieving stats. Please try again.", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^rand_new$"))
-async def new_random_callback(client, query: CallbackQuery):
-    """Handle More Random button click - feature removed"""
-    try:
-        await query.answer("❌ Search features have been removed from this bot.", show_alert=True)
-        await query.edit_message_text(
-            "❌ **Feature Removed**\n\nSearch functionality has been removed from this bot.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
-            ])
-        )
-    except Exception as e:
-        print(f"ERROR in new_random_callback: {e}")
-        await query.answer("❌ Feature unavailable.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^buy_premium:"))
 async def buy_premium_callback(client, query: CallbackQuery):
