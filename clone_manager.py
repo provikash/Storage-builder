@@ -59,20 +59,24 @@ class CloneManager:
 
             # Define plugin list for clone bots (exclude clone management)
             clone_plugins = {
-                "root": "bot/plugins",
+                "root": "bot.plugins",
                 "include": [
-                    "simple_file_sharing",
-                    "search",
+                    "start_handler",
+                    "search", 
                     "genlink",
                     "channel",
-                    "callback_handlers"
+                    "callback_handlers",
+                    "missing_commands",
+                    "token",
+                    "stats"
                 ],
                 "exclude": [
                     "clone_management",
                     "step_clone_creation",
                     "mother_admin",
                     "admin_commands",
-                    "balance_management"
+                    "balance_management",
+                    "admin_panel"
                 ]
             }
 
