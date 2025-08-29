@@ -8,6 +8,7 @@ from info import Config
 from bot.database import add_user, present_user
 from bot.logging import LOGGER
 from bot.utils.error_handler import safe_edit_message, safe_answer_callback
+from pyrogram import enums
 
 logger = LOGGER(__name__)
 
@@ -163,15 +164,15 @@ async def manage_user_clone(client: Client, query: CallbackQuery):
             [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
         ])
 
-        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+        await safe_edit_message(query, text, InlineKeyboardMarkup(buttons))
 
     except Exception as e:
         logger.error(f"Error in manage_user_clone: {e}")
-        await query.edit_message_text(
+        await safe_edit_message(query,
             "❌ **Error Loading Clones**\n\n"
             "There was an error loading your clone information.\n"
             "Please try again or contact support.",
-            reply_markup=InlineKeyboardMarkup([
+            InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔄 Try Again", callback_data="manage_my_clone")],
                 [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
             ])

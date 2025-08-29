@@ -10,6 +10,7 @@ from pyrogram.errors import (
     ChatWriteForbidden, MessageIdInvalid
 )
 import asyncio
+from pyrogram import enums
 
 logger = logging.getLogger(__name__)
 
@@ -106,47 +107,41 @@ def error_handler(context: str = "Unknown"):
                 return None
         return wrapper
     return decorator
-import asyncio
-import logging
-from pyrogram.errors import MessageNotModified, FloodWait
-from info import Config
 
-logger = logging.getLogger(__name__)
-
-async def safe_edit_message(query, text, reply_markup=None, parse_mode="Markdown"):
-    """Safely edit a message with comprehensive error handling"""
+async def safe_edit_message(query, text, reply_markup=None, parse_mode=None):
+    """Safely edit message to avoid MESSAGE_NOT_MODIFIED errors"""
     try:
+        if parse_mode is None:
+            # Default to MARKDOWN if not provided, as per common usage
+            parse_mode = enums.ParseMode.MARKDOWN
+        
         # Check if message content is the same to avoid MESSAGE_NOT_MODIFIED error
         if hasattr(query.message, 'text') and query.message.text == text:
             logger.info("Message content unchanged, skipping edit")
-            await query.answer()
+            await query.answer() # Answer the callback query to acknowledge it
             return True
-
-        if reply_markup:
-            await query.edit_message_text(
-                text=text,
-                reply_markup=reply_markup,
-                parse_mode=parse_mode,
-                disable_web_page_preview=True
-            )
-        else:
-            await query.edit_message_text(
-                text=text,
-                parse_mode=parse_mode,
-                disable_web_page_preview=True
-            )
+        
+        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=parse_mode, disable_web_page_preview=True)
         return True
     except Exception as e:
-        logger.error(f"Error editing message: {e}")
-        try:
-            # Fallback: Try to answer the callback
+        if "MESSAGE_NOT_MODIFIED" in str(e):
+            logger.debug("Message content is already up to date.")
+            await query.answer("ℹ️ Content is already up to date.", show_alert=False)
+        elif "Invalid parse mode" in str(e):
+            logger.warning(f"Invalid parse mode '{parse_mode}' used. Retrying without parse mode.")
+            # Retry without parse mode
+            try:
+                await query.edit_message_text(text, reply_markup=reply_markup, disable_web_page_preview=True)
+            except Exception as retry_e:
+                logger.error(f"Failed to edit message even without parse mode: {retry_e}")
+                await query.answer("❌ Error updating message format.", show_alert=True)
+        else:
+            logger.error(f"Error editing message: {e}")
             await query.answer("❌ Error updating message. Please try again.", show_alert=True)
-        except:
-            pass
         return False
 
 async def safe_answer_callback(query, text="", show_alert=False):
-    """Safely answer callback query"""
+    """Safely answer callback queries"""
     try:
         await query.answer(text, show_alert=show_alert)
     except Exception as e:

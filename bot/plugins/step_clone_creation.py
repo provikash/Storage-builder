@@ -1,7 +1,7 @@
 import asyncio
 import uuid
 from datetime import datetime, timedelta
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from info import Config
 from bot.database.clone_db import *
@@ -984,3 +984,27 @@ async def session_cleanup_task():
 
 # Start cleanup task
 asyncio.create_task(session_cleanup_task())
+
+async def start_clone_creation(client: Client, message: Message):
+    """Start the clone creation process - wrapper function for external calls"""
+    user_id = message.from_user.id
+    print(f"🚀 DEBUG CLONE: start_clone_creation function called for user {user_id}")
+    
+    # Create a fake callback query to reuse existing callback handler
+    from pyrogram.types import CallbackQuery
+    
+    # Create minimal callback query structure
+    class FakeCallbackQuery:
+        def __init__(self, user, message):
+            self.from_user = user
+            self.message = message
+            self.data = "start_clone_creation"
+            
+        async def answer(self):
+            pass
+            
+        async def edit_message_text(self, text, reply_markup=None):
+            return await self.message.edit_text(text, reply_markup=reply_markup)
+    
+    fake_query = FakeCallbackQuery(message.from_user, message)
+    await start_clone_creation_callback(client, fake_query)

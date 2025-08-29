@@ -1,8 +1,8 @@
 import asyncio
+import uuid
 from datetime import datetime, timedelta
-from pyrogram import Client, filters
+from pyrogram import Client, filters, enums
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from pyrogram import enums
 from info import Config
 from bot.database.clone_db import *
 from bot.database.subscription_db import *
@@ -1303,8 +1303,18 @@ async def cleanup_expired_sessions():
         debug_print(f"Removed expired session for user {user_id}")
     debug_print(f"cleanup_expired_sessions finished. Removed {len(expired_sessions)} sessions.")
 
-# Schedule session cleanup every hour
-# Ensure this runs only once by scheduling it outside of any handler that might be called multiple times.
-# A common pattern is to schedule it when the bot starts.
-# asyncio.create_task(cleanup_expired_sessions()) # This line is commented out to prevent multiple task creations if this file is imported multiple times.
+# Schedule session cleanup task
+# This task is scheduled once when the bot starts.
+# It is crucial to ensure this is only called once to avoid creating multiple tasks.
 # The actual scheduling should be handled by the main bot startup logic.
+# Example:
+# import logging
+# logging.basicConfig(level=logging.INFO)
+# from pyrogram import idle
+# async def start_bot():
+#     app = Client("my_bot")
+#     async with app:
+#         # Schedule the cleanup task
+#         asyncio.create_task(cleanup_expired_sessions())
+#         await idle()
+# asyncio.run(start_bot())
