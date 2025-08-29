@@ -271,3 +271,96 @@ class SessionManager:
 
 # Create module-level session_manager for backward compatibility
 session_manager = SessionManager()
+import json
+import os
+import asyncio
+from typing import Dict, Any, Optional
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
+
+class SessionManager:
+    """Simple session manager using file storage"""
+    
+    def __init__(self):
+        self.sessions_dir = "temp_sessions"
+        os.makedirs(self.sessions_dir, exist_ok=True)
+    
+    def _get_session_file(self, user_id: int) -> str:
+        return os.path.join(self.sessions_dir, f"session_{user_id}.json")
+    
+    async def create_session(self, user_id: int, session_type: str, data: Dict[str, Any]) -> bool:
+        """Create a new session for user"""
+        try:
+            session_data = {
+                'user_id': user_id,
+                'type': session_type,
+                'data': data,
+                'created_at': str(asyncio.get_event_loop().time())
+            }
+            
+            with open(self._get_session_file(user_id), 'w') as f:
+                json.dump(session_data, f)
+            
+            logger.info(f"✅ Session created for user {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Error creating session for user {user_id}: {e}")
+            return False
+    
+    async def get_session(self, user_id: int) -> Optional[Dict[str, Any]]:
+        """Get session data for user"""
+        try:
+            session_file = self._get_session_file(user_id)
+            if not os.path.exists(session_file):
+                return None
+            
+            with open(session_file, 'r') as f:
+                session_data = json.load(f)
+            
+            return session_data.get('data')
+        except Exception as e:
+            logger.error(f"❌ Error getting session for user {user_id}: {e}")
+            return None
+    
+    async def clear_session(self, user_id: int) -> bool:
+        """Clear session for user"""
+        try:
+            session_file = self._get_session_file(user_id)
+            if os.path.exists(session_file):
+                os.remove(session_file)
+            logger.info(f"🧹 Session cleared for user {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"❌ Error clearing session for user {user_id}: {e}")
+            return False
+    
+    async def start_cleanup_task(self):
+        """Start periodic cleanup of old sessions"""
+        while True:
+            try:
+                await asyncio.sleep(3600)  # Clean every hour
+                await self._cleanup_old_sessions()
+            except Exception as e:
+                logger.error(f"❌ Error in session cleanup: {e}")
+                await asyncio.sleep(1800)  # Wait 30 minutes on error
+    
+    async def _cleanup_old_sessions(self):
+        """Clean up sessions older than 24 hours"""
+        try:
+            current_time = asyncio.get_event_loop().time()
+            for filename in os.listdir(self.sessions_dir):
+                if filename.startswith("session_") and filename.endswith(".json"):
+                    filepath = os.path.join(self.sessions_dir, filename)
+                    try:
+                        with open(filepath, 'r') as f:
+                            session_data = json.load(f)
+                        
+                        created_at = float(session_data.get('created_at', 0))
+                        if current_time - created_at > 86400:  # 24 hours
+                            os.remove(filepath)
+                            logger.info(f"🧹 Cleaned old session: {filename}")
+                    except Exception as e:
+                        logger.error(f"❌ Error processing session file {filename}: {e}")
+        except Exception as e:
+            logger.error(f"❌ Error in cleanup task: {e}")
