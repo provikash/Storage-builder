@@ -101,6 +101,8 @@ async def start_mother_bot():
         mother_bot_plugins = {
             "root": "bot/plugins",
             "include": [
+                "start_handler",
+                "callback_handlers", 
                 "step_clone_creation",
                 "clone_management",
                 "mother_admin",
@@ -108,9 +110,6 @@ async def start_mother_bot():
                 "admin_panel",
                 "balance_management",
                 "search",
-                "genlink",
-                "channel",
-                "callback_handlers",
                 "premium",
                 "token",
                 "stats",
