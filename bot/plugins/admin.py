@@ -61,17 +61,26 @@ async def admin_help_command(client: Client, message: Message):
 async def add_force_channel(client: Client, message: Message):
     """Add force subscription channel"""
     if len(message.command) < 2:
-        return await message.reply_text("❌ Usage: `/addforce <channel_id>`\nExample: `/addforce -1001234567890`")
+        return await message.reply_text("❌ Usage: `/addforce <channel_id_or_username>`\nExample: `/addforce -1001234567890` or `/addforce @mychannel`")
 
     try:
-        channel_id = int(message.command[1])
-
+        channel_input = message.command[1]
+        
+        # Handle username input
+        if channel_input.startswith('@'):
+            channel_input = channel_input[1:]  # Remove @ symbol
+        
         # Test if bot can access the channel
         try:
-            chat = await client.get_chat(channel_id)
+            chat = await client.get_chat(channel_input)
+            channel_id = chat.id
             channel_title = chat.title or f"Channel {channel_id}"
-        except:
-            return await message.reply_text(f"❌ Cannot access channel {channel_id}. Make sure the bot is added to the channel.")
+        except Exception as e:
+            return await message.reply_text(f"❌ Cannot access channel {channel_input}. Make sure the bot is added to the channel and the channel ID/username is correct.\nError: {str(e)}")
+
+        # Initialize Config.FORCE_SUB_CHANNEL if it doesn't exist
+        if not hasattr(Config, 'FORCE_SUB_CHANNEL') or Config.FORCE_SUB_CHANNEL is None:
+            Config.FORCE_SUB_CHANNEL = []
 
         # Update environment and config
         current_channels = set(Config.FORCE_SUB_CHANNEL)
@@ -79,27 +88,35 @@ async def add_force_channel(client: Client, message: Message):
         channel_list = " ".join(str(ch) for ch in current_channels)
 
         # Update .env file
-        set_key(".env", "FORCE_SUB_CHANNEL", channel_list)
+        try:
+            set_key(".env", "FORCE_SUB_CHANNEL", channel_list)
+        except Exception as e:
+            print(f"Warning: Could not update .env file: {e}")
+            
         Config.FORCE_SUB_CHANNEL = list(current_channels)
 
         # Update bot's channel info
         try:
-            if not chat.invite_link:
-                invite_link = await client.export_chat_invite_link(channel_id)
-            else:
-                invite_link = chat.invite_link
+            if not hasattr(client, 'channel_info'):
+                client.channel_info = {}
+                
+            invite_link = chat.invite_link
+            if not invite_link:
+                try:
+                    invite_link = await client.export_chat_invite_link(channel_id)
+                except Exception as e:
+                    print(f"Could not export invite link: {e}")
+                    invite_link = f"https://t.me/c/{str(channel_id)[4:]}" if str(channel_id).startswith('-100') else f"https://t.me/{channel_input}"
 
             client.channel_info[channel_id] = {
                 'title': channel_title,
                 'invite_link': invite_link
             }
-        except:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not update channel info: {e}")
 
         await message.reply_text(f"✅ Added force subscription channel: **{channel_title}** (`{channel_id}`)")
 
-    except ValueError:
-        await message.reply_text("❌ Invalid channel ID. Please provide a valid channel ID.")
     except Exception as e:
         await message.reply_text(f"❌ Error adding channel: {str(e)}")
 
@@ -144,17 +161,29 @@ async def list_force_channels(client: Client, message: Message):
         return await message.reply_text("📋 No force subscription channels configured.")
 
     text = "📢 **Force Subscription Channels:**\n\n"
+    valid_channels = []
+    
     for i, channel_id in enumerate(Config.FORCE_SUB_CHANNEL, 1):
         try:
-            if channel_id in client.channel_info:
+            # Skip invalid entries
+            if not channel_id or channel_id == "..." or str(channel_id).strip() == "":
+                continue
+                
+            if hasattr(client, 'channel_info') and channel_id in client.channel_info:
                 title = client.channel_info[channel_id]['title']
             else:
                 chat = await client.get_chat(channel_id)
                 title = chat.title or f"Channel {channel_id}"
 
             text += f"{i}. **{title}**\n   ID: `{channel_id}`\n\n"
-        except:
-            text += f"{i}. **Unknown Channel**\n   ID: `{channel_id}`\n\n"
+            valid_channels.append(channel_id)
+        except Exception as e:
+            text += f"{i}. **Invalid Channel**\n   ID: `{channel_id}` ❌\n   Error: {str(e)[:50]}...\n\n"
+
+    # Update config with only valid channels
+    if len(valid_channels) != len(Config.FORCE_SUB_CHANNEL):
+        Config.FORCE_SUB_CHANNEL = valid_channels
+        text += f"\n🔧 **Auto-cleaned invalid channels. Valid channels: {len(valid_channels)}**"
 
     await message.reply_text(text)
 
@@ -468,6 +497,53 @@ async def broadcast_message(client: Client, message: Message):
                 failed_count += 1
 
         await status_msg.edit_text(
+
+
+@Client.on_message(filters.command("clearinvalidchannels") & filters.private)
+@admin_only
+async def clear_invalid_channels(client: Client, message: Message):
+    """Clear invalid force subscription channels"""
+    if not Config.FORCE_SUB_CHANNEL:
+        return await message.reply_text("📋 No force subscription channels configured.")
+
+    valid_channels = []
+    invalid_channels = []
+    
+    for channel_id in Config.FORCE_SUB_CHANNEL:
+        try:
+            # Skip obviously invalid entries
+            if not channel_id or channel_id == "..." or str(channel_id).strip() == "":
+                invalid_channels.append(channel_id)
+                continue
+                
+            # Test channel access
+            chat = await client.get_chat(channel_id)
+            valid_channels.append(channel_id)
+        except Exception as e:
+            print(f"Invalid channel detected: {channel_id} - {e}")
+            invalid_channels.append(channel_id)
+
+    # Update config
+    Config.FORCE_SUB_CHANNEL = valid_channels
+    
+    # Update .env file
+    try:
+        channel_list = " ".join(str(ch) for ch in valid_channels)
+        set_key(".env", "FORCE_SUB_CHANNEL", channel_list)
+    except Exception as e:
+        print(f"Warning: Could not update .env file: {e}")
+
+    result_text = f"🔧 **Channel Cleanup Complete**\n\n"
+    result_text += f"✅ **Valid Channels:** {len(valid_channels)}\n"
+    result_text += f"❌ **Removed Invalid:** {len(invalid_channels)}\n\n"
+    
+    if invalid_channels:
+        result_text += f"**Removed Channels:**\n"
+        for ch in invalid_channels:
+            result_text += f"• `{ch}`\n"
+
+    await message.reply_text(result_text)
+
             f"📢 **Broadcast Complete**\n\n"
             f"✅ **Successful:** {success_count}\n"
             f"❌ **Failed:** {failed_count}\n"

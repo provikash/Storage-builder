@@ -1,5 +1,5 @@
 import re
-from os import getenv
+from os import getenv, environ
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -60,11 +60,31 @@ class Config(object):
     DATABASE_URL = getenv("DATABASE_URL")
     DATABASE_NAME = getenv("DATABASE_NAME", "Cluster0")
 
-    # Force subscription (normal invite links)
-    FORCE_SUB_CHANNEL = list(set(int(ch) for ch in getenv("FORCE_SUB_CHANNEL", "").split() if id_pattern.fullmatch(ch)))
+    # Force Subscription - Handle both channel IDs and usernames
+    FORCE_SUB_CHANNEL_RAW = getenv("FORCE_SUB_CHANNEL", "").strip()
+    FORCE_SUB_CHANNEL = []
+    if FORCE_SUB_CHANNEL_RAW:
+        for ch in FORCE_SUB_CHANNEL_RAW.split():
+            ch = ch.strip()
+            if ch and ch != "...":  # Skip empty and invalid entries
+                if ch.lstrip('-').isdigit():  # Channel ID
+                    FORCE_SUB_CHANNEL.append(int(ch))
+                else:  # Username
+                    FORCE_SUB_CHANNEL.append(ch)
+    print(f"DEBUG: Loaded FORCE_SUB_CHANNEL: {FORCE_SUB_CHANNEL}")
 
-    # Request channels (admin approval required)
-    REQUEST_CHANNEL = list(set(int(ch) for ch in getenv("REQUEST_CHANNEL", "").split() if id_pattern.fullmatch(ch)))
+    # Request channels (admin approval required) - Handle both channel IDs and usernames
+    REQUEST_CHANNEL_RAW = getenv("REQUEST_CHANNEL", "").strip()
+    REQUEST_CHANNEL = []
+    if REQUEST_CHANNEL_RAW:
+        for ch in REQUEST_CHANNEL_RAW.split():
+            ch = ch.strip()
+            if ch and ch != "...":  # Skip empty and invalid entries
+                if ch.lstrip('-').isdigit():  # Channel ID
+                    REQUEST_CHANNEL.append(int(ch))
+                else:  # Username
+                    REQUEST_CHANNEL.append(ch)
+    print(f"DEBUG: Loaded REQUEST_CHANNEL: {REQUEST_CHANNEL}")
     JOIN_REQUEST_ENABLE = getenv("JOIN_REQUEST_ENABLED", "False").lower() in ("true", "1", "yes")
 
     # Messages - Load from environment

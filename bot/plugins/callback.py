@@ -531,4 +531,35 @@ async def buy_premium_callback(client, query: CallbackQuery):
         print(f"Error in buy_premium_callback: {e}")
         await query.answer("❌ Error processing request. Please try again.", show_alert=True)
 
+@Client.on_callback_query(filters.regex("check_membership"))
+async def check_membership_callback(client: Client, query: CallbackQuery):
+    """Handle membership check callback"""
+    user_id = query.from_user.id
+
+    # Admin exemption
+    if user_id == Config.OWNER_ID or user_id in Config.ADMINS:
+        await query.answer("✅ Admin access granted!", show_alert=True)
+        await query.message.delete()
+        return
+
+    print(f"🔍 DEBUG: Checking membership for user {user_id}")
+
+    try:
+        from bot.utils.subscription import check_all_subscriptions
+
+        if await check_all_subscriptions(client, user_id):
+            await query.answer("✅ All channels joined successfully!", show_alert=True)
+            await query.message.delete()
+            # Send welcome message
+            await client.send_message(
+                user_id,
+                "🎉 **Welcome!** You have successfully joined all required channels.\n\n"
+                "You can now use the bot freely. Send /start to begin!"
+            )
+        else:
+            await query.answer("❌ Please join all required channels first!", show_alert=True)
+    except Exception as e:
+        print(f"Error in membership check: {e}")
+        await query.answer("❌ Error checking membership. Please try again.", show_alert=True)
+
 # Removed debug callback handler to prevent conflicts with specific handlers
