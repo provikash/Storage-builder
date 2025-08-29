@@ -272,30 +272,7 @@ async def show_premium_callback(client, query: CallbackQuery):
         print(f"Error showing premium plans: {e}")
         await query.answer("❌ Error loading premium plans. Please try again.", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^rand_recent$"))
-async def recent_files_callback(client, query: CallbackQuery):
-    """Handle Recent button click - feature removed"""
-    try:
-        await query.answer("❌ Search features have been removed from this bot.", show_alert=True)
-        await query.edit_message_text(
-            "❌ **Feature Removed**\n\nSearch functionality has been removed from this bot.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
-            ])
-        )
-    except Exception as e:
-        print(f"ERROR in recent_files_callback: {e}")
-        await query.answer("❌ Feature unavailable.", show_alert=True)
-
-@Client.on_callback_query(filters.regex("^rand_popular$"))
-async def popular_files_callback(client, query: CallbackQuery):
-    """Handle Popular button click - feature removed"""
-    try:
-        await query.answer("❌ Search features have been removed from this bot.", show_alert=True)
-        await query.edit_message_text(
-            "❌ **Feature Removed**\n\nSearch functionality has been removed from this bot.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+# Removed conflicting handlers - these features are disabled in mother bot
             ])
         )
     except Exception as e:

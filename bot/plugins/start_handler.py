@@ -392,66 +392,6 @@ async def premium_info_callback(client: Client, query: CallbackQuery):
 
     await safe_edit_message(query, text, reply_markup=buttons)
 
-@Client.on_callback_query(filters.regex("^random_files$"))
-async def random_files_callback(client: Client, query: CallbackQuery):
-    """Execute random files feature"""
-    await query.answer()
-
-    try:
-        from bot.plugins.callback_handlers import handle_random_files
-        await handle_random_files(client, query)
-    except ImportError as e:
-        logger.error(f"Random files handler import error: {e}")
-        await query.edit_message_text(
-            "🎲 **Random Files**\n\n"
-            "❌ Feature temporarily unavailable.\n"
-            "Our developers are working on this feature.\n\n"
-            "💡 **Alternative:** Try Recent Files or Popular Files!",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-            ])
-        )
-
-@Client.on_callback_query(filters.regex("^recent_files$"))
-async def recent_files_callback(client: Client, query: CallbackQuery):
-    """Execute recent files feature"""
-    await query.answer()
-
-    try:
-        from bot.plugins.callback_handlers import handle_recent_files
-        await handle_recent_files(client, query)
-    except ImportError as e:
-        logger.error(f"Recent files handler import error: {e}")
-        await query.edit_message_text(
-            "🆕 **Recent Files**\n\n"
-            "❌ Feature temporarily unavailable.\n"
-            "Our developers are working on this feature.\n\n"
-            "💡 **Alternative:** Try Random Files or Popular Files!",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-            ])
-        )
-
-@Client.on_callback_query(filters.regex("^popular_files$"))
-async def popular_files_callback(client: Client, query: CallbackQuery):
-    """Execute popular files feature"""
-    await query.answer()
-
-    try:
-        from bot.plugins.callback_handlers import handle_popular_files
-        await handle_popular_files(client, query)
-    except ImportError as e:
-        logger.error(f"Popular files handler import error: {e}")
-        await query.edit_message_text(
-            "🔥 **Most Popular Files**\n\n"
-            "❌ Feature temporarily unavailable.\n"
-            "Our developers are working on this feature.\n\n"
-            "💡 **Alternative:** Try Recent Files or Random Files!",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-            ])
-        )
-
 @Client.on_callback_query(filters.regex("^user_stats$"))
 async def user_stats_callback(client: Client, query: CallbackQuery):
     """Show user statistics"""

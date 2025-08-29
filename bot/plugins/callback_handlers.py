@@ -404,141 +404,24 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
 #     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 #     pass
 
+# Random, Recent, Popular file features are disabled in mother bot - only available in clone bots
+
 @Client.on_callback_query(filters.regex("^random_files$"))
 async def handle_random_files(client: Client, query: CallbackQuery):
     """Handle random files callback"""
-    try:
-        user_id = query.from_user.id
-
-        text = f"🎲 **Random Files**\n\n"
-        text += f"🔀 **Discovering random files for you...**\n\n"
-        text += f"📁 **Available Files:**\n"
-        text += f"• File 1: Sample Document.pdf\n"
-        text += f"• File 2: Movie_Trailer.mp4\n"
-        text += f"• File 3: Music_Album.zip\n"
-        text += f"• File 4: Software_Setup.exe\n"
-        text += f"• File 5: Photo_Collection.rar\n\n"
-
-        text += f"🎯 **Random Selection Active**\n"
-        text += f"Files are randomly selected from our database for discovery!\n\n"
-        text += f"💡 **Tip:** Refresh to get different random files!"
-
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🔄 Get New Random", callback_data="random_files"),
-                InlineKeyboardButton("📥 Download Selected", callback_data="download_random")
-            ],
-            [
-                InlineKeyboardButton("🔍 Search Instead", callback_data="search_files"),
-                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
-            ],
-            [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-        ])
-
-        await query.edit_message_text(text, reply_markup=buttons)
-
-    except Exception as e:
-        logger.error(f"Error in handle_random_files: {e}")
-        await query.edit_message_text(
-            "❌ Error loading random files. Please try again.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-            ])
-        )
+    await query.answer()
+    await query.edit_message_text("🎲 **Random Files**\n\nRandom file features are disabled in the mother bot. This functionality is only available in clone bots.")
 
 @Client.on_callback_query(filters.regex("^recent_files$"))
 async def handle_recent_files(client: Client, query: CallbackQuery):
     """Handle recent files callback"""
-    try:
-        user_id = query.from_user.id
-
-        text = f"🆕 **Recently Added Files**\n\n"
-        text += f"📅 **Latest uploads to the database:**\n\n"
-        text += f"📁 **Today's Files:**\n"
-        text += f"• 🎬 Action_Movie_2024.mkv *(2.1 GB)*\n"
-        text += f"• 📚 Programming_Guide.pdf *(15 MB)*\n"
-        text += f"• 🎵 Latest_Music_Pack.zip *(450 MB)*\n"
-        text += f"• 🖼️ Photo_Pack_HD.rar *(1.2 GB)*\n"
-        text += f"• 💾 Software_Bundle.7z *(890 MB)*\n\n"
-
-        text += f"📈 **File Statistics:**\n"
-        text += f"• Total files today: 127\n"
-        text += f"• Total size added: 15.3 GB\n"
-        text += f"• Most popular: Action Movies\n\n"
-
-        text += f"⏰ **Last updated:** {datetime.now().strftime('%H:%M')} today"
-
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🔄 Refresh Recent", callback_data="recent_files"),
-                InlineKeyboardButton("📥 Download List", callback_data="download_recent")
-            ],
-            [
-                InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files"),
-                InlineKeyboardButton("🎲 Random Files", callback_data="random_files")
-            ],
-            [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-        ])
-
-        await query.edit_message_text(text, reply_markup=buttons)
-
-    except Exception as e:
-        logger.error(f"Error in handle_recent_files: {e}")
-        await query.edit_message_text(
-            "❌ Error loading recent files. Please try again.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-            ])
-        )
+    await query.answer()
+    await query.edit_message_text("🆕 **Recent Files**\n\nRecent file features are disabled in the mother bot. This functionality is only available in clone bots.")
 
 async def handle_popular_files(client: Client, query: CallbackQuery):
     """Handle popular files callback"""
-    try:
-        user_id = query.from_user.id
-
-        text = f"🔥 **Most Popular Files**\n\n"
-        text += f"📊 **Top trending files based on downloads:**\n\n"
-        text += f"🏆 **Hall of Fame:**\n"
-        text += f"1. 🎬 Blockbuster_Movie.mp4 *(1,247 downloads)*\n"
-        text += f"2. 📱 Premium_App_Pack.apk *(892 downloads)*\n"
-        text += f"3. 🎵 Chart_Toppers_2024.mp3 *(756 downloads)*\n"
-        text += f"4. 📚 Complete_Course_Bundle.zip *(634 downloads)*\n"
-        text += f"5. 🎮 Latest_Game_Collection.rar *(521 downloads)*\n\n"
-
-        text += f"📈 **Trending Categories:**\n"
-        text += f"• 🎬 **Movies:** 35% of downloads\n"
-        text += f"• 📱 **Software:** 28% of downloads\n"
-        text += f"• 🎵 **Music:** 22% of downloads\n"
-        text += f"• 📚 **Educational:** 15% of downloads\n\n"
-
-        text += f"⭐ **Updated every hour** with real-time download stats!"
-
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🔄 Refresh Popular", callback_data="popular_files"),
-                InlineKeyboardButton("📥 Download Top 10", callback_data="download_popular")
-            ],
-            [
-                InlineKeyboardButton("📊 Full Rankings", callback_data="full_popular_list"),
-                InlineKeyboardButton("🎯 Category Browse", callback_data="browse_categories")
-            ],
-            [
-                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"),
-                InlineKeyboardButton("🎲 Random Files", callback_data="random_files")
-            ],
-            [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-        ])
-
-        await query.edit_message_text(text, reply_markup=buttons)
-
-    except Exception as e:
-        logger.error(f"Error in handle_popular_files: {e}")
-        await query.edit_message_text(
-            "❌ Error loading popular files. Please try again.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-            ])
-        )
+    await query.answer()
+    await query.edit_message_text("🔥 **Most Popular Files**\n\nPopular file features are disabled in the mother bot. This functionality is only available in clone bots.")
 
 @Client.on_callback_query(filters.regex("^back_to_start$"))
 async def handle_back_to_start(client: Client, query: CallbackQuery):

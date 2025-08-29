@@ -113,31 +113,37 @@ from info import Config
 
 logger = logging.getLogger(__name__)
 
-async def safe_edit_message(message_or_query, text, reply_markup=None):
-    """Safely edit message text with error handling"""
+async def safe_edit_message(query, text, reply_markup=None, parse_mode="Markdown"):
+    """Safely edit a message with comprehensive error handling"""
     try:
-        if hasattr(message_or_query, 'edit_message_text'):
-            # CallbackQuery
-            await message_or_query.edit_message_text(text, reply_markup=reply_markup)
+        # Check if message content is the same to avoid MESSAGE_NOT_MODIFIED error
+        if hasattr(query.message, 'text') and query.message.text == text:
+            logger.info("Message content unchanged, skipping edit")
+            await query.answer()
+            return True
+
+        if reply_markup:
+            await query.edit_message_text(
+                text=text,
+                reply_markup=reply_markup,
+                parse_mode=parse_mode,
+                disable_web_page_preview=True
+            )
         else:
-            # Message
-            await message_or_query.edit_text(text, reply_markup=reply_markup)
-    except MessageNotModified:
-        logger.debug("Message content unchanged, skipping edit")
-        pass
-    except FloodWait as e:
-        logger.warning(f"Rate limited, waiting {e.x} seconds")
-        await asyncio.sleep(e.x)
+            await query.edit_message_text(
+                text=text,
+                parse_mode=parse_mode,
+                disable_web_page_preview=True
+            )
+        return True
     except Exception as e:
         logger.error(f"Error editing message: {e}")
-        # Try to send new message if edit fails
         try:
-            if hasattr(message_or_query, 'message'):
-                await message_or_query.message.reply_text(text, reply_markup=reply_markup)
-            else:
-                await message_or_query.reply_text(text, reply_markup=reply_markup)
-        except Exception as send_error:
-            logger.error(f"Failed to send fallback message: {send_error}")
+            # Fallback: Try to answer the callback
+            await query.answer("❌ Error updating message. Please try again.", show_alert=True)
+        except:
+            pass
+        return False
 
 async def safe_answer_callback(query, text="", show_alert=False):
     """Safely answer callback query"""
