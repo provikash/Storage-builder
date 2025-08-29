@@ -108,31 +108,31 @@ def error_handler(context: str = "Unknown"):
         return wrapper
     return decorator
 
-async def safe_edit_message(query_or_message, text: str, reply_markup=None, **kwargs):
-    """Safely edit message to avoid MESSAGE_NOT_MODIFIED errors"""
+async def safe_edit_message(query, text, reply_markup=None, **kwargs):
+    """Safely edit message with error handling"""
     try:
-        if hasattr(query_or_message, 'edit_message_text'):
-            # It's a CallbackQuery
-            current_text = query_or_message.message.text or ""
-            current_text_clean = current_text.strip()
-            new_text_clean = text.strip()
+        # Check if the message content would actually change
+        if hasattr(query, 'message') and hasattr(query.message, 'text'):
+            current_text = query.message.text or ""
+            if current_text.strip() == text.strip():
+                logger.debug("Message content unchanged, skipping edit")
+                return True
 
-            # Only edit if content is actually different
-            if current_text_clean != new_text_clean:
-                await query_or_message.edit_message_text(text, reply_markup=reply_markup, **kwargs)
-            else:
-                # Just answer the callback without editing
-                await query_or_message.answer()
-        else:
-            # It's a Message
-            await query_or_message.reply_text(text, reply_markup=reply_markup, **kwargs)
+        await query.edit_message_text(text, reply_markup=reply_markup, **kwargs)
+        return True
+    except MessageNotModified:
+        logger.debug("Message not modified - content unchanged")
+        return True  # This is actually success since message is already correct
     except Exception as e:
-        logger.error(f"Error in safe_edit_message: {e}")
+        logger.error(f"Error editing message: {e}")
         try:
-            if hasattr(query_or_message, 'answer'):
-                await query_or_message.answer("✅ Operation completed", show_alert=False)
+            # Fallback: try to send new message instead
+            if hasattr(query, 'message') and hasattr(query.message, 'reply_text'):
+                await query.message.reply_text(text, reply_markup=reply_markup, **kwargs)
+                return True
         except:
             pass
+        return False
 
 async def safe_answer_callback(query, text="", show_alert=False):
     """Safely answer callback queries"""
