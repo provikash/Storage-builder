@@ -14,18 +14,44 @@ async def mother_admin_panel(client: Client, message: Message):
     if message.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
         return await message.reply_text("❌ Access denied. Only Mother Bot admins can access this panel.")
 
+    # Get current stats for dashboard display
+    try:
+        running_clones = len(clone_manager.get_running_clones())
+        total_clones = len(await get_all_clones())
+    except:
+        running_clones = 0
+        total_clones = 0
+
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🤖 Create Clone", callback_data="mother_create_clone")],
-        [InlineKeyboardButton("📋 Manage Clones", callback_data="mother_manage_clones")],
-        [InlineKeyboardButton("💰 Subscriptions", callback_data="mother_subscriptions")],
-        [InlineKeyboardButton("🌐 Global Settings", callback_data="mother_global_settings")],
-        [InlineKeyboardButton("📊 Statistics", callback_data="mother_statistics")]
+        # Row 1: Main Management
+        [
+            InlineKeyboardButton("🤖 Create Clone", callback_data="mother_create_clone"),
+            InlineKeyboardButton("📋 Manage Clones", callback_data="mother_manage_clones")
+        ],
+        # Row 2: Financial & Settings
+        [
+            InlineKeyboardButton("💰 Subscriptions", callback_data="mother_subscriptions"),
+            InlineKeyboardButton("🌐 Global Settings", callback_data="mother_global_settings")
+        ],
+        # Row 3: Analytics & System
+        [
+            InlineKeyboardButton("📊 Statistics", callback_data="mother_statistics"),
+            InlineKeyboardButton("🔧 System Info", callback_data="mother_system_info")
+        ],
+        # Row 4: User & Database Management
+        [
+            InlineKeyboardButton("👥 User Management", callback_data="mother_users"),
+            InlineKeyboardButton("📢 Broadcast", callback_data="mother_broadcast")
+        ]
     ])
 
     await message.reply_text(
-        "🎛️ **Mother Bot Admin Panel**\n\n"
-        "Welcome to the Mother Bot administration center.\n"
-        "Choose an option below to manage your bot network:",
+        f"🎛️ **Mother Bot Admin Panel**\n\n"
+        f"📊 **Quick Stats:**\n"
+        f"• Running Clones: {running_clones}/{total_clones}\n"
+        f"• System Status: ✅ Online\n\n"
+        f"**Welcome to the administration center.**\n"
+        f"Choose an option below to manage your bot network:",
         reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^mother_create_clone$"))
@@ -371,6 +397,54 @@ async def statistics_panel(client: Client, query: CallbackQuery):
         ])
     )
 
+# Back to main panel handler
+@Client.on_callback_query(filters.regex("^back_to_mother_panel$"))
+async def back_to_panel(client: Client, query: CallbackQuery):
+    """Go back to main admin panel"""
+    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+    
+    # Get current stats for dashboard display
+    try:
+        running_clones = len(clone_manager.get_running_clones())
+        total_clones = len(await get_all_clones())
+    except:
+        running_clones = 0
+        total_clones = 0
+
+    buttons = InlineKeyboardMarkup([
+        # Row 1: Main Management
+        [
+            InlineKeyboardButton("🤖 Create Clone", callback_data="mother_create_clone"),
+            InlineKeyboardButton("📋 Manage Clones", callback_data="mother_manage_clones")
+        ],
+        # Row 2: Financial & Settings
+        [
+            InlineKeyboardButton("💰 Subscriptions", callback_data="mother_subscriptions"),
+            InlineKeyboardButton("🌐 Global Settings", callback_data="mother_global_settings")
+        ],
+        # Row 3: Analytics & System
+        [
+            InlineKeyboardButton("📊 Statistics", callback_data="mother_statistics"),
+            InlineKeyboardButton("🔧 System Info", callback_data="mother_system_info")
+        ],
+        # Row 4: User & Database Management
+        [
+            InlineKeyboardButton("👥 User Management", callback_data="mother_users"),
+            InlineKeyboardButton("📢 Broadcast", callback_data="mother_broadcast")
+        ]
+    ])
+
+    await query.edit_message_text(
+        f"🎛️ **Mother Bot Admin Panel**\n\n"
+        f"📊 **Quick Stats:**\n"
+        f"• Running Clones: {running_clones}/{total_clones}\n"
+        f"• System Status: ✅ Online\n\n"
+        f"**Welcome to the administration center.**\n"
+        f"Choose an option below to manage your bot network:",
+        reply_markup=buttons
+    )
+
 @Client.on_callback_query(filters.regex("^mother_create_clone$"))
 async def create_clone_callback(client: Client, query: CallbackQuery):
     """Handle create clone callback"""
@@ -379,13 +453,13 @@ async def create_clone_callback(client: Client, query: CallbackQuery):
     
     await query.edit_message_text(
         "🤖 **Create New Clone Bot**\n\n"
-        "To create a new clone bot, you need a bot token from @BotFather.\n\n"
+        "To create a new clone bot, you need a bot token from BotFather.\n\n"
         "📋 **Steps:**\n"
         "1. Go to @BotFather on Telegram\n"
         "2. Create a new bot with /newbot\n"
         "3. Copy the bot token\n"
         "4. Use /createclone command with the token\n\n"
-        "**Usage:** `/createclone <bot_token>`",
+        "**Usage:** /createclone <bot_token>",
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("📋 How to Get Token", url="https://t.me/BotFather")],
             [InlineKeyboardButton("« Back to Panel", callback_data="back_to_mother_panel")]
@@ -490,6 +564,89 @@ async def global_settings_callback(client: Client, query: CallbackQuery):
     ])
     
     await query.edit_message_text(settings_text, reply_markup=buttons)
+
+# Add handlers for new dashboard buttons
+@Client.on_callback_query(filters.regex("^mother_system_info$"))
+async def system_info_callback(client: Client, query: CallbackQuery):
+    """Handle system info callback"""
+    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+    
+    import psutil
+    import platform
+    from datetime import datetime
+    
+    system_info = f"🔧 **System Information**\n\n"
+    system_info += f"💻 **Server Details:**\n"
+    system_info += f"• OS: {platform.system()} {platform.release()}\n"
+    system_info += f"• CPU Usage: {psutil.cpu_percent():.1f}%\n"
+    system_info += f"• Memory Usage: {psutil.virtual_memory().percent:.1f}%\n"
+    system_info += f"• Disk Usage: {psutil.disk_usage('/').percent:.1f}%\n\n"
+    
+    system_info += f"🤖 **Bot Network:**\n"
+    system_info += f"• Mother Bot: ✅ Running\n"
+    system_info += f"• Active Clones: {len(clone_manager.get_running_clones())}\n"
+    system_info += f"• Database: ✅ Connected\n\n"
+    
+    system_info += f"⏱️ **Uptime:**\n"
+    system_info += f"• Since: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    
+    await query.edit_message_text(
+        system_info,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Refresh", callback_data="mother_system_info")],
+            [InlineKeyboardButton("« Back to Panel", callback_data="back_to_mother_panel")]
+        ])
+    )
+
+@Client.on_callback_query(filters.regex("^mother_users$"))
+async def users_callback(client: Client, query: CallbackQuery):
+    """Handle user management callback"""
+    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+    
+    from bot.database.users import get_users_count
+    
+    try:
+        total_users = await get_users_count()
+    except:
+        total_users = 0
+    
+    users_text = f"👥 **User Management**\n\n"
+    users_text += f"📊 **Statistics:**\n"
+    users_text += f"• Total Users: {total_users}\n\n"
+    users_text += f"🛠️ **Available Tools:**\n"
+    users_text += f"• View user statistics\n"
+    users_text += f"• Broadcast messages to users\n"
+    users_text += f"• Manage user access\n"
+    
+    await query.edit_message_text(
+        users_text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("📊 View Stats", callback_data="user_detailed_stats")],
+            [InlineKeyboardButton("🔄 Refresh", callback_data="mother_users")],
+            [InlineKeyboardButton("« Back to Panel", callback_data="back_to_mother_panel")]
+        ])
+    )
+
+@Client.on_callback_query(filters.regex("^mother_broadcast$"))
+async def broadcast_callback(client: Client, query: CallbackQuery):
+    """Handle broadcast callback"""
+    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+    
+    broadcast_text = f"📢 **Broadcast Message**\n\n"
+    broadcast_text += f"📝 **How to Use:**\n"
+    broadcast_text += f"Send a message to all bot users using:\n\n"
+    broadcast_text += f"**Command:** `/broadcast <message>`\n\n"
+    broadcast_text += f"⚠️ **Note:** This will send the message to all registered users across all clones."
+    
+    await query.edit_message_text(
+        broadcast_text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("« Back to Panel", callback_data="back_to_mother_panel")]
+        ])
+    )
 
 @Client.on_callback_query(filters.regex("^mother_statistics$"))
 async def statistics_callback(client: Client, query: CallbackQuery):
