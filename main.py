@@ -99,7 +99,7 @@ async def start_mother_bot():
 
         # Initialize and start Mother Bot with full plugin access
         mother_bot_plugins = {
-            "root": "bot/plugins",
+            "root": "bot.plugins",
             "include": [
                 "start_handler",
                 "callback_handlers", 
