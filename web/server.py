@@ -252,4 +252,11 @@ def start_webserver():
     return server_thread
 
 if __name__ == '__main__':
-    start_webserver()
+    import os
+    port = int(os.environ.get('PORT', 8080))  # Use 8080 if 5000 is in use
+    try:
+        app.run(host='0.0.0.0', port=port, debug=False)
+    except OSError as e:
+        if "Address already in use" in str(e):
+            print(f"Port {port} in use, trying port {port + 1}")
+            app.run(host='0.0.0.0', port=port + 1, debug=False)

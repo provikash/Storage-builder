@@ -13,32 +13,34 @@ async def help_command(client: Client, message: Message):
 
 **Clone Management:**
 • `/createclone` - Create a new bot clone
-• `/settoken <token>` - Set bot token for clone
-• `/listclones` - List all your clones
-• `/stopclone <bot_id>` - Stop a clone
-• `/startclone <bot_id>` - Start a clone
+• `/manageclone` - Manage your clones
+• `/listclones` - List all clones (Admin)
+• `/motheradmin` - Mother bot admin panel
 
-**Regular Commands:**
+**Administration:**
 • `/start` - Start the bot
 • `/stats` - View bot statistics
 • `/users` - Get user count
 • `/broadcast` - Broadcast message
-• `/genlink` - Generate file link
-• `/batch` - Batch link generator
 
-**Premium & Token:**
-• `/token` - Generate access token
+**Premium & Balance:**
 • `/premium` - View premium plans
-• `/mystats` - View your stats"""
+• `/balance` - Check balance
+• `/addbalance` - Add balance (Admin)"""
     else:
-        help_text = """🤖 **Available Commands**
+        help_text = """🤖 **Mother Bot Commands**
 
-• `/start` - Start the bot
-• `/token` - Generate access token
-• `/rand` - Get random files
+This is the **Mother Bot** for clone management.
+
+**Available Commands:**
+• `/start` - Start the bot and access clone creation
+• `/createclone` - Create your personal clone bot
+• `/manageclone` - Manage your existing clones
 • `/premium` - View premium plans
-• `/mystats` - View your stats
-• `/help` - Show this help"""
+• `/balance` - Check your balance
+• `/help` - Show this help
+
+**Note:** File features (Random, Recent, Popular) are only available in your personal clone bots."""
     
     await message.reply_text(help_text)
 

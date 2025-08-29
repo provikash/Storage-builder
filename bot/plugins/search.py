@@ -1,4 +1,5 @@
-from pyrogram import Client, filters
+
+<old_str>from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
 from bot.database import get_random_files, get_popular_files, get_recent_files, get_index_stats, increment_access_count, is_premium_user
 from bot.utils import encode, get_readable_file_size, handle_force_sub
@@ -1347,4 +1348,53 @@ async def recent_files_command(client: Client, message: Message):
         await handle_recent_files_direct(client, message, is_callback=False)
     except Exception as e:
         print(f"Error in recent_files_command: {e}")
-        await message.reply_text(f"❌ Error: {str(e)}")
+        await message.reply_text(f"❌ Error: {str(e)}")</new_str>
+<new_str># Mother bot search.py - File features disabled
+# All file features (random, recent, popular) are only available in clone bots
+
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from info import Config
+
+@Client.on_message(filters.command(["rand", "random", "recent", "popular", "search"]) & filters.private)
+async def disabled_file_commands(client: Client, message: Message):
+    """Redirect users to create clone for file features"""
+    user_id = message.from_user.id
+    command = message.command[0]
+    
+    text = f"🤖 **File Features Not Available Here**\n\n"
+    text += f"The `/{command}` command is only available in **clone bots**, not in the mother bot.\n\n"
+    text += f"🔧 **How to access file features:**\n"
+    text += f"1. Create your personal clone bot with `/createclone`\n"
+    text += f"2. Use your clone bot to access:\n"
+    text += f"   • 🎲 Random files\n"
+    text += f"   • 🆕 Recent files\n"
+    text += f"   • 🔥 Most popular files\n"
+    text += f"   • 🔍 Search functionality\n\n"
+    text += f"💡 **Why use clones?**\n"
+    text += f"Clone bots provide dedicated file sharing while keeping the mother bot clean for management tasks."
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")],
+        [InlineKeyboardButton("📋 Manage My Clones", callback_data="manage_my_clone")]
+    ])
+
+    await message.reply_text(text, reply_markup=buttons)
+
+@Client.on_message(filters.private & filters.text & filters.regex(r"^(🎲 Random|🆕 Recent Added|🔥 Most Popular|🎲 Random Files)$"))
+async def disabled_keyboard_handlers(client: Client, message: Message):
+    """Handle disabled keyboard buttons for file features"""
+    button_text = message.text
+    
+    text = f"🤖 **Feature Not Available in Mother Bot**\n\n"
+    text += f"The **{button_text}** feature is only available in clone bots.\n\n"
+    text += f"🔧 **Get Access:**\n"
+    text += f"1. Create your clone bot: `/createclone`\n"
+    text += f"2. Use your clone for file features\n\n"
+    text += f"💡 This keeps the mother bot focused on clone management!"
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")]
+    ])
+
+    await message.reply_text(text, reply_markup=buttons)</new_str>

@@ -1,4 +1,3 @@
-
 import asyncio
 from datetime import datetime
 from pyrogram.client import Client
@@ -11,6 +10,7 @@ from bot.database.premium_db import is_premium_user
 from bot import get_user_balance
 from bot.utils import handle_force_sub
 from bot.logging import LOGGER
+from bot.utils.error_handler import safe_edit_message
 
 logger = LOGGER(__name__)
 
@@ -77,25 +77,19 @@ async def start_command(client: Client, message: Message):
         InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
     ])
 
-    # Row 2: File Features
+    # Row 2: Clone Management
     buttons.append([
-        InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
-        InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
-    ])
-
-    # Row 3: Popular & Stats
-    buttons.append([
-        InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files"),
+        InlineKeyboardButton("📋 Manage My Clones", callback_data="manage_my_clone"),
         InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
     ])
 
-    # Row 4: Premium & Help
+    # Row 3: Premium & Help
     buttons.append([
         InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
         InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu")
     ])
 
-    # Row 5: Admin panel for admins
+    # Row 4: Admin panel for admins
     if is_admin:
         buttons.append([
             InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
@@ -124,64 +118,64 @@ async def profile_callback(client: Client, query: CallbackQuery):
     text += f"👤 **Full Name:** {user.first_name}"
     if user.last_name:
         text += f" {user.last_name}"
-    
+
     if user.username:
         text += f"\n📱 **Username:** @{user.username}"
     else:
         text += f"\n📱 **Username:** Not set"
-    
+
     text += f"\n💰 **Current Balance:** ${balance:.2f}\n"
-    
+
     if user_premium:
         text += f"💎 **Account Type:** Premium Member ⭐\n"
     else:
         text += f"👤 **Account Type:** Free User\n"
-    
+
     if is_admin:
         text += f"🔧 **Access Level:** Administrator\n"
-    
+
     text += f"📅 **Member Since:** {datetime.now().strftime('%B %Y')}\n"
     text += f"🕐 **Last Seen:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
-    
+
     text += f"🎯 **Profile Actions:**\n"
     text += f"Manage your account settings and view detailed information below."
 
     # Profile action buttons
     buttons = []
-    
+
     # Row 1: Balance Actions
     buttons.append([
         InlineKeyboardButton("💳 Add Balance", callback_data="add_balance_user"),
         InlineKeyboardButton("📊 Transaction History", callback_data="transaction_history")
     ])
-    
+
     # Row 2: Account Management
     buttons.append([
         InlineKeyboardButton("🤖 My Clone Bots", callback_data="my_clones_list"),
         InlineKeyboardButton("⚙️ Account Settings", callback_data="account_settings")
     ])
-    
+
     # Row 3: Stats and Premium
     buttons.append([
         InlineKeyboardButton("📈 Usage Stats", callback_data="detailed_stats"),
         InlineKeyboardButton("💎 Upgrade Premium", callback_data="premium_info")
     ])
-    
+
     # Row 4: Back button
     buttons.append([
-        InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")
+        InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile_main") # Changed callback to avoid loop with back_to_start
     ])
 
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    await safe_edit_message(query, text, reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_callback_query(filters.regex("^add_balance_user$"))
 async def add_balance_user_callback(client: Client, query: CallbackQuery):
     """Show balance addition options for users"""
     await query.answer()
-    
+
     user_id = query.from_user.id
     current_balance = await get_user_balance(user_id)
-    
+
     text = f"💳 **Add Balance to Your Account**\n\n"
     text += f"💰 **Current Balance:** ${current_balance:.2f}\n\n"
     text += f"💵 **Why Add Balance?**\n"
@@ -191,7 +185,7 @@ async def add_balance_user_callback(client: Client, query: CallbackQuery):
     text += f"• 🎯 Priority support access\n\n"
     text += f"💰 **Quick Add Options:**\n"
     text += f"Choose an amount to add instantly:"
-    
+
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("💵 Add $5", callback_data="add_balance_5"),
@@ -207,8 +201,8 @@ async def add_balance_user_callback(client: Client, query: CallbackQuery):
         ],
         [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
     ])
-    
-    await query.edit_message_text(text, reply_markup=buttons)
+
+    await safe_edit_message(query, text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^help_menu$"))
 async def help_callback(client: Client, query: CallbackQuery):
@@ -222,7 +216,7 @@ async def help_callback(client: Client, query: CallbackQuery):
     text += f"• 🔍 Smart file search capabilities\n"
     text += f"• 💎 Premium subscription benefits\n"
     text += f"• 🔐 Secure token verification system\n\n"
-    
+
     text += f"📋 **Available Commands:**\n"
     text += f"• `/start` - Main menu and bot homepage\n"
     text += f"• `/profile` - View your detailed profile\n"
@@ -241,7 +235,7 @@ async def help_callback(client: Client, query: CallbackQuery):
     text += f"• `/addbalance` - Add user balance\n"
     text += f"• `/broadcast` - Send announcements\n"
     text += f"• `/users` - Total user statistics\n\n"
-    
+
     text += f"**🆘 Need More Help?**\n"
     text += f"Contact our support team for assistance!"
 
@@ -257,13 +251,13 @@ async def help_callback(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
+    await safe_edit_message(query, text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^transaction_history$"))
 async def transaction_history_callback(client: Client, query: CallbackQuery):
     """Show detailed transaction history"""
     await query.answer()
-    
+
     user_id = query.from_user.id
     current_balance = await get_user_balance(user_id)
 
@@ -286,7 +280,7 @@ async def transaction_history_callback(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
     ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
+    await safe_edit_message(query, text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^account_settings$"))
 async def account_settings_callback(client: Client, query: CallbackQuery):
@@ -294,7 +288,7 @@ async def account_settings_callback(client: Client, query: CallbackQuery):
     await query.answer()
 
     user = query.from_user
-    
+
     text = f"⚙️ **Account Settings**\n\n"
     text += f"👤 **Account:** {user.first_name}\n"
     text += f"🆔 **User ID:** `{user.id}`\n\n"
@@ -317,7 +311,7 @@ async def account_settings_callback(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
     ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
+    await safe_edit_message(query, text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^detailed_stats$"))
 async def detailed_stats_callback(client: Client, query: CallbackQuery):
@@ -352,12 +346,12 @@ async def detailed_stats_callback(client: Client, query: CallbackQuery):
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🔄 Refresh Stats", callback_data="detailed_stats"),
-            InlineKeyboardButton("📊 Export Data", callback_data="export_stats")
+            InlineKeyboardButton("📱 Export Data", callback_data="export_stats")
         ],
         [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
     ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
+    await safe_edit_message(query, text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^premium_info$"))
 async def premium_info_callback(client: Client, query: CallbackQuery):
@@ -396,13 +390,13 @@ async def premium_info_callback(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
+    await safe_edit_message(query, text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^random_files$"))
 async def random_files_callback(client: Client, query: CallbackQuery):
     """Execute random files feature"""
     await query.answer()
-    
+
     try:
         from bot.plugins.callback_handlers import handle_random_files
         await handle_random_files(client, query)
@@ -422,7 +416,7 @@ async def random_files_callback(client: Client, query: CallbackQuery):
 async def recent_files_callback(client: Client, query: CallbackQuery):
     """Execute recent files feature"""
     await query.answer()
-    
+
     try:
         from bot.plugins.callback_handlers import handle_recent_files
         await handle_recent_files(client, query)
@@ -442,7 +436,7 @@ async def recent_files_callback(client: Client, query: CallbackQuery):
 async def popular_files_callback(client: Client, query: CallbackQuery):
     """Execute popular files feature"""
     await query.answer()
-    
+
     try:
         from bot.plugins.callback_handlers import handle_popular_files
         await handle_popular_files(client, query)
@@ -492,7 +486,7 @@ async def user_stats_callback(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
+    await safe_edit_message(query, text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^back_to_start$"))
 async def back_to_start_callback(client: Client, query: CallbackQuery):
@@ -535,32 +529,26 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
     ])
 
-    # Row 2: File Features
+    # Row 2: Clone Management
     buttons.append([
-        InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
-        InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
-    ])
-
-    # Row 3: Popular & Stats
-    buttons.append([
-        InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files"),
+        InlineKeyboardButton("📋 Manage My Clones", callback_data="manage_my_clone"),
         InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
     ])
 
-    # Row 4: Premium & Help
+    # Row 3: Premium & Help
     buttons.append([
         InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
         InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu")
     ])
 
-    # Row 5: Admin panel for admins
+    # Row 4: Admin panel for admins
     if is_admin:
         buttons.append([
             InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
             InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
         ])
 
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    await safe_edit_message(query, text, reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_callback_query(filters.regex("^about_bot$"))
 async def about_callback(client: Client, query: CallbackQuery):
@@ -604,4 +592,4 @@ async def about_callback(client: Client, query: CallbackQuery):
         [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
 
-    await query.edit_message_text(text, reply_markup=buttons)
+    await safe_edit_message(query, text, reply_markup=buttons)

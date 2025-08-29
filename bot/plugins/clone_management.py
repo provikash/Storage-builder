@@ -7,6 +7,7 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from info import Config
 from bot.database import add_user, present_user
 from bot.logging import LOGGER
+from bot.utils.error_handler import safe_edit_message, safe_answer_callback
 
 logger = LOGGER(__name__)
 

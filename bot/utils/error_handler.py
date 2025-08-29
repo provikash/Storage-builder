@@ -106,3 +106,54 @@ def error_handler(context: str = "Unknown"):
                 return None
         return wrapper
     return decorator
+import asyncio
+import logging
+from pyrogram.errors import MessageNotModified, FloodWait
+from info import Config
+
+logger = logging.getLogger(__name__)
+
+async def safe_edit_message(message_or_query, text, reply_markup=None):
+    """Safely edit message text with error handling"""
+    try:
+        if hasattr(message_or_query, 'edit_message_text'):
+            # CallbackQuery
+            await message_or_query.edit_message_text(text, reply_markup=reply_markup)
+        else:
+            # Message
+            await message_or_query.edit_text(text, reply_markup=reply_markup)
+    except MessageNotModified:
+        logger.debug("Message content unchanged, skipping edit")
+        pass
+    except FloodWait as e:
+        logger.warning(f"Rate limited, waiting {e.x} seconds")
+        await asyncio.sleep(e.x)
+    except Exception as e:
+        logger.error(f"Error editing message: {e}")
+        # Try to send new message if edit fails
+        try:
+            if hasattr(message_or_query, 'message'):
+                await message_or_query.message.reply_text(text, reply_markup=reply_markup)
+            else:
+                await message_or_query.reply_text(text, reply_markup=reply_markup)
+        except Exception as send_error:
+            logger.error(f"Failed to send fallback message: {send_error}")
+
+async def safe_answer_callback(query, text="", show_alert=False):
+    """Safely answer callback query"""
+    try:
+        await query.answer(text, show_alert=show_alert)
+    except Exception as e:
+        logger.error(f"Error answering callback: {e}")
+
+def handle_database_lock():
+    """Handle SQLite database lock by using in-memory storage"""
+    try:
+        import os
+        session_files = [f for f in os.listdir('.') if f.endswith('.session')]
+        for session_file in session_files:
+            if os.path.exists(session_file + '-journal'):
+                os.remove(session_file + '-journal')
+                logger.info(f"Removed journal file: {session_file}-journal")
+    except Exception as e:
+        logger.error(f"Error handling database lock: {e}")
