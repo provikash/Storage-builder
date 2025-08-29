@@ -11,12 +11,24 @@ async def handle_force_sub(client, message: Message):
     joined = []
     buttons = []
 
-    force_channels = getattr(Config, 'FORCE_SUB_CHANNEL', [])
-    request_channels = getattr(Config, 'REQUEST_CHANNEL', [])
+    # Get force channels from config (local) and global database 
+    config_force_channels = getattr(Config, 'FORCE_SUB_CHANNEL', [])
+    config_request_channels = getattr(Config, 'REQUEST_CHANNEL', [])
+    
+    # Get global force channels from database
+    try:
+        from bot.database.clone_db import get_global_force_channels
+        global_force_channels = await get_global_force_channels()
+    except:
+        global_force_channels = []
+    
+    # Combine local config and global channels
+    force_channels = config_force_channels + global_force_channels
+    request_channels = config_request_channels
     all_channels = force_channels + request_channels
 
     if not all_channels:
-        return False
+        return True  # No force sub channels configured, allow user to continue
 
     # Check force subscription channels (direct join)
     for ch in force_channels:
@@ -47,9 +59,9 @@ async def handle_force_sub(client, message: Message):
         except Exception:
             pass  # ignore failure in request channel
 
-    # If all required channels are joined or requested, skip message
+    # If all required channels are joined, allow user to continue
     if not not_joined_force:
-        return False
+        return True  # User has joined all required channels
 
     # Create buttons for force subscription channels
     for ch in force_channels:
@@ -179,7 +191,7 @@ async def handle_force_sub(client, message: Message):
             reply_markup=reply_markup,
             disable_web_page_preview=True
         )
-        return True
+        return False  # Block user until they join required channels
     except Exception as e:
         print(f"Error sending force subscription message: {e}")
         # Try sending without formatting if there's still an error
@@ -195,4 +207,4 @@ async def handle_force_sub(client, message: Message):
         except Exception as e2:
             print(f"Error sending fallback message: {e2}")
             await message.reply("❌ Please join the required channels to continue.")
-        return True
+        return False  # Block user until they join required channels

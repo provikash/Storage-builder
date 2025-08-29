@@ -758,3 +758,80 @@ async def set_global_channels(client: Client, message: Message):
         f"**Channels set:**\n" + 
         "\n".join(f"• {channel}" for channel in channels)
     )
+
+@Client.on_callback_query(filters.regex("^manage_global_channels$"))
+async def manage_force_channels_callback(client: Client, query: CallbackQuery):
+    """Handle manage force channels callback"""
+    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+    
+    global_force_channels = await get_global_force_channels()
+    
+    channels_text = f"📢 **Manage Global Force Channels**\n\n"
+    
+    if global_force_channels:
+        channels_text += f"**Current Force Channels:**\n"
+        for i, channel in enumerate(global_force_channels, 1):
+            try:
+                # Try to get channel info
+                chat = await client.get_chat(channel)
+                title = chat.title or f"Channel {channel}"
+                channels_text += f"{i}. **{title}** (`{channel}`)\n"
+            except:
+                channels_text += f"{i}. `{channel}` (Invalid/Inaccessible)\n"
+        channels_text += f"\n"
+    else:
+        channels_text += f"**No force channels configured.**\n\n"
+    
+    channels_text += f"**📋 Commands:**\n"
+    channels_text += f"• `/addglobalchannel <channel_id>` - Add force channel\n"
+    channels_text += f"• `/removeglobalchannel <channel_id>` - Remove force channel\n"
+    channels_text += f"• `/clearglobalchannels` - Remove all channels\n"
+    channels_text += f"• `/globalchannels` - List all channels\n\n"
+    
+    channels_text += f"**💡 Tips:**\n"
+    channels_text += f"• Channel ID format: -1001234567890\n"
+    channels_text += f"• Make sure bot is admin in the channel\n"
+    channels_text += f"• Users must join ALL channels to access content"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Refresh", callback_data="manage_global_channels")],
+        [InlineKeyboardButton("🌐 Back to Settings", callback_data="mother_global_settings")],
+        [InlineKeyboardButton("« Back to Panel", callback_data="back_to_mother_panel")]
+    ])
+    
+    await query.edit_message_text(channels_text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^edit_global_about$"))
+async def edit_global_about_callback(client: Client, query: CallbackQuery):
+    """Handle edit global about callback"""
+    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+    
+    global_about = await get_global_about()
+    
+    about_text = f"📄 **Edit Global About Page**\n\n"
+    
+    if global_about:
+        about_preview = global_about[:200] + "..." if len(global_about) > 200 else global_about
+        about_text += f"**Current About Message:**\n"
+        about_text += f"```\n{about_preview}\n```\n\n"
+    else:
+        about_text += f"**No global about message set.**\n\n"
+    
+    about_text += f"**📋 Commands:**\n"
+    about_text += f"• `/setglobalabout <message>` - Set about message\n"
+    about_text += f"• `/clearglobalabout` - Clear about message\n\n"
+    
+    about_text += f"**💡 Tips:**\n"
+    about_text += f"• Supports Markdown formatting\n"
+    about_text += f"• Will be shown in all clone bots\n"
+    about_text += f"• Keep it under 4000 characters"
+    
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Refresh", callback_data="edit_global_about")],
+        [InlineKeyboardButton("🌐 Back to Settings", callback_data="mother_global_settings")],
+        [InlineKeyboardButton("« Back to Panel", callback_data="back_to_mother_panel")]
+    ])
+    
+    await query.edit_message_text(about_text, reply_markup=buttons)
