@@ -1,5 +1,4 @@
-
-<old_str>from pyrogram import Client, filters
+from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
 from bot.database import get_random_files, get_popular_files, get_recent_files, get_index_stats, increment_access_count, is_premium_user
 from bot.utils import encode, get_readable_file_size, handle_force_sub
@@ -1348,8 +1347,8 @@ async def recent_files_command(client: Client, message: Message):
         await handle_recent_files_direct(client, message, is_callback=False)
     except Exception as e:
         print(f"Error in recent_files_command: {e}")
-        await message.reply_text(f"❌ Error: {str(e)}")</new_str>
-<new_str># Mother bot search.py - File features disabled
+        await message.reply_text(f"❌ Error: {str(e)}")
+# Mother bot search.py - File features disabled
 # All file features (random, recent, popular) are only available in clone bots
 
 from pyrogram import Client, filters
@@ -1396,5 +1395,4 @@ async def disabled_keyboard_handlers(client: Client, message: Message):
     buttons = InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")]
     ])
-
-    await message.reply_text(text, reply_markup=buttons)</new_str>
+    await message.reply_text(text, reply_markup=buttons)
