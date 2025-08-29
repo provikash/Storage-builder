@@ -9,7 +9,7 @@ from bot.utils.command_verification import check_command_limit, use_command
 from bot.database.verify_db import create_verification_token
 import traceback
 from bot.database.premium_db import is_premium_user
-from bot import get_user_balance
+from bot.database.balance_db import get_user_balance
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)

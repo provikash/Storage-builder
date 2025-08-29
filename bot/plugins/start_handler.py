@@ -7,7 +7,7 @@ from bot.utils.session_manager import get_session, clear_session, session_expire
 from bot.database.users import add_user, present_user
 from info import Config
 from bot.database.premium_db import is_premium_user
-from bot import get_user_balance
+from bot.database.balance_db import get_user_balance
 from bot.utils import handle_force_sub
 from bot.logging import LOGGER
 from bot.utils.error_handler import safe_edit_message
@@ -197,7 +197,7 @@ async def add_balance_user_callback(client: Client, query: CallbackQuery):
         ],
         [
             InlineKeyboardButton("💳 Custom Amount", callback_data="add_balance_custom"),
-            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.ADMIN_USERNAME}")
         ],
         [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
     ])
@@ -241,7 +241,7 @@ async def help_callback(client: Client, query: CallbackQuery):
 
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📞 Contact Support", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"),
+            InlineKeyboardButton("📞 Contact Support", url=f"https://t.me/{Config.ADMIN_USERNAME}"),
             InlineKeyboardButton("💬 Join Support Group", url="https://t.me/your_support_group")
         ],
         [
@@ -385,7 +385,7 @@ async def premium_info_callback(client: Client, query: CallbackQuery):
         ],
         [
             InlineKeyboardButton("📋 Compare Plans", callback_data="compare_plans"),
-            InlineKeyboardButton("💬 Contact Sales", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}")
+            InlineKeyboardButton("💬 Contact Sales", url=f"https://t.me/{Config.ADMIN_USERNAME}")
         ],
         [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
@@ -518,11 +518,11 @@ async def about_callback(client: Client, query: CallbackQuery):
     text += f"• 24/7 monitoring & health checks\n\n"
 
     text += f"🔧 **Version:** 3.0.0 Advanced\n"
-    text += f"👨‍💻 **Developer:** @{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}"
+    text += f"👨‍💻 **Developer:** @{Config.ADMIN_USERNAME}"
 
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📞 Contact Developer", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}"),
+            InlineKeyboardButton("📞 Contact Developer", url=f"https://t.me/{Config.ADMIN_USERNAME}"),
             InlineKeyboardButton("⭐ Rate Bot", callback_data="rate_bot")
         ],
         [
