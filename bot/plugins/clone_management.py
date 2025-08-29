@@ -62,6 +62,15 @@ async def manage_clone_command(client: Client, message: Message):
     
     await message.reply_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
+async def create_clone_handler(client: Client, message):
+    """Handler for creating clone - redirect to step clone creation"""
+    user_id = message.from_user.id
+    print(f"🔄 DEBUG CLONE: create_clone_handler called for user {user_id}")
+    
+    # Import and call the clone creation flow
+    from bot.plugins.step_clone_creation import start_clone_creation
+    await start_clone_creation(client, message)eply_markup=InlineKeyboardMarkup(buttons))
+
 @Client.on_message(filters.command("listclones") & filters.private)
 async def list_clones(client: Client, message: Message):
     """List all active clones for admins only"""

@@ -654,7 +654,7 @@ async def database_help_callback(client, query):
 
     await query.edit_message_text(text, reply_markup=buttons)
 
-# Helper to go back to Step 3 (DB URL)
+# Helper to go back to Step 3
 @Client.on_callback_query(filters.regex("^back_to_step3$"))
 async def back_to_step3_callback(client: Client, query: CallbackQuery):
     """Go back to database URL input step"""
@@ -945,11 +945,20 @@ async def handle_insufficient_balance(client, query):
 
 # Helper for back to start
 @Client.on_callback_query(filters.regex("^back_to_start$"))
-async def back_to_start_callback(client, query):
-    """Go back to the main start menu"""
+async def back_to_start_callback(client: Client, query: CallbackQuery):
+    """Go back to start menu from clone creation"""
+    user_id = query.from_user.id
+    print(f"⬅️ DEBUG CLONE: back_to_start_callback triggered by user {user_id}")
+
     await query.answer()
-    print(f"⬅️ DEBUG CLONE: back_to_start_callback triggered by user {query.from_user.id}")
-    await start_clone_creation_callback(client, query)
+
+    # Clear any active creation session
+    from bot.utils.session_manager import clear_session
+    await clear_session(user_id)
+
+    # Redirect to main start handler instead of clone creation
+    from bot.plugins.start_handler import back_to_start_callback as main_back_callback
+    await main_back_callback(client, query)
 
 
 # Session cleanup task

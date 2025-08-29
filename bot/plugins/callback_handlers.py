@@ -386,17 +386,8 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
         await transaction_history_callback(client, query)
     elif callback_data == "back_to_start":
         # Handle back to start - show start message
-        from bot.plugins.start_handler import start_command
-        # Convert callback to message-like object
-        class FakeMessage:
-            def __init__(self, query):
-                self.from_user = query.from_user
-                self.chat = query.message.chat
-            async def reply_text(self, text, reply_markup=None, **kwargs):
-                await query.edit_message_text(text, reply_markup=reply_markup)
-
-        fake_message = FakeMessage(query)
-        await start_command(client, fake_message)
+        from bot.plugins.start_handler import back_to_start_callback
+        await back_to_start_callback(client, query)
     elif callback_data == "add_balance":
         # Handle add balance
         from bot.plugins.balance_management import show_balance_options

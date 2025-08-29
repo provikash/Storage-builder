@@ -43,7 +43,7 @@ async def start_command(client: Client, message: Message):
 
     # Check if user is premium
     user_premium = await is_premium_user(user.id)
-    
+
     # Get user balance
     balance = await get_user_balance(user.id)
 
@@ -89,14 +89,27 @@ async def start_command(client: Client, message: Message):
         InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info")
     ])
 
-    # Row 4: Clone Management (for admins) or Help
+    # Row 4: Clone Management and Commands
     if is_admin:
         buttons.append([
             InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
             InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")
         ])
+        buttons.append([
+            InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list"),
+            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin")
+        ])
+    else:
+        buttons.append([
+            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list")
+        ])
+        buttons.append([
+            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_user"),
+            InlineKeyboardButton("💳 Balance Info", callback_data="balance_info")
+        ])
 
-    # Row 5: Help & About
+    # Row 6: Help & About
     buttons.append([
         InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
         InlineKeyboardButton("ℹ️ About Bot", callback_data="about_bot")
@@ -449,14 +462,27 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info")
     ])
 
-    # Row 4: Clone Management (for admins) or Help
+    # Row 4: Clone Management and Commands
     if is_admin:
         buttons.append([
             InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
             InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")
         ])
+        buttons.append([
+            InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list"),
+            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin")
+        ])
+    else:
+        buttons.append([
+            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list")
+        ])
+        buttons.append([
+            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_user"),
+            InlineKeyboardButton("💳 Balance Info", callback_data="balance_info")
+        ])
 
-    # Row 5: Help & About
+    # Row 6: Help & About
     buttons.append([
         InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
         InlineKeyboardButton("ℹ️ About Bot", callback_data="about_bot")
@@ -476,17 +502,17 @@ logger = LOGGER(__name__)
 async def start_command(client: Client, message: Message):
     """Handle /start command for mother bot"""
     user_id = message.from_user.id
-    
+
     try:
         # Add user to database
         if not await present_user(user_id):
             await add_user(user_id)
-        
+
         # Check force subscription if enabled
         force_sub_result = await handle_force_sub(client, message)
         if force_sub_result:
             return
-        
+
         # Welcome message
         welcome_text = (
             f"👋 **Welcome {message.from_user.first_name}!**\n\n"
@@ -501,7 +527,7 @@ async def start_command(client: Client, message: Message):
             f"🚀 **Get Started:**\n"
             f"Use the buttons below to explore features!"
         )
-        
+
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("🤖 Create Clone", callback_data="create_clone_button"),
@@ -516,15 +542,15 @@ async def start_command(client: Client, message: Message):
                 InlineKeyboardButton("👨‍💼 Contact Admin", url=f"https://t.me/{getattr(Config, 'OWNER_USERNAME', 'admin')}")
             ]
         ])
-        
+
         await message.reply_text(
             welcome_text,
             reply_markup=buttons,
             quote=True
         )
-        
+
         logger.info(f"Start command processed for user {user_id}")
-        
+
     except Exception as e:
         logger.error(f"Error in start command for user {user_id}: {e}")
         await message.reply_text(
@@ -536,7 +562,7 @@ async def start_command(client: Client, message: Message):
 async def help_command(client: Client, message: Message):
     """Handle /help command"""
     user_id = message.from_user.id
-    
+
     try:
         help_text = (
             "🆘 **Help & Commands**\n\n"
@@ -560,16 +586,16 @@ async def help_command(client: Client, message: Message):
             "**📞 Need Support?**\n"
             f"Contact: @{getattr(Config, 'OWNER_USERNAME', 'admin')}"
         )
-        
+
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("🏠 Back to Main", callback_data="start"),
                 InlineKeyboardButton("👨‍💼 Contact Admin", url=f"https://t.me/{getattr(Config, 'OWNER_USERNAME', 'admin')}")
             ]
         ])
-        
+
         await message.reply_text(help_text, reply_markup=buttons, quote=True)
-        
+
     except Exception as e:
         logger.error(f"Error in help command for user {user_id}: {e}")
         await message.reply_text("❌ Error showing help. Please try again later.", quote=True)

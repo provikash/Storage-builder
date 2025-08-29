@@ -6,6 +6,16 @@ from bot.logging import LOGGER
 from bot.utils import schedule_manager
 from bot.utils.clone_config_loader import clone_config_loader
 
+# Import balance function to make it available at bot level
+async def get_user_balance(user_id: int):
+    """Get user balance from balance database"""
+    try:
+        from bot.database.balance_db import get_user_balance as _get_balance
+        return await _get_balance(user_id)
+    except Exception as e:
+        LOGGER(__name__).error(f"Error getting balance for user {user_id}: {e}")
+        return 0.00
+
 ascii_art = """ 
 ██████████████████████████████████▀███████
 █─▄▄▄▄█─▄─▄─█─▄▄─█▄─▄▄▀██▀▄─██─▄▄▄▄█▄─▄▄─█
