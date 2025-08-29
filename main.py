@@ -254,8 +254,8 @@ async def main():
         try:
             from web.server import start_webserver
             web_thread = start_webserver()
-            logger.info("✅ Web monitoring dashboard started on port 5000")
-            logger.info("🌐 Dashboard URL: http://0.0.0.0:5000/dashboard")
+            logger.info("✅ Web monitoring dashboard started (port 5000 or 8080)")
+            logger.info("🌐 Dashboard URL: Available on web server port")
         except Exception as e:
             logger.error(f"❌ Web server failed: {e}")
 

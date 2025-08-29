@@ -43,6 +43,9 @@ async def start_command(client: Client, message: Message):
 
     # Check if user is premium
     user_premium = await is_premium_user(user.id)
+    
+    # Get user balance
+    balance = await get_user_balance(user.id)
 
     text = f"👋 **Hello {message.from_user.first_name}!**\n\n"
     text += f"🔐 **PS-LinkVault Bot**\n"

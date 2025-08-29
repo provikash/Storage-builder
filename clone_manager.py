@@ -125,6 +125,13 @@ class CloneManager:
             clone_bot = clone_info['client']
 
             if clone_bot.is_connected:
+                # Clear handlers first to prevent removal errors
+                try:
+                    from bot.utils.handler_manager import handler_manager
+                    handler_manager.clear_client_handlers(clone_bot)
+                except Exception as handler_error:
+                    logger.warning(f"⚠️ Handler cleanup warning for {bot_id}: {handler_error}")
+
                 await clone_bot.stop()
 
             # Remove from active clones
