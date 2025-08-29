@@ -126,16 +126,25 @@ async def start_mother_bot():
             plugins=mother_bot_plugins
         )
         
-        # Start with retry logic for rate limiting
+        # Start with retry logic for rate limiting and connection state checking
         max_start_retries = 3
         for attempt in range(max_start_retries):
             try:
-                await app.start()
-                logger.info(f"✅ Mother Bot client started successfully!")
-                print(f"✅ DEBUG BOT: Mother Bot client started successfully!")
+                # Check if client is already connected
+                if not app.is_connected:
+                    await app.start()
+                    logger.info(f"✅ Mother Bot client started successfully!")
+                    print(f"✅ DEBUG BOT: Mother Bot client started successfully!")
+                else:
+                    logger.info(f"✅ Mother Bot client already connected!")
+                    print(f"✅ DEBUG BOT: Mother Bot client already connected!")
                 return app
             except Exception as start_error:
-                if "FLOOD_WAIT" in str(start_error):
+                if "Client is already connected" in str(start_error):
+                    logger.info(f"✅ Mother Bot client already connected (attempt {attempt + 1})")
+                    print(f"✅ DEBUG BOT: Mother Bot client already connected (attempt {attempt + 1})")
+                    return app
+                elif "FLOOD_WAIT" in str(start_error):
                     import re
                     wait_time = int(re.search(r'(\d+)', str(start_error)).group(1)) if re.search(r'(\d+)', str(start_error)) else 15
                     logger.warning(f"FloodWait during start, waiting {wait_time} seconds (attempt {attempt + 1}/{max_start_retries})")
@@ -217,6 +226,9 @@ async def main():
         max_retries = 3
         for attempt in range(max_retries):
             try:
+                # Ensure client is connected before getting info
+                if not app.is_connected:
+                    await app.connect()
                 me = await app.get_me()
                 break
             except Exception as e:
@@ -225,6 +237,9 @@ async def main():
                     wait_time = int(re.search(r'(\d+)', str(e)).group(1)) if re.search(r'(\d+)', str(e)) else 15
                     logger.warning(f"FloodWait detected, waiting {wait_time} seconds (attempt {attempt + 1}/{max_retries})")
                     await asyncio.sleep(wait_time + 2)  # Add 2 extra seconds as buffer
+                elif "Client is already connected" in str(e):
+                    logger.warning(f"Client connection issue, retrying... (attempt {attempt + 1}/{max_retries})")
+                    await asyncio.sleep(2)
                 else:
                     logger.error(f"Failed to get bot info: {e}")
                     if attempt == max_retries - 1:
@@ -335,8 +350,11 @@ async def main():
         # Stop mother bot
         if app:
             try:
-                await app.stop()
-                logger.info("✅ Mother Bot stopped")
+                if app.is_connected:
+                    await app.stop()
+                    logger.info("✅ Mother Bot stopped")
+                else:
+                    logger.info("✅ Mother Bot already disconnected")
             except Exception as e:
                 logger.error(f"❌ Error stopping Mother Bot: {e}")
 
