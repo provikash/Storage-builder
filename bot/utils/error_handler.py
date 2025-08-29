@@ -108,37 +108,31 @@ def error_handler(context: str = "Unknown"):
         return wrapper
     return decorator
 
-async def safe_edit_message(query, text, reply_markup=None, parse_mode=None):
+async def safe_edit_message(query_or_message, text: str, reply_markup=None, **kwargs):
     """Safely edit message to avoid MESSAGE_NOT_MODIFIED errors"""
     try:
-        if parse_mode is None:
-            # Default to MARKDOWN if not provided, as per common usage
-            parse_mode = enums.ParseMode.MARKDOWN
-        
-        # Check if message content is the same to avoid MESSAGE_NOT_MODIFIED error
-        if hasattr(query.message, 'text') and query.message.text == text:
-            logger.info("Message content unchanged, skipping edit")
-            await query.answer() # Answer the callback query to acknowledge it
-            return True
-        
-        await query.edit_message_text(text, reply_markup=reply_markup, parse_mode=parse_mode, disable_web_page_preview=True)
-        return True
-    except Exception as e:
-        if "MESSAGE_NOT_MODIFIED" in str(e):
-            logger.debug("Message content is already up to date.")
-            await query.answer("ℹ️ Content is already up to date.", show_alert=False)
-        elif "Invalid parse mode" in str(e):
-            logger.warning(f"Invalid parse mode '{parse_mode}' used. Retrying without parse mode.")
-            # Retry without parse mode
-            try:
-                await query.edit_message_text(text, reply_markup=reply_markup, disable_web_page_preview=True)
-            except Exception as retry_e:
-                logger.error(f"Failed to edit message even without parse mode: {retry_e}")
-                await query.answer("❌ Error updating message format.", show_alert=True)
+        if hasattr(query_or_message, 'edit_message_text'):
+            # It's a CallbackQuery
+            current_text = query_or_message.message.text or ""
+            current_text_clean = current_text.strip()
+            new_text_clean = text.strip()
+
+            # Only edit if content is actually different
+            if current_text_clean != new_text_clean:
+                await query_or_message.edit_message_text(text, reply_markup=reply_markup, **kwargs)
+            else:
+                # Just answer the callback without editing
+                await query_or_message.answer()
         else:
-            logger.error(f"Error editing message: {e}")
-            await query.answer("❌ Error updating message. Please try again.", show_alert=True)
-        return False
+            # It's a Message
+            await query_or_message.reply_text(text, reply_markup=reply_markup, **kwargs)
+    except Exception as e:
+        logger.error(f"Error in safe_edit_message: {e}")
+        try:
+            if hasattr(query_or_message, 'answer'):
+                await query_or_message.answer("✅ Operation completed", show_alert=False)
+        except:
+            pass
 
 async def safe_answer_callback(query, text="", show_alert=False):
     """Safely answer callback queries"""

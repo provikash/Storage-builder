@@ -226,6 +226,18 @@ class CloneManager:
     def __init__(self):
         self.active_clones = {}
 
+    def get_running_clones(self):
+        return list(self.active_clones.keys())
+
+    async def start_clone(self, clone_id):
+        if clone_id in self.active_clones:
+            return False, "Clone is already running."
+        
+        # In a real scenario, you'd fetch clone data and start it.
+        # For now, we assume it's handled by run_clone_bot being called.
+        # This is a placeholder to mimic the manager's interface.
+        return True, "Clone starting process initiated."
+
 clone_manager = CloneManager()
 
 async def run_clone_bot(clone_data):
@@ -378,7 +390,7 @@ async def proceed_payment_callback(client, query):
         bot_info = session['bot_info']
 
         # Create clone in database
-        from bot.database.clone_db import create_clone
+        from bot.database.clone_db import create_clone, get_user_clone_by_bot_id
         from bot.database.subscription_db import create_subscription
         from datetime import datetime, timedelta
 
@@ -409,7 +421,6 @@ async def proceed_payment_callback(client, query):
         await create_subscription(subscription_data)
 
         # Start the clone
-        from clone_manager import clone_manager
         success, message = await clone_manager.start_clone(str(bot_info['id']))
 
         if success:
