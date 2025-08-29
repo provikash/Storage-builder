@@ -1,3 +1,4 @@
+
 import asyncio
 from datetime import datetime
 from pyrogram.client import Client
@@ -47,185 +48,312 @@ async def start_command(client: Client, message: Message):
     # Get user balance
     balance = await get_user_balance(user.id)
 
-    text = f"👋 **Hello {message.from_user.first_name}!**\n\n"
-    text += f"🔐 **PS-LinkVault Bot**\n"
-    text += f"Fast & secure file sharing with advanced features\n\n"
+    # Enhanced welcome message
+    text = f"🚀 **Welcome to Advanced File Storage Bot Creator!**\n\n"
+    text += f"👋 Hello **{message.from_user.first_name}**!\n\n"
+    text += f"🤖 **I am an advanced file storing bot creator** with powerful features:\n\n"
+    text += f"✨ **What I can do for you:**\n"
+    text += f"• 📁 Advanced file storage & management\n"
+    text += f"• 🤖 Create your own personal clone bots\n"
+    text += f"• 🔐 Secure file sharing with token verification\n"
+    text += f"• 💎 Premium subscriptions with exclusive features\n"
+    text += f"• 📊 Detailed analytics and statistics\n"
+    text += f"• 🎯 Smart file organization and search\n"
+    text += f"• ⚡ Lightning-fast file processing\n\n"
 
     if user_premium:
-        text += f"💎 **Premium User** | Balance: ${balance:.2f}\n"
+        text += f"💎 **Premium Status:** Active | Balance: **${balance:.2f}**\n"
     else:
-        text += f"👤 **Free User** | Balance: ${balance:.2f}\n"
+        text += f"👤 **Free User** | Balance: **${balance:.2f}**\n"
 
-    text += f"\n📊 **Quick Stats:**\n"
-    text += f"• Files shared securely\n"
-    text += f"• Token-based verification\n"
-    text += f"• Force subscription support\n\n"
-    text += f"🚀 **Choose an option below:**"
+    text += f"\n🎯 **Ready to get started?** Choose an option below:"
 
-    # Create feature buttons with proper layout
+    # Create main menu buttons
     buttons = []
 
-    # Row 1: File Features (Random, Recent, Popular)
+    # Row 1: Main Features
+    buttons.append([
+        InlineKeyboardButton("🤖 Create Your Own Clone", callback_data="start_clone_creation"),
+        InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+    ])
+
+    # Row 2: File Features
     buttons.append([
         InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
         InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
     ])
 
+    # Row 3: Popular & Stats
     buttons.append([
-        InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files"),
-        InlineKeyboardButton("📊 My Stats", callback_data="user_stats")
+        InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files"),
+        InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
     ])
 
-    # Row 2: User Features
+    # Row 4: Premium & Help
     buttons.append([
-        InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
-        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info")
+        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
+        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu")
     ])
 
-    # Row 3: Clone Management
-    buttons.append([
-        InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
-        InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list")
-    ])
-
-    # Row 4: Balance Management
+    # Row 5: Admin panel for admins
     if is_admin:
         buttons.append([
-            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin"),
-            InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")
+            InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
+            InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
         ])
-    else:
-        buttons.append([
-            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_user"),
-            InlineKeyboardButton("💳 Balance Info", callback_data="balance_info")
-        ])
-
-    # Row 5: Help & About
-    buttons.append([
-        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
-        InlineKeyboardButton("ℹ️ About Bot", callback_data="about_bot")
-    ])
 
     await message.reply_text(
         text,
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex("^help_menu$"))
-async def help_callback(client: Client, query: CallbackQuery):
-    """Show help menu"""
-    await query.answer()
-
-    text = f"❓ **Help & Support**\n\n"
-    text += f"**🤖 For Users:**\n"
-    text += f"• Send files to get sharing links\n"
-    text += f"• Use search to find files\n"
-    text += f"• Create your own bot clone\n"
-    text += f"• Upgrade to premium features\n\n"
-    text += f"**📋 Available Commands:**\n"
-    text += f"• `/start` - Main menu & homepage\n"
-    text += f"• `/token` - Generate access token\n"
-    text += f"• `/stats` - View bot statistics\n"
-    text += f"• `/search` - Search for files\n"
-    text += f"• `/premium` - Premium plan info\n"
-    text += f"• `/balance` - Check your balance\n\n"
-
-    text += f"**⚙️ Admin Commands:**\n"
-    text += f"• `/genlink` - Generate file links\n"
-    text += f"• `/batch` - Batch file operations\n"
-    text += f"• `/users` - Total user count\n"
-    text += f"• `/broadcast` - Send announcements\n\n"
-    text += f"**🆘 Need Help?**\n"
-    text += f"Contact admin for support"
-
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.ADMIN_USERNAME}")],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
-    ])
-
-    await query.edit_message_text(text, reply_markup=buttons)
-
-@Client.on_callback_query(filters.regex("^about_bot$"))
-async def about_callback(client: Client, query: CallbackQuery):
-    """Show about information"""
-    await query.answer()
-
-    text = f"ℹ️ **About PS-LinkVault Bot**\n\n"
-    text += f"🔐 **Advanced File Sharing System**\n"
-    text += f"Fast, secure, and feature-rich Telegram file sharing bot\n\n"
-    text += f"✨ **Key Features:**\n"
-    text += f"• 🔗 Generate secure download links\n"
-    text += f"• 🔑 Token-based verification system\n"
-    text += f"• 📦 Batch file operations\n"
-    text += f"• 🚫 Force subscription support\n"
-    text += f"• 💎 Premium user benefits\n"
-    text += f"• 🤖 Clone bot creation\n"
-    text += f"• 📊 Advanced statistics\n\n"
-
-    text += f"🛡️ **Security:**\n"
-    text += f"All files are encrypted and access is logged for security.\n\n"
-
-    text += f"💻 **Made with ❤️ using Python & Pyrogram**"
-    text += f"• 🔍 Smart file search\n"
-    text += f"• 💎 Premium features\n\n"
-    text += f"💡 **Powered by:** Pyrogram & MongoDB\n"
-    text += f"🔧 **Version:** 2.0.0\n"
-    text += f"👨‍💻 **Developer:** @{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}"
-
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📞 Contact Developer", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
-    ])
-
-    await query.edit_message_text(text, reply_markup=buttons)
-
 @Client.on_callback_query(filters.regex("^user_profile$"))
 async def profile_callback(client: Client, query: CallbackQuery):
-    """Show user profile"""
+    """Show detailed user profile with balance and actions"""
     await query.answer()
 
     user = query.from_user
-    balance = await get_user_balance(user.id)
+    user_id = user.id
+    balance = await get_user_balance(user_id)
+    user_premium = await is_premium_user(user_id)
+    is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
 
-    text = f"👤 **Your Profile**\n\n"
+    # Enhanced profile information
+    text = f"👤 **Your Detailed Profile**\n\n"
     text += f"🆔 **User ID:** `{user.id}`\n"
-    text += f"👤 **Name:** {user.first_name}"
+    text += f"👤 **Full Name:** {user.first_name}"
     if user.last_name:
         text += f" {user.last_name}"
+    
     if user.username:
         text += f"\n📱 **Username:** @{user.username}"
-    text += f"\n💰 **Balance:** ${balance:.2f}\n"
-    text += f"📅 **Joined:** {datetime.now().strftime('%Y-%m-%d')}\n\n"
-    text += f"**🎯 Quick Actions:**"
+    else:
+        text += f"\n📱 **Username:** Not set"
+    
+    text += f"\n💰 **Current Balance:** ${balance:.2f}\n"
+    
+    if user_premium:
+        text += f"💎 **Account Type:** Premium Member ⭐\n"
+    else:
+        text += f"👤 **Account Type:** Free User\n"
+    
+    if is_admin:
+        text += f"🔧 **Access Level:** Administrator\n"
+    
+    text += f"📅 **Member Since:** {datetime.now().strftime('%B %Y')}\n"
+    text += f"🕐 **Last Seen:** {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n"
+    
+    text += f"🎯 **Profile Actions:**\n"
+    text += f"Manage your account settings and view detailed information below."
+
+    # Profile action buttons
+    buttons = []
+    
+    # Row 1: Balance Actions
+    buttons.append([
+        InlineKeyboardButton("💳 Add Balance", callback_data="add_balance_user"),
+        InlineKeyboardButton("📊 Transaction History", callback_data="transaction_history")
+    ])
+    
+    # Row 2: Account Management
+    buttons.append([
+        InlineKeyboardButton("🤖 My Clone Bots", callback_data="my_clones_list"),
+        InlineKeyboardButton("⚙️ Account Settings", callback_data="account_settings")
+    ])
+    
+    # Row 3: Stats and Premium
+    buttons.append([
+        InlineKeyboardButton("📈 Usage Stats", callback_data="detailed_stats"),
+        InlineKeyboardButton("💎 Upgrade Premium", callback_data="premium_info")
+    ])
+    
+    # Row 4: Back button
+    buttons.append([
+        InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")
+    ])
+
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+@Client.on_callback_query(filters.regex("^add_balance_user$"))
+async def add_balance_user_callback(client: Client, query: CallbackQuery):
+    """Show balance addition options for users"""
+    await query.answer()
+    
+    user_id = query.from_user.id
+    current_balance = await get_user_balance(user_id)
+    
+    text = f"💳 **Add Balance to Your Account**\n\n"
+    text += f"💰 **Current Balance:** ${current_balance:.2f}\n\n"
+    text += f"💵 **Why Add Balance?**\n"
+    text += f"• 🤖 Create your own clone bots\n"
+    text += f"• 🔓 Unlock premium features\n"
+    text += f"• ⚡ Faster file processing\n"
+    text += f"• 🎯 Priority support access\n\n"
+    text += f"💰 **Quick Add Options:**\n"
+    text += f"Choose an amount to add instantly:"
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("💵 Add $5", callback_data="add_balance_5"),
+            InlineKeyboardButton("💰 Add $10", callback_data="add_balance_10")
+        ],
+        [
+            InlineKeyboardButton("💎 Add $25", callback_data="add_balance_25"),
+            InlineKeyboardButton("🎯 Add $50", callback_data="add_balance_50")
+        ],
+        [
+            InlineKeyboardButton("💳 Custom Amount", callback_data="add_balance_custom"),
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")
+        ],
+        [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^help_menu$"))
+async def help_callback(client: Client, query: CallbackQuery):
+    """Show comprehensive help menu"""
+    await query.answer()
+
+    text = f"❓ **Help & Support Center**\n\n"
+    text += f"🤖 **Bot Features:**\n"
+    text += f"• 📁 Advanced file storage and sharing\n"
+    text += f"• 🤖 Create personalized clone bots\n"
+    text += f"• 🔍 Smart file search capabilities\n"
+    text += f"• 💎 Premium subscription benefits\n"
+    text += f"• 🔐 Secure token verification system\n\n"
+    
+    text += f"📋 **Available Commands:**\n"
+    text += f"• `/start` - Main menu and bot homepage\n"
+    text += f"• `/profile` - View your detailed profile\n"
+    text += f"• `/balance` - Check account balance\n"
+    text += f"• `/premium` - Premium plan information\n"
+    text += f"• `/myclones` - Manage your clone bots\n"
+    text += f"• `/stats` - View bot statistics\n\n"
+
+    text += f"**🔧 Clone Bot Commands:**\n"
+    text += f"• `/createclone` - Create new clone bot\n"
+    text += f"• `/deleteclone` - Remove clone bot\n"
+    text += f"• `/clonestatus` - Check clone status\n\n"
+
+    text += f"**⚙️ Admin Commands:**\n"
+    text += f"• `/admin` - Admin control panel\n"
+    text += f"• `/addbalance` - Add user balance\n"
+    text += f"• `/broadcast` - Send announcements\n"
+    text += f"• `/users` - Total user statistics\n\n"
+    
+    text += f"**🆘 Need More Help?**\n"
+    text += f"Contact our support team for assistance!"
 
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("💳 Add Balance", callback_data="add_balance"),
-            InlineKeyboardButton("📊 My Stats", callback_data="my_stats")
+            InlineKeyboardButton("📞 Contact Support", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"),
+            InlineKeyboardButton("💬 Join Support Group", url="https://t.me/your_support_group")
         ],
         [
-            InlineKeyboardButton("📋 Manage Clones", callback_data="manage_my_clone"),
-            InlineKeyboardButton("💎 Premium", callback_data="premium_info")
+            InlineKeyboardButton("📚 Documentation", callback_data="documentation"),
+            InlineKeyboardButton("🎥 Video Tutorials", callback_data="video_tutorials")
         ],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
 
     await query.edit_message_text(text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^transaction_history$"))
 async def transaction_history_callback(client: Client, query: CallbackQuery):
-    """Show transaction history"""
+    """Show detailed transaction history"""
     await query.answer()
+    
+    user_id = query.from_user.id
+    current_balance = await get_user_balance(user_id)
 
-    text = f"📊 **Transaction History**\n\n"
-    text += f"🔄 Loading transaction history...\n"
-    text += f"This feature is coming soon!\n\n"
-    text += f"💡 **Available:**\n"
-    text += f"• Balance tracking\n"
-    text += f"• Clone purchases\n"
-    text += f"• Premium subscriptions"
+    text = f"📊 **Your Transaction History**\n\n"
+    text += f"💰 **Current Balance:** ${current_balance:.2f}\n\n"
+    text += f"📋 **Recent Transactions:**\n"
+    text += f"🔄 Loading your transaction history...\n\n"
+    text += f"💡 **Transaction Types:**\n"
+    text += f"• ➕ Balance additions\n"
+    text += f"• ➖ Clone bot purchases\n"
+    text += f"• 💎 Premium subscriptions\n"
+    text += f"• 🎁 Bonus credits\n\n"
+    text += f"📈 **This feature shows your complete financial activity**"
 
     buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔄 Refresh History", callback_data="refresh_transactions"),
+            InlineKeyboardButton("📱 Download Report", callback_data="download_transactions")
+        ],
+        [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^account_settings$"))
+async def account_settings_callback(client: Client, query: CallbackQuery):
+    """Show account settings options"""
+    await query.answer()
+
+    user = query.from_user
+    
+    text = f"⚙️ **Account Settings**\n\n"
+    text += f"👤 **Account:** {user.first_name}\n"
+    text += f"🆔 **User ID:** `{user.id}`\n\n"
+    text += f"🔧 **Available Settings:**\n"
+    text += f"• Notification preferences\n"
+    text += f"• Privacy settings\n"
+    text += f"• Clone bot configurations\n"
+    text += f"• Security options\n\n"
+    text += f"⚠️ **Note:** Some settings require premium access"
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔔 Notifications", callback_data="notification_settings"),
+            InlineKeyboardButton("🔒 Privacy", callback_data="privacy_settings")
+        ],
+        [
+            InlineKeyboardButton("🔐 Security", callback_data="security_settings"),
+            InlineKeyboardButton("🤖 Clone Settings", callback_data="clone_settings")
+        ],
+        [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^detailed_stats$"))
+async def detailed_stats_callback(client: Client, query: CallbackQuery):
+    """Show detailed user statistics"""
+    await query.answer()
+
+    user_id = query.from_user.id
+    user_premium = await is_premium_user(user_id)
+    balance = await get_user_balance(user_id)
+
+    text = f"📈 **Your Detailed Statistics**\n\n"
+    text += f"👤 **Account Overview:**\n"
+    text += f"• User ID: `{user_id}`\n"
+    text += f"• Status: {'🌟 Premium Member' if user_premium else '🆓 Free User'}\n"
+    text += f"• Balance: ${balance:.2f}\n"
+    text += f"• Member Since: {datetime.now().strftime('%B %Y')}\n\n"
+
+    text += f"🤖 **Clone Bot Usage:**\n"
+    text += f"• Active Clones: Loading...\n"
+    text += f"• Total Created: Loading...\n"
+    text += f"• Clone Uptime: Loading...\n\n"
+
+    text += f"📁 **File Activity:**\n"
+    text += f"• Files Shared: Coming Soon\n"
+    text += f"• Downloads Generated: Coming Soon\n"
+    text += f"• Total Storage Used: Coming Soon\n\n"
+
+    text += f"🔐 **Security Stats:**\n"
+    text += f"• Tokens Generated: Coming Soon\n"
+    text += f"• Secure Links Created: Coming Soon\n"
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔄 Refresh Stats", callback_data="detailed_stats"),
+            InlineKeyboardButton("📊 Export Data", callback_data="export_stats")
+        ],
         [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
     ])
 
@@ -233,85 +361,103 @@ async def transaction_history_callback(client: Client, query: CallbackQuery):
 
 @Client.on_callback_query(filters.regex("^premium_info$"))
 async def premium_info_callback(client: Client, query: CallbackQuery):
-    """Show premium information"""
+    """Show detailed premium information"""
     await query.answer()
 
-    text = f"💎 **Premium Features**\n\n"
-    text += f"🚀 **Upgrade your experience with Premium!**\n\n"
-    text += f"✨ **Premium Benefits:**\n"
-    text += f"• 🔥 Unlimited downloads\n"
-    text += f"• ⚡ Faster file processing\n"
-    text += f"• 🎯 Priority support\n"
-    text += f"• 📊 Advanced statistics\n"
-    text += f"• 🤖 Multiple clone bots\n"
-    text += f"• 🔒 Enhanced security\n\n"
-    text += f"💰 **Pricing:**\n"
-    text += f"• Monthly: $9.99\n"
-    text += f"• Yearly: $99.99 (Save 17%!)\n\n"
-    text += f"🎁 **Special Offer:** First month 50% off!"
+    text = f"💎 **Premium Membership Benefits**\n\n"
+    text += f"🚀 **Unlock the full potential of your file storage bot!**\n\n"
+    text += f"✨ **Exclusive Premium Features:**\n"
+    text += f"• 🤖 **Unlimited Clone Bots** - Create as many as you need\n"
+    text += f"• ⚡ **Priority Processing** - Faster file operations\n"
+    text += f"• 🔒 **Advanced Security** - Enhanced protection\n"
+    text += f"• 📊 **Detailed Analytics** - Complete usage insights\n"
+    text += f"• 🎯 **Premium Support** - Direct access to our team\n"
+    text += f"• 🔥 **No Ads** - Clean, uninterrupted experience\n"
+    text += f"• 💾 **Increased Storage** - More file capacity\n"
+    text += f"• 🎨 **Custom Branding** - Personalize your clones\n\n"
+
+    text += f"💰 **Pricing Plans:**\n"
+    text += f"• 📱 **Monthly:** $9.99/month\n"
+    text += f"• 💎 **Yearly:** $99.99/year *(Save 17%!)*\n"
+    text += f"• ⚡ **Lifetime:** $299.99 *(Best Value!)*\n\n"
+
+    text += f"🎁 **Special Launch Offer:**\n"
+    text += f"**50% OFF** your first month with code: `LAUNCH50`"
 
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("💳 Buy Premium", callback_data="buy_premium"),
+            InlineKeyboardButton("💳 Upgrade Now", callback_data="buy_premium"),
             InlineKeyboardButton("🎁 Free Trial", callback_data="premium_trial")
         ],
-        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+        [
+            InlineKeyboardButton("📋 Compare Plans", callback_data="compare_plans"),
+            InlineKeyboardButton("💬 Contact Sales", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}")
+        ],
+        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
 
     await query.edit_message_text(text, reply_markup=buttons)
 
 @Client.on_callback_query(filters.regex("^random_files$"))
 async def random_files_callback(client: Client, query: CallbackQuery):
-    """Execute random files directly"""
+    """Execute random files feature"""
     await query.answer()
     
-    # Import and execute random files function
     try:
         from bot.plugins.callback_handlers import handle_random_files
         await handle_random_files(client, query)
-    except ImportError:
+    except ImportError as e:
+        logger.error(f"Random files handler import error: {e}")
         await query.edit_message_text(
-            "❌ Random files feature temporarily unavailable.",
+            "🎲 **Random Files**\n\n"
+            "❌ Feature temporarily unavailable.\n"
+            "Our developers are working on this feature.\n\n"
+            "💡 **Alternative:** Try Recent Files or Popular Files!",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
             ])
         )
 
 @Client.on_callback_query(filters.regex("^recent_files$"))
 async def recent_files_callback(client: Client, query: CallbackQuery):
-    """Execute recent files directly"""
+    """Execute recent files feature"""
     await query.answer()
     
-    # Import and execute recent files function
     try:
         from bot.plugins.callback_handlers import handle_recent_files
         await handle_recent_files(client, query)
-    except ImportError:
+    except ImportError as e:
+        logger.error(f"Recent files handler import error: {e}")
         await query.edit_message_text(
-            "❌ Recent files feature temporarily unavailable.",
+            "🆕 **Recent Files**\n\n"
+            "❌ Feature temporarily unavailable.\n"
+            "Our developers are working on this feature.\n\n"
+            "💡 **Alternative:** Try Random Files or Popular Files!",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
             ])
         )
 
 @Client.on_callback_query(filters.regex("^popular_files$"))
 async def popular_files_callback(client: Client, query: CallbackQuery):
-    """Execute popular files directly"""
+    """Execute popular files feature"""
     await query.answer()
     
-    # Import and execute popular files function
     try:
         from bot.plugins.callback_handlers import handle_popular_files
         await handle_popular_files(client, query)
-    except ImportError:
+    except ImportError as e:
+        logger.error(f"Popular files handler import error: {e}")
         await query.edit_message_text(
-            "❌ Popular files feature temporarily unavailable.",
+            "🔥 **Most Popular Files**\n\n"
+            "❌ Feature temporarily unavailable.\n"
+            "Our developers are working on this feature.\n\n"
+            "💡 **Alternative:** Try Recent Files or Random Files!",
             reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
             ])
         )
 
-# Add new callback handlers for PS-LinkVault features
 @Client.on_callback_query(filters.regex("^user_stats$"))
 async def user_stats_callback(client: Client, query: CallbackQuery):
     """Show user statistics"""
@@ -321,103 +467,28 @@ async def user_stats_callback(client: Client, query: CallbackQuery):
     user_premium = await is_premium_user(user_id)
     balance = await get_user_balance(user_id)
 
-    # Get additional stats (you can expand this)
-    text = f"📊 **Your Statistics**\n\n"
-    text += f"👤 **User Info:**\n"
-    text += f"• ID: `{user_id}`\n"
+    text = f"📊 **Your Bot Usage Statistics**\n\n"
+    text += f"👤 **Account Summary:**\n"
+    text += f"• User ID: `{user_id}`\n"
     text += f"• Status: {'🌟 Premium' if user_premium else '🆓 Free User'}\n"
-    text += f"• Balance: ${balance:.2f}\n\n"
+    text += f"• Current Balance: ${balance:.2f}\n\n"
 
-    text += f"📈 **Usage Stats:**\n"
-    text += f"• Files Accessed: Coming Soon\n"
-    text += f"• Tokens Generated: Coming Soon\n"
-    text += f"• Links Created: Coming Soon\n"
+    text += f"📈 **Usage Analytics:**\n"
+    text += f"• Total Commands Used: Loading...\n"
+    text += f"• Files Accessed: Loading...\n"
+    text += f"• Clone Bots Created: Loading...\n"
+    text += f"• Premium Features Used: Loading...\n\n"
 
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔄 Refresh", callback_data="user_stats")],
-        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-    ])
-
-    await query.edit_message_text(text, reply_markup=buttons)
-
-@Client.on_callback_query(filters.regex("^get_token$"))
-async def get_token_callback(client: Client, query: CallbackQuery):
-    """Handle token generation request"""
-    await query.answer()
-
-    text = f"🔑 **Access Token Generation**\n\n"
-    text += f"🔐 **What is a Token?**\n"
-    text += f"Access tokens provide temporary access to premium files and features.\n\n"
-
-    text += f"⏱️ **Token Info:**\n"
-    text += f"• Valid for: 6 hours\n"
-    text += f"• Access: Premium content\n"
-    text += f"• Cost: Based on your plan\n\n"
-
-    text += f"📋 **How to Generate:**\n"
-    text += f"Use the command: `/token`\n\n"
-    text += f"💡 **Tip:** Tokens expire after use for security."
+    text += f"🎯 **Activity Summary:**\n"
+    text += f"• Last Login: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n"
+    text += f"• Total Sessions: Loading...\n"
+    text += f"• Average Session Time: Loading..."
 
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📱 Generate Now", callback_data="generate_token_now")],
-        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-    ])
-
-    await query.edit_message_text(text, reply_markup=buttons)
-
-@Client.on_callback_query(filters.regex("^genlink_help$"))
-async def genlink_help_callback(client: Client, query: CallbackQuery):
-    """Show genlink help for admins"""
-    await query.answer()
-
-    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
-        await query.answer("❌ Admin access required!", show_alert=True)
-        return
-
-    text = f"🔗 **Generate File Links**\n\n"
-    text += f"📋 **Commands:**\n"
-    text += f"• `/genlink` - Reply to a file\n"
-    text += f"• `/genlink file_id` - Using file ID\n\n"
-
-    text += f"✨ **Features:**\n"
-    text += f"• Secure download links\n"
-    text += f"• Token verification support\n"
-    text += f"• Custom expiry times\n"
-    text += f"• Access tracking\n\n"
-
-    text += f"🔒 **Security:**\n"
-    text += f"All links are encrypted and tracked for security."
-
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-    ])
-
-    await query.edit_message_text(text, reply_markup=buttons)
-
-@Client.on_callback_query(filters.regex("^batch_help$"))
-async def batch_help_callback(client: Client, query: CallbackQuery):
-    """Show batch mode help for admins"""
-    await query.answer()
-
-    if query.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
-        await query.answer("❌ Admin access required!", show_alert=True)
-        return
-
-    text = f"📦 **Batch File Operations**\n\n"
-    text += f"📋 **Commands:**\n"
-    text += f"• `/batch start_id end_id` - Generate multiple links\n"
-    text += f"• `/batch 100 150` - Links for files 100-150\n\n"
-
-    text += f"⚡ **Features:**\n"
-    text += f"• Bulk link generation\n"
-    text += f"• Range-based file processing\n"
-    text += f"• Efficient batch operations\n\n"
-
-    text += f"📊 **Limits:**\n"
-    text += f"• Max 50 files per batch\n"
-    text += f"• Admin access required\n"
-
-    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🔄 Refresh Stats", callback_data="user_stats"),
+            InlineKeyboardButton("📱 Detailed Report", callback_data="detailed_stats")
+        ],
         [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
 
@@ -425,182 +496,112 @@ async def batch_help_callback(client: Client, query: CallbackQuery):
 
 @Client.on_callback_query(filters.regex("^back_to_start$"))
 async def back_to_start_callback(client: Client, query: CallbackQuery):
-    """Go back to start menu"""
+    """Return to main start menu"""
     await query.answer()
 
     # Recreate the start message
     user = query.from_user
-    user_premium = await is_premium_user(user.id)
-    balance = await get_user_balance(user.id)
-    is_admin = user.id in [Config.OWNER_ID] + list(Config.ADMINS)
+    user_id = user.id
+    user_premium = await is_premium_user(user_id)
+    balance = await get_user_balance(user_id)
+    is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
 
-    text = f"👋 **Hello {user.first_name}!**\n\n"
-    text += f"🔐 **PS-LinkVault Bot**\n"
-    text += f"Fast & secure file sharing with advanced features\n\n"
+    # Enhanced welcome message
+    text = f"🚀 **Welcome to Advanced File Storage Bot Creator!**\n\n"
+    text += f"👋 Hello **{user.first_name}**!\n\n"
+    text += f"🤖 **I am an advanced file storing bot creator** with powerful features:\n\n"
+    text += f"✨ **What I can do for you:**\n"
+    text += f"• 📁 Advanced file storage & management\n"
+    text += f"• 🤖 Create your own personal clone bots\n"
+    text += f"• 🔐 Secure file sharing with token verification\n"
+    text += f"• 💎 Premium subscriptions with exclusive features\n"
+    text += f"• 📊 Detailed analytics and statistics\n"
+    text += f"• 🎯 Smart file organization and search\n"
+    text += f"• ⚡ Lightning-fast file processing\n\n"
 
     if user_premium:
-        text += f"💎 **Premium User** | Balance: ${balance:.2f}\n"
+        text += f"💎 **Premium Status:** Active | Balance: **${balance:.2f}**\n"
     else:
-        text += f"👤 **Free User** | Balance: ${balance:.2f}\n"
+        text += f"👤 **Free User** | Balance: **${balance:.2f}**\n"
 
-    text += f"\n📊 **Quick Stats:**\n"
-    text += f"• Files shared securely\n"
-    text += f"• Token-based verification\n"
-    text += f"• Force subscription support\n\n"
-    text += f"🚀 **Choose an option below:**"
+    text += f"\n🎯 **Ready to get started?** Choose an option below:"
 
-    # Rebuild buttons
+    # Rebuild main menu buttons
     buttons = []
 
-    # Row 1: File Features (Random, Recent, Popular)
+    # Row 1: Main Features
+    buttons.append([
+        InlineKeyboardButton("🤖 Create Your Own Clone", callback_data="start_clone_creation"),
+        InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+    ])
+
+    # Row 2: File Features
     buttons.append([
         InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
         InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
     ])
 
+    # Row 3: Popular & Stats
     buttons.append([
-        InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files"),
-        InlineKeyboardButton("📊 My Stats", callback_data="user_stats")
+        InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files"),
+        InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
     ])
 
-    # Row 2: User Features
+    # Row 4: Premium & Help
     buttons.append([
-        InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
-        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info")
+        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
+        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu")
     ])
 
-    # Row 3: Clone Management
-    buttons.append([
-        InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
-        InlineKeyboardButton("🤖 My Clones", callback_data="my_clones_list")
-    ])
-
-    # Row 4: Balance Management
+    # Row 5: Admin panel for admins
     if is_admin:
         buttons.append([
-            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin"),
-            InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")
+            InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
+            InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
         ])
-    else:
-        buttons.append([
-            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_user"),
-            InlineKeyboardButton("💳 Balance Info", callback_data="balance_info")
-        ])
-
-    # Row 5: Help & About
-    buttons.append([
-        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
-        InlineKeyboardButton("ℹ️ About Bot", callback_data="about_bot")
-    ])
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from bot.database import add_user, present_user
-from bot.utils import handle_force_sub
-from info import Config
-from bot.logging import LOGGER
 
-logger = LOGGER(__name__)
+@Client.on_callback_query(filters.regex("^about_bot$"))
+async def about_callback(client: Client, query: CallbackQuery):
+    """Show about information"""
+    await query.answer()
 
-@Client.on_message(filters.command("start") & filters.private)
-async def start_command(client: Client, message: Message):
-    """Handle /start command for mother bot"""
-    user_id = message.from_user.id
+    text = f"ℹ️ **About Advanced File Storage Bot Creator**\n\n"
+    text += f"🔐 **Next-Generation File Management System**\n"
+    text += f"The most advanced Telegram file storage and bot creation platform\n\n"
+    text += f"🌟 **Core Features:**\n"
+    text += f"• 🔗 Generate secure download links\n"
+    text += f"• 🔑 Advanced token verification system\n"
+    text += f"• 📦 Intelligent batch file operations\n"
+    text += f"• 🚫 Robust force subscription system\n"
+    text += f"• 💎 Premium user tier benefits\n"
+    text += f"• 🤖 Personal clone bot creation\n"
+    text += f"• 📊 Comprehensive analytics dashboard\n"
+    text += f"• 🔒 Military-grade encryption\n\n"
 
-    try:
-        # Add user to database
-        if not await present_user(user_id):
-            await add_user(user_id)
+    text += f"🛡️ **Security & Privacy:**\n"
+    text += f"All files are encrypted end-to-end and access is logged for maximum security.\n\n"
 
-        # Check force subscription if enabled
-        force_sub_result = await handle_force_sub(client, message)
-        if force_sub_result:
-            return
+    text += f"💻 **Technical Specifications:**\n"
+    text += f"• Built with Python & Pyrogram\n"
+    text += f"• MongoDB database backend\n"
+    text += f"• Advanced caching system\n"
+    text += f"• 24/7 monitoring & health checks\n\n"
 
-        # Welcome message
-        welcome_text = (
-            f"👋 **Welcome {message.from_user.first_name}!**\n\n"
-            f"🤖 **Mother Bot System**\n"
-            f"Your gateway to advanced file sharing and bot management!\n\n"
-            f"✨ **What I can do:**\n"
-            f"• 📂 Advanced file sharing\n"
-            f"• 🔍 Smart search capabilities\n"
-            f"• 🤖 Create your own clone bots\n"
-            f"• 💎 Premium subscriptions\n"
-            f"• 🔐 Token verification system\n\n"
-            f"🚀 **Get Started:**\n"
-            f"Use the buttons below to explore features!"
-        )
+    text += f"🔧 **Version:** 3.0.0 Advanced\n"
+    text += f"👨‍💻 **Developer:** @{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}"
 
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🤖 Create Clone", callback_data="create_clone_button"),
-                InlineKeyboardButton("💎 Premium", callback_data="show_premium_plans")
-            ],
-            [
-                InlineKeyboardButton("📊 Statistics", callback_data="show_stats"),
-                InlineKeyboardButton("ℹ️ About", callback_data="about")
-            ],
-            [
-                InlineKeyboardButton("❓ Help", callback_data="help"),
-                InlineKeyboardButton("👨‍💼 Contact Admin", url=f"https://t.me/{getattr(Config, 'OWNER_USERNAME', 'admin')}")
-            ]
-        ])
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📞 Contact Developer", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}"),
+            InlineKeyboardButton("⭐ Rate Bot", callback_data="rate_bot")
+        ],
+        [
+            InlineKeyboardButton("🐛 Report Bug", callback_data="report_bug"),
+            InlineKeyboardButton("💡 Suggest Feature", callback_data="suggest_feature")
+        ],
+        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+    ])
 
-        await message.reply_text(
-            welcome_text,
-            reply_markup=buttons,
-            quote=True
-        )
-
-        logger.info(f"Start command processed for user {user_id}")
-
-    except Exception as e:
-        logger.error(f"Error in start command for user {user_id}: {e}")
-        await message.reply_text(
-            "❌ An error occurred while processing your request. Please try again later.",
-            quote=True
-        )
-
-@Client.on_message(filters.command("help") & filters.private)
-async def help_command(client: Client, message: Message):
-    """Handle /help command"""
-    user_id = message.from_user.id
-
-    try:
-        help_text = (
-            "🆘 **Help & Commands**\n\n"
-            "**🤖 Bot Commands:**\n"
-            "• `/start` - Welcome message\n"
-            "• `/help` - Show this help\n"
-            "• `/createclone` - Create your clone bot\n"
-            "• `/mystats` - View your statistics\n"
-            "• `/premium` - Premium plans\n\n"
-            "**🔍 Search:**\n"
-            "• Send any text to search files\n"
-            "• Use specific keywords for better results\n\n"
-            "**💎 Premium Features:**\n"
-            "• Unlimited searches\n"
-            "• Priority support\n"
-            "• Advanced clone features\n\n"
-            "**🤖 Clone Creation:**\n"
-            "• Get your own bot instance\n"
-            "• Custom settings & branding\n"
-            "• Independent file database\n\n"
-            "**📞 Need Support?**\n"
-            f"Contact: @{getattr(Config, 'OWNER_USERNAME', 'admin')}"
-        )
-
-        buttons = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton("🏠 Back to Main", callback_data="start"),
-                InlineKeyboardButton("👨‍💼 Contact Admin", url=f"https://t.me/{getattr(Config, 'OWNER_USERNAME', 'admin')}")
-            ]
-        ])
-
-        await message.reply_text(help_text, reply_markup=buttons, quote=True)
-
-    except Exception as e:
-        logger.error(f"Error in help command for user {user_id}: {e}")
-        await message.reply_text("❌ Error showing help. Please try again later.", quote=True)
+    await query.edit_message_text(text, reply_markup=buttons)

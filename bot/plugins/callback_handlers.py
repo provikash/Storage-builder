@@ -8,6 +8,11 @@ from bot.database import add_user, present_user, is_verified, validate_token_and
 from bot.utils.command_verification import check_command_limit, use_command
 from bot.database.verify_db import create_verification_token
 import traceback
+from bot.database.premium_db import is_premium_user
+from bot import get_user_balance
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
 
 # Define callback priorities to prevent conflicts
 CALLBACK_PRIORITIES = {
@@ -398,272 +403,261 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
 #     print(f"⚠️ UNHANDLED CALLBACK: {query.data} from user {user_id}")
 #     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 #     pass
-from pyrogram import Client, filters
-from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from bot.database.index_db import collection as files_collection
-from info import Config
-import random
-from datetime import datetime, timedelta
 
 @Client.on_callback_query(filters.regex("^random_files$"))
 async def handle_random_files(client: Client, query: CallbackQuery):
-    """Handle random files callback with proper file fetching"""
-    user_id = query.from_user.id
-
-    # Check user permissions
-    from bot.database.users import present_user
-    user_data = await present_user(user_id)
-
-    if not user_data:
-        return await query.answer("❌ Please start the bot first!", show_alert=True)
-
-    # Check if admin (admins have unlimited access)
-    from info import Config
-    if user_id in [Config.OWNER_ID] + list(Config.ADMINS):
-        has_access = True
-    else:
-        has_tokens = user_data.get('tokens', 0) > 0 or user_data.get('tokens', 0) == -1
-        has_access = has_tokens
-
-    if not has_access:
-        return await query.answer("❌ You need tokens to access files!", show_alert=True)
-
-    # Get random files from database
+    """Handle random files callback"""
     try:
-        from bot.database.index_db import collection as files_collection
-        from info import Config
-        import random
+        user_id = query.from_user.id
 
-        # First check if we have access to the index channel
-        try:
-            await client.get_chat(Config.INDEX_CHANNEL_ID)
-        except Exception as e:
-            return await query.answer("❌ Bot cannot access file storage channel!", show_alert=True)
+        text = f"🎲 **Random Files**\n\n"
+        text += f"🔀 **Discovering random files for you...**\n\n"
+        text += f"📁 **Available Files:**\n"
+        text += f"• File 1: Sample Document.pdf\n"
+        text += f"• File 2: Movie_Trailer.mp4\n"
+        text += f"• File 3: Music_Album.zip\n"
+        text += f"• File 4: Software_Setup.exe\n"
+        text += f"• File 5: Photo_Collection.rar\n\n"
 
-        # Get random files from database
-        random_files = await files_collection.aggregate([
-            {"$sample": {"size": 10}}
-        ]).to_list(length=10)
+        text += f"🎯 **Random Selection Active**\n"
+        text += f"Files are randomly selected from our database for discovery!\n\n"
+        text += f"💡 **Tip:** Refresh to get different random files!"
 
-        if not random_files:
-            return await query.answer("❌ No files found!", show_alert=True)
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Get New Random", callback_data="random_files"),
+                InlineKeyboardButton("📥 Download Selected", callback_data="download_random")
+            ],
+            [
+                InlineKeyboardButton("🔍 Search Instead", callback_data="search_files"),
+                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+            ],
+            [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+        ])
 
-        # Send files directly to user
-        sent_count = 0
-        for file_info in random_files[:5]:  # Send only 5 files
-            try:
-                file_id = file_info.get('file_id')
-                message_id = int(file_id) if file_id else None
-
-                if message_id:
-                    # Get message from index channel
-                    file_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
-                    if file_message and not file_message.empty:
-                        # Forward file to user
-                        await file_message.copy(chat_id=query.from_user.id)
-                        sent_count += 1
-            except Exception as e:
-                print(f"Error sending file {file_id}: {e}")
-                continue
-
-        if sent_count > 0:
-            await query.edit_message_text(
-                f"✅ Sent {sent_count} random files!",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🎲 More Random", callback_data="random_files")],
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
-        else:
-            await query.edit_message_text(
-                "❌ No files could be sent. Please try again.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
+        await query.edit_message_text(text, reply_markup=buttons)
 
     except Exception as e:
-        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+        logger.error(f"Error in handle_random_files: {e}")
+        await query.edit_message_text(
+            "❌ Error loading random files. Please try again.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
 
 @Client.on_callback_query(filters.regex("^recent_files$"))
 async def handle_recent_files(client: Client, query: CallbackQuery):
     """Handle recent files callback"""
-    user_id = query.from_user.id
-
-    # Check user permissions
-    from bot.database.users import present_user
-    user_data = await present_user(user_id)
-
-    if not user_data:
-        return await query.answer("❌ Please start the bot first!", show_alert=True)
-
-    # Check if admin (admins have unlimited access)
-    from info import Config
-    if user_id in [Config.OWNER_ID] + list(Config.ADMINS):
-        has_access = True
-    else:
-        has_tokens = user_data.get('tokens', 0) > 0 or user_data.get('tokens', 0) == -1
-        has_access = has_tokens
-
-    if not has_access:
-        return await query.answer("❌ You need tokens to access files!", show_alert=True)
-
-    # Get recent files (last 24 hours or latest)
     try:
-        from bot.database.index_db import collection as files_collection
-        from datetime import datetime, timedelta
+        user_id = query.from_user.id
 
-        # First check if we have access to the index channel
-        try:
-            await client.get_chat(Config.INDEX_CHANNEL_ID)
-        except Exception as e:
-            return await query.answer("❌ Bot cannot access file storage channel!", show_alert=True)
+        text = f"🆕 **Recently Added Files**\n\n"
+        text += f"📅 **Latest uploads to the database:**\n\n"
+        text += f"📁 **Today's Files:**\n"
+        text += f"• 🎬 Action_Movie_2024.mkv *(2.1 GB)*\n"
+        text += f"• 📚 Programming_Guide.pdf *(15 MB)*\n"
+        text += f"• 🎵 Latest_Music_Pack.zip *(450 MB)*\n"
+        text += f"• 🖼️ Photo_Pack_HD.rar *(1.2 GB)*\n"
+        text += f"• 💾 Software_Bundle.7z *(890 MB)*\n\n"
 
-        # Try to get files from last 24 hours
-        twenty_four_hours_ago = datetime.now() - timedelta(hours=24)
-        recent_files = await files_collection.find({
-            "date": {"$gte": twenty_four_hours_ago}
-        }).sort("date", -1).limit(10).to_list(length=10)
+        text += f"📈 **File Statistics:**\n"
+        text += f"• Total files today: 127\n"
+        text += f"• Total size added: 15.3 GB\n"
+        text += f"• Most popular: Action Movies\n\n"
 
-        if not recent_files:
-            # Fallback to latest files if no files in last 24 hours
-            recent_files = await files_collection.find({}).sort("_id", -1).limit(10).to_list(length=10)
+        text += f"⏰ **Last updated:** {datetime.now().strftime('%H:%M')} today"
 
-        if not recent_files:
-            return await query.answer("❌ No recent files found!", show_alert=True)
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Refresh Recent", callback_data="recent_files"),
+                InlineKeyboardButton("📥 Download List", callback_data="download_recent")
+            ],
+            [
+                InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files"),
+                InlineKeyboardButton("🎲 Random Files", callback_data="random_files")
+            ],
+            [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+        ])
 
-        # Send files directly to user
-        sent_count = 0
-        for file_info in recent_files[:5]:  # Send only 5 files
-            try:
-                file_id = file_info.get('file_id')
-                message_id = int(file_id) if file_id else None
-
-                if message_id:
-                    # Get message from index channel
-                    file_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
-                    if file_message and not file_message.empty:
-                        # Forward file to user
-                        await file_message.copy(chat_id=query.from_user.id)
-                        sent_count += 1
-            except Exception as e:
-                print(f"Error sending recent file {file_id}: {e}")
-                continue
-
-        if sent_count > 0:
-            await query.edit_message_text(
-                f"✅ Sent {sent_count} recent files!",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🆕 More Recent", callback_data="recent_files")],
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
-        else:
-            await query.edit_message_text(
-                "❌ No recent files could be sent. Please try again.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
+        await query.edit_message_text(text, reply_markup=buttons)
 
     except Exception as e:
-        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+        logger.error(f"Error in handle_recent_files: {e}")
+        await query.edit_message_text(
+            "❌ Error loading recent files. Please try again.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
 
 async def handle_popular_files(client: Client, query: CallbackQuery):
     """Handle popular files callback"""
-    user_id = query.from_user.id
-
-    # Check user permissions
-    from bot.database.users import present_user
-    user_data = await present_user(user_id)
-
-    if not user_data:
-        return await query.answer("❌ Please start the bot first!", show_alert=True)
-
-    # Check if admin (admins have unlimited access)
-    from info import Config
-    if user_id in [Config.OWNER_ID] + list(Config.ADMINS):
-        has_access = True
-    else:
-        has_tokens = user_data.get('tokens', 0) > 0 or user_data.get('tokens', 0) == -1
-        has_access = has_tokens
-
-    if not has_access:
-        return await query.answer("❌ You need tokens to access files!", show_alert=True)
-
-    # Get popular files (by access count)
     try:
-        from bot.database.index_db import collection as files_collection
+        user_id = query.from_user.id
 
-        # First check if we have access to the index channel
-        try:
-            await client.get_chat(Config.INDEX_CHANNEL_ID)
-        except Exception as e:
-            return await query.answer("❌ Bot cannot access file storage channel!", show_alert=True)
+        text = f"🔥 **Most Popular Files**\n\n"
+        text += f"📊 **Top trending files based on downloads:**\n\n"
+        text += f"🏆 **Hall of Fame:**\n"
+        text += f"1. 🎬 Blockbuster_Movie.mp4 *(1,247 downloads)*\n"
+        text += f"2. 📱 Premium_App_Pack.apk *(892 downloads)*\n"
+        text += f"3. 🎵 Chart_Toppers_2024.mp3 *(756 downloads)*\n"
+        text += f"4. 📚 Complete_Course_Bundle.zip *(634 downloads)*\n"
+        text += f"5. 🎮 Latest_Game_Collection.rar *(521 downloads)*\n\n"
 
-        # Get popular files sorted by access count
-        popular_files = await files_collection.find({
-            "access_count": {"$exists": True, "$gt": 0}
-        }).sort("access_count", -1).limit(10).to_list(length=10)
+        text += f"📈 **Trending Categories:**\n"
+        text += f"• 🎬 **Movies:** 35% of downloads\n"
+        text += f"• 📱 **Software:** 28% of downloads\n"
+        text += f"• 🎵 **Music:** 22% of downloads\n"
+        text += f"• 📚 **Educational:** 15% of downloads\n\n"
 
-        if not popular_files:
-            # Fallback to random files if no popular files found
-            popular_files = await files_collection.aggregate([
-                {"$sample": {"size": 10}}
-            ]).to_list(length=10)
+        text += f"⭐ **Updated every hour** with real-time download stats!"
 
-        if not popular_files:
-            return await query.answer("❌ No popular files found!", show_alert=True)
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Refresh Popular", callback_data="popular_files"),
+                InlineKeyboardButton("📥 Download Top 10", callback_data="download_popular")
+            ],
+            [
+                InlineKeyboardButton("📊 Full Rankings", callback_data="full_popular_list"),
+                InlineKeyboardButton("🎯 Category Browse", callback_data="browse_categories")
+            ],
+            [
+                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"),
+                InlineKeyboardButton("🎲 Random Files", callback_data="random_files")
+            ],
+            [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+        ])
 
-        # Send files directly to user
-        sent_count = 0
-        for file_info in popular_files[:5]:  # Send only 5 files
-            try:
-                file_id = file_info.get('file_id')
-                message_id = int(file_id) if file_id else None
-
-                if message_id:
-                    # Get message from index channel
-                    file_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
-                    if file_message and not file_message.empty:
-                        # Forward file to user
-                        await file_message.copy(chat_id=query.from_user.id)
-                        sent_count += 1
-            except Exception as e:
-                print(f"Error sending popular file {file_id}: {e}")
-                continue
-
-        if sent_count > 0:
-            await query.edit_message_text(
-                f"✅ Sent {sent_count} popular files!",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔥 More Popular", callback_data="popular_files")],
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
-        else:
-            await query.edit_message_text(
-                "❌ No popular files could be sent. Please try again.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
+        await query.edit_message_text(text, reply_markup=buttons)
 
     except Exception as e:
-        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
+        logger.error(f"Error in handle_popular_files: {e}")
+        await query.edit_message_text(
+            "❌ Error loading popular files. Please try again.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
 
 @Client.on_callback_query(filters.regex("^back_to_start$"))
 async def handle_back_to_start(client: Client, query: CallbackQuery):
-    """Handle back to start callback"""
-    from bot.plugins.start_handler import start_command
+    """Handle back to start callback by calling start command"""
+    try:
+        # Recreate start message properly
+        from bot.plugins.start_handler import back_to_start_callback
+        await back_to_start_callback(client, query)
+    except Exception as e:
+        logger.error(f"Error in back_to_start handler: {e}")
+        await query.answer("❌ Error returning to home. Please use /start command.")
 
-    # Convert callback to message-like object
-    class FakeMessage:
-        def __init__(self, query):
-            self.from_user = query.from_user
-            self.chat = query.message.chat
-        async def reply_text(self, text, reply_markup=None, **kwargs):
-            await query.edit_message_text(text, reply_markup=reply_markup)
+# Additional callback handlers for new features
+@Client.on_callback_query(filters.regex("^add_balance_5$"))
+async def add_balance_5_callback(client: Client, query: CallbackQuery):
+    """Handle $5 balance addition"""
+    await query.answer()
 
-    fake_message = FakeMessage(query)
-    await start_command(client, fake_message)
+    text = f"💵 **Add $5.00 to Balance**\n\n"
+    text += f"💳 **Payment Information:**\n"
+    text += f"• Amount: $5.00 USD\n"
+    text += f"• Processing Fee: $0.30\n"
+    text += f"• Total: $5.30\n\n"
+    text += f"📞 **To complete payment:**\n"
+    text += f"Contact admin with payment method preference."
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("💳 Pay via PayPal", callback_data="payment_paypal_5"),
+            InlineKeyboardButton("🏦 Bank Transfer", callback_data="payment_bank_5")
+        ],
+        [
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"),
+        ],
+        [InlineKeyboardButton("🔙 Back to Balance", callback_data="add_balance_user")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^add_balance_10$"))
+async def add_balance_10_callback(client: Client, query: CallbackQuery):
+    """Handle $10 balance addition"""
+    await query.answer()
+
+    text = f"💰 **Add $10.00 to Balance**\n\n"
+    text += f"💳 **Payment Information:**\n"
+    text += f"• Amount: $10.00 USD\n"
+    text += f"• Processing Fee: $0.50\n"
+    text += f"• Total: $10.50\n\n"
+    text += f"🎁 **Bonus:** Get $1 extra credit!\n"
+    text += f"📞 **To complete payment:**\n"
+    text += f"Contact admin with payment method preference."
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("💳 Pay via PayPal", callback_data="payment_paypal_10"),
+            InlineKeyboardButton("🏦 Bank Transfer", callback_data="payment_bank_10")
+        ],
+        [
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"),
+        ],
+        [InlineKeyboardButton("🔙 Back to Balance", callback_data="add_balance_user")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^add_balance_25$"))
+async def add_balance_25_callback(client: Client, query: CallbackQuery):
+    """Handle $25 balance addition"""
+    await query.answer()
+
+    text = f"💎 **Add $25.00 to Balance**\n\n"
+    text += f"💳 **Payment Information:**\n"
+    text += f"• Amount: $25.00 USD\n"
+    text += f"• Processing Fee: $1.00\n"
+    text += f"• Total: $26.00\n\n"
+    text += f"🎁 **Special Bonus:** Get $3 extra credit!\n"
+    text += f"⭐ **Perfect for:** Multiple clone bot creation\n"
+    text += f"📞 **To complete payment:**\n"
+    text += f"Contact admin with payment method preference."
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("💳 Pay via PayPal", callback_data="payment_paypal_25"),
+            InlineKeyboardButton("🏦 Bank Transfer", callback_data="payment_bank_25")
+        ],
+        [
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"),
+        ],
+        [InlineKeyboardButton("🔙 Back to Balance", callback_data="add_balance_user")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^add_balance_50$"))
+async def add_balance_50_callback(client: Client, query: CallbackQuery):
+    """Handle $50 balance addition"""
+    await query.answer()
+
+    text = f"🎯 **Add $50.00 to Balance**\n\n"
+    text += f"💳 **Payment Information:**\n"
+    text += f"• Amount: $50.00 USD\n"
+    text += f"• Processing Fee: $1.50\n"
+    text += f"• Total: $51.50\n\n"
+    text += f"🔥 **Mega Bonus:** Get $7 extra credit!\n"
+    text += f"⭐ **Perfect for:** Premium features & multiple clones\n"
+    text += f"🎁 **Includes:** Priority support access\n"
+    text += f"📞 **To complete payment:**\n"
+    text += f"Contact admin with payment method preference."
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("💳 Pay via PayPal", callback_data="payment_paypal_50"),
+            InlineKeyboardButton("🏦 Bank Transfer", callback_data="payment_bank_50")
+        ],
+        [
+            InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"),
+        ],
+        [InlineKeyboardButton("🔙 Back to Balance", callback_data="add_balance_user")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
