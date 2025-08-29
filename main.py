@@ -7,7 +7,7 @@ from pathlib import Path
 from bot import Bot
 from clone_manager import clone_manager
 import pymongo
-from pyrogram import Client
+from pyrogram.client import Client
 from info import Config
 
 # Setup logging first
@@ -222,8 +222,11 @@ async def main():
         monitoring_tasks.append(pending_monitor)
 
         # Start session cleanup task if session manager exists
-        if hasattr(clone_manager, 'session_manager'):
-            asyncio.create_task(clone_manager.session_manager.start_cleanup_task())
+        try:
+            if hasattr(clone_manager, 'session_manager'):
+                asyncio.create_task(clone_manager.session_manager.start_cleanup_task())
+        except AttributeError:
+            logger.warning("⚠️ Session manager not available, skipping cleanup task")
 
         # Clone request feature removed - users create clones directly
 
@@ -267,7 +270,7 @@ async def main():
         logger.info("="*60)
 
         # Keep the application running using pyrogram's idle
-        from pyrogram import idle
+        from pyrogram.sync import idle
         await idle()
 
     except KeyboardInterrupt:
