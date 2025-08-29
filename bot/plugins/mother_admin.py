@@ -424,7 +424,7 @@ async def manage_clones_callback(client: Client, query: CallbackQuery):
         
         buttons.append([
             InlineKeyboardButton(f"⚙️ {clone.get('username', 'Bot')}", 
-                               callback_data=f"manage_clone_{clone['bot_id']}")
+                               callback_data=f"manage_clone_{clone.get('_id', clone.get('bot_id', 'unknown'))}")
         ])
     
     buttons.append([InlineKeyboardButton("🔄 Refresh", callback_data="mother_manage_clones")])

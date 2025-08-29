@@ -66,6 +66,9 @@ async def start_command(client: Client, message: Message):
         buttons.extend([
             [InlineKeyboardButton("❓ Help", callback_data="help_info")]
         ])
+        
+        # Convert buttons list to InlineKeyboardMarkup
+        buttons = InlineKeyboardMarkup(buttons)
     else:
         # Mother bot welcome message
         text = f"🤖 **Welcome to Mother Bot!**\n\n"

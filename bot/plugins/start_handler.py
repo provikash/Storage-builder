@@ -1,6 +1,7 @@
 import asyncio
 from datetime import datetime
-from pyrogram import Client, filters
+from pyrogram.client import Client
+from pyrogram import filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from bot.utils.session_manager import get_session, clear_session, session_expired
 from bot.database.users import add_user, present_user
@@ -28,7 +29,7 @@ async def start_command(client: Client, message: Message):
         print(f"✅ DEBUG SESSION: Session valid for user {user.id}")
 
     # Add user to database
-    await add_user(user.id, message.from_user.first_name)
+    await add_user(user.id)
 
     # Check force subscription
     if not await handle_force_sub(client, message):
@@ -103,7 +104,7 @@ async def help_callback(client: Client, query: CallbackQuery):
     text += f"Contact admin for support"
 
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}")],
+        [InlineKeyboardButton("📞 Contact Admin", url=f"https://t.me/{Config.ADMIN_USERNAME}")],
         [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
     ])
 
