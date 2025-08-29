@@ -96,19 +96,19 @@ async def start_mother_bot():
     try:
         logger.info("📡 Initializing Mother Bot...")
         print("📡 DEBUG BOT: Initializing Mother Bot...")
-        
+
         # Initialize and start Mother Bot with full plugin access
         mother_bot_plugins = {
             "root": "bot/plugins",
             "include": [
                 "step_clone_creation",
-                "clone_management", 
+                "clone_management",
                 "mother_admin",
                 "admin_commands",
                 "admin_panel",
                 "balance_management",
                 "search",
-                "genlink", 
+                "genlink",
                 "channel",
                 "callback_handlers",
                 "premium",
@@ -119,13 +119,13 @@ async def start_mother_bot():
         }
 
         app = Client(
-            "mother_bot", 
+            "mother_bot",
             api_id=Config.API_ID,
             api_hash=Config.API_HASH,
             bot_token=Config.BOT_TOKEN,
             plugins=mother_bot_plugins
         )
-        
+
         # Start with retry logic for rate limiting and connection state checking
         max_start_retries = 3
         for attempt in range(max_start_retries):
@@ -217,10 +217,10 @@ async def main():
 
         # Add startup delay to prevent immediate rate limiting
         await asyncio.sleep(2)
-        
+
         # Start mother bot
         app = await start_mother_bot()
-        
+
         # Get bot info with retry logic for FloodWait
         me = None
         max_retries = 3

@@ -62,35 +62,49 @@ async def start_command(client: Client, message: Message):
     text += f"• Force subscription support\n\n"
     text += f"🚀 **Choose an option below:**"
 
-    # Build buttons similar to PS-LinkVault repository
+    # Create feature buttons with proper layout
     buttons = []
 
-    # Row 1: Main Features
+    # Row 1: Main features (removed search features)
     buttons.append([
-        InlineKeyboardButton("📊 My Stats", callback_data="user_stats"),
+        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
+        InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+    ])
+
+    # Row 2: Clone management (if applicable)
+    clone_buttons = []
+    if user_id in Config.ADMINS:
+        clone_buttons.append(InlineKeyboardButton("👥 My Clones", callback_data="my_clones"))
+        clone_buttons.append(InlineKeyboardButton("➕ Create Clone", callback_data="create_clone"))
+
+    if clone_buttons:
+        buttons.append(clone_buttons)
+
+    # Row 3: Balance management (if applicable)  
+    balance_buttons = []
+    if user_id in Config.ADMINS:
+        balance_buttons.append(InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_admin"))
+
+    if balance_buttons:
+        buttons.append(balance_buttons)
+
+    # Row 4: Help & Commands (Moved from Row 6 in original code)
+    buttons.append([
+        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
+        InlineKeyboardButton("📊 My Stats", callback_data="user_stats")
+    ])
+
+    # Row 5: Profile and Random Files (Profile moved from Row 1, Random Files removed)
+    buttons.append([
         InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
     ])
 
-    # Row 2: File Operations
+    # Row 6: Admin specific buttons (Moved from Row 4)
     if is_admin:
         buttons.append([
             InlineKeyboardButton("🔗 Generate Link", callback_data="genlink_help"),
             InlineKeyboardButton("📦 Batch Mode", callback_data="batch_help")
         ])
-    else:
-        buttons.append([
-            InlineKeyboardButton("🔍 Search Files", callback_data="search_files"),
-            InlineKeyboardButton("🎲 Random Files", callback_data="random_files")
-        ])
-
-    # Row 3: Token & Premium
-    buttons.append([
-        InlineKeyboardButton("🔑 Get Token", callback_data="get_token"),
-        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info")
-    ])
-
-    # Row 4: Clone Management and Commands
-    if is_admin:
         buttons.append([
             InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
             InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")
@@ -108,12 +122,6 @@ async def start_command(client: Client, message: Message):
             InlineKeyboardButton("💰 Add Balance", callback_data="add_balance_user"),
             InlineKeyboardButton("💳 Balance Info", callback_data="balance_info")
         ])
-
-    # Row 6: Help & About
-    buttons.append([
-        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu"),
-        InlineKeyboardButton("ℹ️ About Bot", callback_data="about_bot")
-    ])
 
     await message.reply_text(
         text,
