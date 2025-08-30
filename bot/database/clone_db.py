@@ -158,12 +158,12 @@ async def get_clone_by_bot_token(bot_token):
     try:
         if not bot_token:
             return None
-        
+
         # Try to find by bot_token first
         result = await clones_collection.find_one({"bot_token": bot_token})
         if result:
             return result
-            
+
         # If not found, try with bot_id extracted from token
         bot_id = int(bot_token.split(':')[0]) if ':' in bot_token else int(bot_token)
         result = await clones_collection.find_one({"bot_id": bot_id})
@@ -321,7 +321,7 @@ async def update_clone_setting(bot_id, setting_key: str, setting_value):
         # Handle both string and int bot_id
         if isinstance(bot_id, str) and ':' in bot_id:
             bot_id = bot_id.split(':')[0]
-        
+
         # Try to convert to int if it's a string number
         try:
             bot_id_int = int(bot_id)
@@ -333,19 +333,19 @@ async def update_clone_setting(bot_id, setting_key: str, setting_value):
             {"bot_id": bot_id_int},
             {"$set": {setting_key: setting_value, "updated_at": datetime.now()}}
         )
-        
+
         result2 = await clones_collection.update_one(
             {"_id": str(bot_id_int)},
             {"$set": {setting_key: setting_value, "updated_at": datetime.now()}}
         )
-        
+
         if result1.modified_count > 0 or result2.modified_count > 0:
             logger.info(f"✅ Updated {setting_key} for clone {bot_id}")
             return True
         else:
             logger.warning(f"⚠️ No clone found to update for {bot_id}")
             return False
-            
+
     except Exception as e:
         logger.error(f"❌ Error updating clone setting {setting_key}: {e}")
         return False
@@ -371,11 +371,12 @@ async def get_clone_file_count(bot_id: str):
         return 0
 
 async def get_clone_by_bot_token(bot_token: str):
-    """Get clone data by bot token"""
+    """Get clone by bot token"""
     try:
-        return await clones_collection.find_one({"bot_token": bot_token})
+        clone = await clones_collection.find_one({"bot_token": bot_token})
+        return clone
     except Exception as e:
-        logger.error(f"❌ Error getting clone by token: {e}")
+        logger.error(f"ERROR: Error getting clone by token: {e}")
         return None
 
 async def get_active_subscriptions():
@@ -612,3 +613,18 @@ async def get_pending_clone_request(user_id: int):
     except Exception as e:
         logger.error(f"Error getting pending request for user {user_id}: {e}")
         return None
+
+async def update_clone_data(clone_id: str, update_data: dict):
+    """Update clone data directly"""
+    try:
+        # Assuming db is accessible here, or pass it as an argument
+        # For this example, I'll use clone_db directly. You might need to adjust this.
+        clone_col = clone_db.clones # Using the globally defined collection
+        await clone_col.update_one(
+            {"_id": clone_id},
+            {"$set": update_data}
+        )
+        logger.info(f"✅ Updated clone {clone_id} with data: {update_data}")
+    except Exception as e:
+        logger.error(f"❌ Error updating clone data for {clone_id}: {e}")
+        raise

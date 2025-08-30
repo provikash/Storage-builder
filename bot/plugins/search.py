@@ -8,6 +8,33 @@ from info import Config
 import asyncio
 import traceback
 
+# --- Feature Checking Function ---
+async def check_feature_enabled(client: Client, feature_name: str) -> bool:
+    """Check if a feature is enabled for the current bot"""
+    try:
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+
+        # Mother bot has all features enabled
+        if bot_token == Config.BOT_TOKEN:
+            return True
+
+        # For clone bots, check the database
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+
+        if not clone_data:
+            # If clone data not found, assume feature is disabled or handle as an error
+            print(f"WARNING: Clone data not found for bot token {bot_token}. Assuming feature '{feature_name}' is disabled.")
+            return False
+
+        # Return the enabled status of the feature, default to True if not specified
+        return clone_data.get(f'{feature_name}_mode', True)
+    except Exception as e:
+        print(f"Error checking feature {feature_name}: {e}")
+        return False
+
+# --- Command Handlers ---
+
 @Client.on_message(filters.command("rand") & filters.private)
 async def random_command(client: Client, message: Message):
     """Handle random command to show 5 random files"""
@@ -16,6 +43,11 @@ async def random_command(client: Client, message: Message):
 
         # Check force subscription first
         if await handle_force_sub(client, message):
+            return
+
+        # Check if the random feature is enabled
+        if not await check_feature_enabled(client, 'random'):
+            await message.reply_text("❌ Random files feature is currently disabled by the admin.")
             return
 
         user_id = message.from_user.id
@@ -56,6 +88,11 @@ async def keyboard_random_handler(client: Client, message: Message):
 
         # Check force subscription first
         if await handle_force_sub(client, message):
+            return
+
+        # Check if the random feature is enabled
+        if not await check_feature_enabled(client, 'random'):
+            await message.reply_text("❌ Random files feature is currently disabled by the admin.")
             return
 
         user_id = message.from_user.id
@@ -111,6 +148,11 @@ async def keyboard_recent_handler(client: Client, message: Message):
         if await handle_force_sub(client, message):
             return
 
+        # Check if the recent feature is enabled
+        if not await check_feature_enabled(client, 'recent'):
+            await message.reply_text("❌ Recent files feature is currently disabled by the admin.")
+            return
+
         user_id = message.from_user.id
 
         # Check command limit first
@@ -162,6 +204,11 @@ async def keyboard_popular_handler(client: Client, message: Message):
 
         # Check force subscription first
         if await handle_force_sub(client, message):
+            return
+
+        # Check if the popular feature is enabled
+        if not await check_feature_enabled(client, 'popular'):
+            await message.reply_text("❌ Most popular files feature is currently disabled by the admin.")
             return
 
         user_id = message.from_user.id
@@ -216,6 +263,11 @@ async def keyboard_random_handler_sync(client: Client, message: Message):
 
         # Check force subscription first
         if await handle_force_sub(client, message):
+            return
+
+        # Check if the random feature is enabled
+        if not await check_feature_enabled(client, 'random'):
+            await message.reply_text("❌ Random files feature is currently disabled by the admin.")
             return
 
         user_id = message.from_user.id
@@ -312,12 +364,24 @@ async def random_callback(client: Client, callback_query: CallbackQuery):
         print(f"DEBUG: Executing action: {action}")
 
         if action == "new":
+            # Check if the random feature is enabled before calling handler
+            if not await check_feature_enabled(client, 'random'):
+                await callback_query.answer("❌ Random files feature is currently disabled by the admin.", show_alert=True)
+                return
             await handle_random_files(client, callback_query.message, is_callback=True)
 
         elif action == "popular":
+            # Check if the popular feature is enabled before calling handler
+            if not await check_feature_enabled(client, 'popular'):
+                await callback_query.answer("❌ Most popular files feature is currently disabled by the admin.", show_alert=True)
+                return
             await show_popular_files(client, callback_query)
 
         elif action == "recent":
+            # Check if the recent feature is enabled before calling handler
+            if not await check_feature_enabled(client, 'recent'):
+                await callback_query.answer("❌ Recent files feature is currently disabled by the admin.", show_alert=True)
+                return
             await show_recent_files(client, callback_query)
 
         elif action == "stats":
@@ -445,7 +509,7 @@ async def handle_random_files(client: Client, message, is_callback: bool = False
                         print(f"ERROR: Cannot access channel {Config.INDEX_CHANNEL_ID}: {channel_error}")
                         errors_encountered.append(f"Channel access denied: {Config.INDEX_CHANNEL_ID}")
                         continue
-                    
+
                     # Get the message from the index channel (where files are stored)
                     db_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
 
@@ -1270,10 +1334,18 @@ user_popular_offsets = {}
 # Aliases for backward compatibility with callback.py imports
 async def handle_recent_files(client: Client, message: Message, is_callback: bool = False, skip_command_check: bool = False):
     """Alias for handle_recent_files_direct"""
+    # Check if the recent feature is enabled before proceeding
+    if not await check_feature_enabled(client, 'recent'):
+        await message.reply_text("❌ Recent files feature is currently disabled by the admin.")
+        return
     return await handle_recent_files_direct(client, message, is_callback)
 
 async def handle_popular_files(client: Client, message: Message, is_callback: bool = False, skip_command_check: bool = False):
     """Alias for handle_popular_files_direct"""
+    # Check if the popular feature is enabled before proceeding
+    if not await check_feature_enabled(client, 'popular'):
+        await message.reply_text("❌ Most popular files feature is currently disabled by the admin.")
+        return
     return await handle_popular_files_direct(client, message, is_callback)
 
 @Client.on_message(filters.command("popular") & filters.private)
@@ -1282,6 +1354,11 @@ async def popular_files_command(client: Client, message: Message):
     try:
         # Check force subscription first
         if await handle_force_sub(client, message):
+            return
+
+        # Check if the popular feature is enabled
+        if not await check_feature_enabled(client, 'popular'):
+            await message.reply_text("❌ Most popular files feature is currently disabled by the admin.")
             return
 
         user_id = message.from_user.id
@@ -1321,6 +1398,11 @@ async def recent_files_command(client: Client, message: Message):
         if await handle_force_sub(client, message):
             return
 
+        # Check if the recent feature is enabled
+        if not await check_feature_enabled(client, 'recent'):
+            await message.reply_text("❌ Recent files feature is currently disabled by the admin.")
+            return
+
         user_id = message.from_user.id
 
         # Check command limit and use command if allowed
@@ -1351,28 +1433,24 @@ async def recent_files_command(client: Client, message: Message):
 # Mother bot search.py - File features disabled
 # All file features (random, recent, popular) are only available in clone bots
 
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from info import Config
-
 @Client.on_message(filters.command(["rand", "random", "recent", "popular", "search"]) & filters.private)
 async def disabled_file_commands(client: Client, message: Message):
     """Redirect users to create clone for file features"""
     user_id = message.from_user.id
     command = message.command[0]
-    
+
     # Detect if this is mother bot
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
-    
+
     # Additional checks for clone bot detection
     if not is_clone_bot:
         is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or 
+            bot_token != Config.BOT_TOKEN or
             hasattr(client, 'clone_config') and client.clone_config or
             hasattr(client, 'clone_data')
         )
-    
+
     # Only show this message in mother bot
     if not is_clone_bot and bot_token == Config.BOT_TOKEN:
         text = f"🤖 **File Features Not Available Here**\n\n"
@@ -1397,7 +1475,7 @@ async def disabled_file_commands(client: Client, message: Message):
 async def disabled_keyboard_handlers(client: Client, message: Message):
     """Handle disabled keyboard buttons for file features"""
     button_text = message.text
-    
+
     text = f"🤖 **Feature Not Available in Mother Bot**\n\n"
     text += f"The **{button_text}** feature is only available in clone bots.\n\n"
     text += f"🔧 **Get Access:**\n"

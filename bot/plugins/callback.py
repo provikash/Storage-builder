@@ -248,9 +248,10 @@ async def show_premium_callback(client, query: CallbackQuery):
         # Premium purchase buttons
         buttons = []
         for plan_key, plan_info in PREMIUM_PLANS.items():
+            discount_text = f" ({plan_info['discount']} OFF)" if plan_info['discount'] != "0%" else ""
             buttons.append([
                 InlineKeyboardButton(
-                    f"💎 {plan_info['name']} - ₹{plan_info['price']}",
+                    f"💎 {plan_info['name']} - {plan_info['price']}{discount_text}",
                     callback_data=f"buy_premium:{plan_key}"
                 )
             ])
@@ -264,7 +265,12 @@ async def show_premium_callback(client, query: CallbackQuery):
             "• ⚡ **Instant Access** - Direct file downloads\n"
             "• 🔥 **Unlimited Downloads** - No restrictions\n"
             "• 👑 **Premium Support** - Priority assistance\n\n"
-            "💰 **Choose Your Plan:**",
+            "💰 **Plan Duration & Pricing:**\n"
+            "• Monthly: $2.99/month (0% discount)\n"
+            "• 3-Month: $2.66/month (11% discount)\n"
+            "• 6-Month: $2.50/month (16% discount) \n"
+            "• 12-Month: $2.25/month (25% discount)\n\n"
+            "💸 **Choose Your Plan:**",
             reply_markup=InlineKeyboardMarkup(buttons)
         )
 
@@ -336,10 +342,34 @@ async def buy_premium_callback(client, query: CallbackQuery):
 
         # Premium plan configurations
         PREMIUM_PLANS = {
-            "basic": {"name": "Basic Token Pack", "price": "29", "tokens": 50},
-            "standard": {"name": "Standard Token Pack", "price": "79", "tokens": 150},
-            "premium": {"name": "Premium Token Pack", "price": "149", "tokens": 300},
-            "unlimited": {"name": "Unlimited Access", "price": "299", "tokens": -1}
+            "monthly": {
+                "name": "Monthly Plan",
+                "price": "$2.99",
+                "duration": "1 Month", 
+                "per_month": "$2.99",
+                "discount": "0%"
+            },
+            "quarterly": {
+                "name": "3-Month Plan",
+                "price": "$7.99", 
+                "duration": "3 Months",
+                "per_month": "$2.66", 
+                "discount": "11%"
+            },
+            "biannual": {
+                "name": "6-Month Plan",
+                "price": "$14.99",
+                "duration": "6 Months",
+                "per_month": "$2.50",
+                "discount": "16%" 
+            },
+            "annual": {
+                "name": "12-Month Plan",
+                "price": "$26.99",
+                "duration": "12 Months",
+                "per_month": "$2.25", 
+                "discount": "25%"
+            }ccess", "price": "299", "tokens": -1}
         }
 
         plan = PREMIUM_PLANS.get(plan_key)

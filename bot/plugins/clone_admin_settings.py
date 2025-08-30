@@ -248,6 +248,11 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('random_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'random_mode', new_state)
+            
+            # Clear config cache to force reload
+            from bot.utils.clone_config_loader import clone_config_loader
+            clone_config_loader.clear_cache(bot_token)
+            
             await query.answer(f"🎲 Random mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
@@ -257,6 +262,11 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('recent_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'recent_mode', new_state)
+            
+            # Clear config cache to force reload
+            from bot.utils.clone_config_loader import clone_config_loader
+            clone_config_loader.clear_cache(bot_token)
+            
             await query.answer(f"📊 Recent mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
@@ -266,6 +276,11 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('popular_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'popular_mode', new_state)
+            
+            # Clear config cache to force reload
+            from bot.utils.clone_config_loader import clone_config_loader
+            clone_config_loader.clear_cache(bot_token)
+            
             await query.answer(f"🔥 Popular mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
@@ -757,7 +772,16 @@ async def update_clone_setting(bot_id, key, value):
     try:
         if ':' in str(bot_id):
             bot_id = bot_id.split(':')[0]
-        await update_clone_config(bot_id, {key: value})
+        
+        # Get current config and update the specific field
+        current_config = await get_clone_config(bot_id)
+        if current_config:
+            # Update the setting in the clone data directly
+            from bot.database.clone_db import update_clone_data
+            await update_clone_data(bot_id, {key: value})
+        else:
+            # If no config exists, create one with the setting
+            await update_clone_config(bot_id, {key: value})
         return True
     except Exception as e:
         logger.error(f"Error updating clone setting: {e}")

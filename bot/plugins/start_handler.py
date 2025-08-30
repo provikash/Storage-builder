@@ -122,11 +122,31 @@ async def start_command(client: Client, message: Message):
         # Create file access buttons based on clone settings
         file_buttons = []
 
+        # Get clone configuration for feature visibility
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        from bot.database.clone_db import get_clone_by_bot_token
+        
+        # Default to show all features for mother bot
+        show_random_feature = True
+        show_recent_feature = True
+        show_popular_feature = True
+        
+        # Check clone-specific settings
+        if bot_token != Config.BOT_TOKEN:
+            try:
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    show_random_feature = clone_data.get('random_mode', True)
+                    show_recent_feature = clone_data.get('recent_mode', True)
+                    show_popular_feature = clone_data.get('popular_mode', True)
+            except Exception as e:
+                logger.error(f"Error getting clone settings: {e}")
+
         # Only show enabled file mode buttons
         mode_row1 = []
-        if show_random:
+        if show_random and show_random_feature:
             mode_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-        if show_recent:
+        if show_recent and show_recent_feature:
             mode_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
         
         # Add first row if any buttons exist
@@ -134,7 +154,7 @@ async def start_command(client: Client, message: Message):
             file_buttons.append(mode_row1)
 
         # Add popular files button if enabled
-        if show_popular:
+        if show_popular and show_popular_feature:
             file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
         # User action buttons
