@@ -128,9 +128,6 @@ async def start_command(client: Client, message: Message):
         # Create file access buttons
         file_buttons = []
 
-        # Always show search button
-        file_buttons.append([InlineKeyboardButton("🔍 Search Files", callback_data="search_files")])
-
         # Show file mode buttons based on settings
         mode_buttons = []
         if show_random:
@@ -189,13 +186,18 @@ async def start_command(client: Client, message: Message):
             InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
         ])
 
-        # Row 3: Premium & About
+        # Row 3: Premium & Referral
         buttons.append([
             InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
+            InlineKeyboardButton("🎁 Referral Program", callback_data="show_referral_main")
+        ])
+        
+        # Row 4: About
+        buttons.append([
             InlineKeyboardButton("💧 About", callback_data="about_water")
         ])
 
-        # Row 4: Help & Admin
+        # Row 5: Help & Admin
         help_admin_row = [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
         # Add admin panel button for Mother Bot admins only (not in clone bots)
         is_mother_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)

@@ -1,38 +1,44 @@
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from datetime import datetime, timedelta
+import logging
 
 from bot.database import add_premium_user, is_premium_user, get_premium_info, remove_premium
 from bot.database.subscription_db import get_token_plans
 from bot.database.balance_db import get_user_balance, deduct_balance
+from bot.database.referral_db import process_referral_reward
 from info import Config
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 # Token verification plans - These are for bot command usage, NOT for clone creation
 TOKEN_VERIFICATION_PLANS = {
     "basic_tokens": {
         "name": "Basic Token Pack",
-        "price": "₹29",
+        "price": "29",
         "tokens": 50,
         "description": "50 Command Tokens for Bot Usage",
         "type": "token_verification"
     },
     "standard_tokens": {
         "name": "Standard Token Pack",
-        "price": "₹79",
+        "price": "79",
         "tokens": 150,
         "description": "150 Command Tokens for Bot Usage",
         "type": "token_verification"
     },
     "premium_tokens": {
         "name": "Premium Token Pack",
-        "price": "₹149",
+        "price": "149",
         "tokens": 300,
         "description": "300 Command Tokens for Bot Usage",
         "type": "token_verification"
     },
     "unlimited_tokens": {
         "name": "Unlimited Token Access",
-        "price": "₹299",
+        "price": "299",
         "tokens": -1,  # -1 means unlimited
         "description": "Unlimited Bot Commands for 1 Year",
         "type": "token_verification"
@@ -163,24 +169,37 @@ async def add_premium_command(client, message):
             return await message.reply_text("❌ Invalid plan type!\n\nAvailable plans: basic, standard, premium, unlimited")
 
         plan = PREMIUM_PLANS[plan_type]
-        await add_premium_user(target_user_id, plan['name'], plan['tokens'])
+        plan_days = plan['tokens'] # Assuming tokens represent days for now
+        plan_price = int(plan['price']) # Convert price to integer for processing
 
-        await message.reply_text(f"✅ Premium membership added!\n**User:** {target_user_id}\n**Plan:** {plan['name']}\n**Tokens:** {plan['tokens']}")
+        # Add premium to user
+        success = await add_premium_user(target_user_id, plan_type, plan_days) # Pass plan_type instead of plan_days
 
-        # Notify user
-        try:
-            await client.send_message(
-                target_user_id,
-                f"🎉 **Congratulations!**\n\n"
-                f"✨ You have been upgraded to **{plan['name']} Membership**\n"
-                f"⏰ **Valid for:** {plan['tokens']} tokens\n\n"
-                f"🎯 **Enjoy Premium Benefits:**\n"
-                f"• 🚫 No Ads\n"
-                f"• ⚡ Instant Access\n"
-                f"• 🔥 Unlimited Downloads"
+        if success:
+            # Process referral reward if applicable
+            try:
+                await process_referral_reward(target_user_id, plan_price)
+            except Exception as e:
+                logger.error(f"Error processing referral reward for user {target_user_id}: {e}")
+
+            await message.reply_text(
+                f"✅ Premium membership added!\n**User:** {target_user_id}\n**Plan:** {plan['name']}\n**Duration:** {plan_days} days"
             )
-        except Exception as e:
-            await message.reply_text(f"✅ Premium added but couldn't notify user: {e}")
+
+            # Notify user
+            try:
+                await client.send_message(
+                    target_user_id,
+                    f"🎉 **Congratulations!**\n\n"
+                    f"✨ You have been upgraded to **{plan['name']} Membership**\n"
+                    f"⏰ **Valid for:** {plan_days} days\n\n"
+                    f"🎯 **Enjoy Premium Benefits:**\n"
+                    f"• 🚫 No Ads\n"
+                    f"• ⚡ Instant Access\n"
+                    f"• 🔥 Unlimited Downloads"
+                )
+            except Exception as e:
+                await message.reply_text(f"✅ Premium added but couldn't notify user: {e}")
 
     except ValueError:
         await message.reply_text("❌ Invalid user ID! Please provide a numeric user ID.")

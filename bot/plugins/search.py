@@ -1382,8 +1382,7 @@ async def disabled_file_commands(client: Client, message: Message):
         text += f"2. Use your clone bot to access:\n"
         text += f"   • 🎲 Random files\n"
         text += f"   • 🆕 Recent files\n"
-        text += f"   • 🔥 Most popular files\n"
-        text += f"   • 🔍 Search functionality\n\n"
+        text += f"   • 🔥 Most popular files\n\n"
         text += f"💡 **Why use clones?**\n"
         text += f"Clone bots provide dedicated file sharing while keeping the mother bot clean for management tasks."
 
@@ -1393,18 +1392,6 @@ async def disabled_file_commands(client: Client, message: Message):
         ])
 
         await message.reply_text(text, reply_markup=buttons)
-    else:
-        # If this somehow runs in a clone bot, let it pass through to actual handlers
-        passch functionality\n\n"
-    text += f"💡 **Why use clones?**\n"
-    text += f"Clone bots provide dedicated file sharing while keeping the mother bot clean for management tasks."
-
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")],
-        [InlineKeyboardButton("📋 Manage My Clones", callback_data="manage_my_clone")]
-    ])
-
-    await message.reply_text(text, reply_markup=buttons)
 
 @Client.on_message(filters.private & filters.text & filters.regex(r"^(🎲 Random|🆕 Recent Added|🔥 Most Popular|🎲 Random Files)$"))
 async def disabled_keyboard_handlers(client: Client, message: Message):

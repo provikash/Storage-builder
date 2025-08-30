@@ -474,7 +474,7 @@ async def premium_callback_handler(client: Client, query: CallbackQuery):
         await buy_premium_callback(client, query)
 
 # General Callbacks (Priority 5)
-@Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history|back_to_start|add_balance|manage_my_clone)$"), group=CALLBACK_PRIORITIES["general"])
+@Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history|back_to_start|add_balance|manage_my_clone|show_referral_main)$"), group=CALLBACK_PRIORITIES["general"])
 async def general_callback_handler(client: Client, query: CallbackQuery):
     """Handle general purpose callbacks"""
     user_id = query.from_user.id
@@ -547,6 +547,10 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
         # Handle manage clone
         from bot.plugins.clone_management import manage_user_clone
         await manage_user_clone(client, query)
+    elif callback_data == "show_referral_main":
+        # Handle referral program
+        from bot.plugins.referral_program import show_referral_main
+        await show_referral_main(client, query)
     elif callback_data == "my_stats":
         from bot.plugins.callback import my_stats_callback
         await my_stats_callback(client, query)
@@ -594,10 +598,17 @@ async def handle_recent_files(client: Client, query: CallbackQuery):
     await query.answer()
     await query.edit_message_text("🆕 **Recent Files**\n\nRecent file features are disabled in the mother bot. This functionality is only available in clone bots.")
 
+@Client.on_callback_query(filters.regex("^popular_files$"))
 async def handle_popular_files(client: Client, query: CallbackQuery):
     """Handle popular files callback"""
     await query.answer()
     await query.edit_message_text("🔥 **Most Popular Files**\n\nPopular file features are disabled in the mother bot. This functionality is only available in clone bots.")
+
+@Client.on_callback_query(filters.regex("^search_files$"))
+async def handle_search_files(client: Client, query: CallbackQuery):
+    """Handle search files callback"""
+    await query.answer()
+    await query.edit_message_text("🔍 **Search Files**\n\nSearch functionality has been removed from clone bots. Use the available file browsing options instead.")
 
 @Client.on_callback_query(filters.regex("^back_to_start$"))
 async def handle_back_to_start(client: Client, query: CallbackQuery):
