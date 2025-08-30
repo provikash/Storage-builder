@@ -39,10 +39,11 @@ async def check_requirements():
     logger.info("🔍 Checking requirements...")
     print("🔍 DEBUG MAIN: Checking requirements...")
 
-    # Check if .env file exists
+    # Check if .env file exists (optional in Replit environment)
     if not Path(".env").exists():
-        logger.error("❌ .env file not found. Please create one based on .env.example")
-        return False
+        logger.info("ℹ️ No .env file found - using environment variables directly (Replit mode)")
+    else:
+        logger.info("✅ .env file found")
 
     # Check logs directory
     logs_dir = Path("logs")

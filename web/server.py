@@ -113,14 +113,9 @@ DASHBOARD_HTML = """
 
 @app.route('/')
 def index():
-    return jsonify({
-        "status": "Mother Bot System API",
-        "endpoints": {
-            "/health": "System health check",
-            "/dashboard": "Web dashboard",
-            "/api/stats": "System statistics"
-        }
-    })
+    # Redirect to dashboard for better user experience
+    from flask import redirect
+    return redirect('/dashboard')
 
 @app.route('/health')
 def health():
@@ -195,6 +190,11 @@ def run_server():
     import threading
 
     app = Flask(__name__)
+
+    @app.route('/')
+    def index():
+        from flask import redirect
+        return redirect('/dashboard')
 
     @app.route('/dashboard')
     def dashboard():
