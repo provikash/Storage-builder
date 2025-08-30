@@ -248,11 +248,15 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('random_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'random_mode', new_state)
-            
+
             # Clear config cache to force reload
-            from bot.utils.clone_config_loader import clone_config_loader
-            clone_config_loader.clear_cache(bot_token)
-            
+            try:
+                import bot.utils.clone_config_loader as clone_config_loader
+                if hasattr(clone_config_loader, 'clone_config_cache'):
+                    clone_config_loader.clone_config_cache.pop(bot_token, None)
+            except:
+                pass
+
             await query.answer(f"🎲 Random mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
@@ -262,11 +266,15 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('recent_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'recent_mode', new_state)
-            
+
             # Clear config cache to force reload
-            from bot.utils.clone_config_loader import clone_config_loader
-            clone_config_loader.clear_cache(bot_token)
-            
+            try:
+                import bot.utils.clone_config_loader as clone_config_loader
+                if hasattr(clone_config_loader, 'clone_config_cache'):
+                    clone_config_loader.clone_config_cache.pop(bot_token, None)
+            except:
+                pass
+
             await query.answer(f"📊 Recent mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
@@ -276,11 +284,15 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('popular_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'popular_mode', new_state)
-            
+
             # Clear config cache to force reload
-            from bot.utils.clone_config_loader import clone_config_loader
-            clone_config_loader.clear_cache(bot_token)
-            
+            try:
+                import bot.utils.clone_config_loader as clone_config_loader
+                if hasattr(clone_config_loader, 'clone_config_cache'):
+                    clone_config_loader.clone_config_cache.pop(bot_token, None)
+            except:
+                pass
+
             await query.answer(f"🔥 Popular mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
@@ -421,11 +433,11 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 del clone_admin_sessions[user_id]
             await clone_settings_command(client, query.message)
             return
-        
+
         elif callback_data == "clone_force_channels_list":
             await handle_force_join_settings(client, query, clone_data)
             return
-        
+
         elif callback_data == "clone_advanced_settings":
             await handle_advanced_settings(client, query, clone_data)
             return
@@ -711,11 +723,11 @@ async def handle_clone_admin_input(client: Client, message: Message):
             try:
                 # Try to get chat info to validate
                 chat = await client.get_chat(channel_input)
-                
+
                 # Get current force channels
                 clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
                 current_channels = clone_data.get('force_channels', [])
-                
+
                 # Add new channel if not already present
                 if chat.id not in current_channels:
                     current_channels.append(chat.id)
@@ -723,7 +735,7 @@ async def handle_clone_admin_input(client: Client, message: Message):
                     await message.reply_text(f"✅ Added force join channel: {chat.title}")
                 else:
                     await message.reply_text("❌ Channel already in force join list.")
-                    
+
             except Exception as e:
                 await message.reply_text(f"❌ Error adding channel: {str(e)}")
                 return
@@ -734,14 +746,14 @@ async def handle_clone_admin_input(client: Client, message: Message):
                 # Get current force channels
                 clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
                 current_channels = clone_data.get('force_channels', [])
-                
+
                 # Convert input to channel ID if needed
                 try:
                     chat = await client.get_chat(channel_input)
                     channel_id = chat.id
                 except:
                     channel_id = int(channel_input) if channel_input.lstrip('-').isdigit() else channel_input
-                
+
                 # Remove channel if present
                 if channel_id in current_channels:
                     current_channels.remove(channel_id)
@@ -749,7 +761,7 @@ async def handle_clone_admin_input(client: Client, message: Message):
                     await message.reply_text(f"✅ Removed force join channel.")
                 else:
                     await message.reply_text("❌ Channel not found in force join list.")
-                    
+
             except Exception as e:
                 await message.reply_text(f"❌ Error removing channel: {str(e)}")
                 return
@@ -772,7 +784,7 @@ async def update_clone_setting(bot_id, key, value):
     try:
         if ':' in str(bot_id):
             bot_id = bot_id.split(':')[0]
-        
+
         # Get current config and update the specific field
         current_config = await get_clone_config(bot_id)
         if current_config:

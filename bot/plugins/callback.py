@@ -202,6 +202,150 @@ async def execute_rand_callback(client, query: CallbackQuery):
         print(f"Traceback: {traceback.format_exc()}")
         await query.answer("❌ An error occurred. Please try again.", show_alert=True)
 
+@Client.on_callback_query(filters.regex("^random_files$"))
+async def random_files_callback(client, query: CallbackQuery):
+    """Handle random files callback"""
+    try:
+        # Check force subscription first
+        if await handle_force_sub(client, query.message):
+            await query.answer()
+            return
+
+        user_id = query.from_user.id
+        
+        # Check command limit
+        from bot.utils.command_verification import check_command_limit, use_command
+        needs_verification, remaining = await check_command_limit(user_id)
+
+        if needs_verification:
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+            await query.answer()
+            return await query.edit_message_text(
+                "🔐 **Verification Required!**\n\nYou need to verify your account to continue. Get a verification token to access 3 more commands!",
+                reply_markup=buttons
+            )
+
+        # Use command
+        if not await use_command(user_id):
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+            await query.answer()
+            return await query.edit_message_text(
+                "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
+                reply_markup=buttons
+            )
+
+        await query.answer("Getting random files...", show_alert=False)
+        
+        # Import and execute random files
+        from bot.plugins.search import handle_random_files
+        await handle_random_files(client, query.message, is_callback=True, skip_command_check=True)
+
+    except Exception as e:
+        print(f"ERROR in random_files_callback: {e}")
+        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^recent_files$"))
+async def recent_files_callback(client, query: CallbackQuery):
+    """Handle recent files callback"""
+    try:
+        # Check force subscription first
+        if await handle_force_sub(client, query.message):
+            await query.answer()
+            return
+
+        user_id = query.from_user.id
+        
+        # Check command limit
+        from bot.utils.command_verification import check_command_limit, use_command
+        needs_verification, remaining = await check_command_limit(user_id)
+
+        if needs_verification:
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+            await query.answer()
+            return await query.edit_message_text(
+                "🔐 **Verification Required!**\n\nYou need to verify your account to continue. Get a verification token to access 3 more commands!",
+                reply_markup=buttons
+            )
+
+        # Use command
+        if not await use_command(user_id):
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+            await query.answer()
+            return await query.edit_message_text(
+                "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
+                reply_markup=buttons
+            )
+
+        await query.answer("Getting recent files...", show_alert=False)
+        
+        # Import and execute recent files
+        from bot.plugins.search import handle_recent_files_direct
+        await handle_recent_files_direct(client, query.message, is_callback=True)
+
+    except Exception as e:
+        print(f"ERROR in recent_files_callback: {e}")
+        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^popular_files$"))
+async def popular_files_callback(client, query: CallbackQuery):
+    """Handle popular files callback"""
+    try:
+        # Check force subscription first
+        if await handle_force_sub(client, query.message):
+            await query.answer()
+            return
+
+        user_id = query.from_user.id
+        
+        # Check command limit
+        from bot.utils.command_verification import check_command_limit, use_command
+        needs_verification, remaining = await check_command_limit(user_id)
+
+        if needs_verification:
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+            await query.answer()
+            return await query.edit_message_text(
+                "🔐 **Verification Required!**\n\nYou need to verify your account to continue. Get a verification token to access 3 more commands!",
+                reply_markup=buttons
+            )
+
+        # Use command
+        if not await use_command(user_id):
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+            await query.answer()
+            return await query.edit_message_text(
+                "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
+                reply_markup=buttons
+            )
+
+        await query.answer("Getting popular files...", show_alert=False)
+        
+        # Import and execute popular files
+        from bot.plugins.search import handle_popular_files_direct
+        await handle_popular_files_direct(client, query.message, is_callback=True)
+
+    except Exception as e:
+        print(f"ERROR in popular_files_callback: {e}")
+        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+
 @Client.on_callback_query(filters.regex("^show_premium_plans$"))
 async def show_premium_callback(client, query: CallbackQuery):
     # Check force subscription first

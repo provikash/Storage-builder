@@ -142,27 +142,11 @@ async def start_command(client: Client, message: Message):
         # Create file access buttons based on clone settings
         file_buttons = []
 
-        # Default to show all features for mother bot
-        show_random_feature = True
-        show_recent_feature = True
-        show_popular_feature = True
-
-        # Check clone-specific settings
-        if bot_token != Config.BOT_TOKEN:
-            try:
-                clone_data = await get_clone_by_bot_token(bot_token)
-                if clone_data:
-                    show_random_feature = clone_data.get('random_mode', True)
-                    show_recent_feature = clone_data.get('recent_mode', True)
-                    show_popular_feature = clone_data.get('popular_mode', True)
-            except Exception as e:
-                logger.error(f"Error getting clone settings: {e}")
-
         # Only show enabled file mode buttons
         mode_row1 = []
-        if show_random and show_random_feature:
+        if show_random:
             mode_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-        if show_recent and show_recent_feature:
+        if show_recent:
             mode_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
 
         # Add first row if any buttons exist
@@ -170,7 +154,7 @@ async def start_command(client: Client, message: Message):
             file_buttons.append(mode_row1)
 
         # Add popular files button if enabled
-        if show_popular and show_popular_feature:
+        if show_popular:
             file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
         # User action buttons - removed "Add Balance"
@@ -652,22 +636,51 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         text += f"💎 Status: {'Premium' if user_premium else 'Free'}\n\n" # Removed balance display
         text += f"🎯 Choose an option below:"
 
-        # Clone bot buttons
+        # Get clone settings for back_to_start
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        show_random = show_recent = show_popular = True
+        try:
+            clone_data = await get_clone_by_bot_token(bot_token)
+            if clone_data:
+                show_random = clone_data.get('random_mode', True)
+                show_recent = clone_data.get('recent_mode', True)
+                show_popular = clone_data.get('popular_mode', True)
+        except Exception as e:
+            logger.error(f"Error getting clone settings in back_to_start: {e}")
+
+        # Clone bot buttons based on settings
         buttons = []
 
-        # Row 1: File Features
+        # Add settings button for clone admin
+        if user_id in [Config.OWNER_ID] + list(Config.ADMINS):
+            # Check if this user is the clone admin
+            try:
+                if clone_data and clone_data.get('admin_id') == user_id:
+                    buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
+            except:
+                pass
+
+        # File Features row based on settings
+        mode_row = []
+        if show_random:
+            mode_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+        if show_recent:
+            mode_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+        
+        if mode_row:
+            buttons.append(mode_row)
+
+        # Popular files in separate row if enabled
+        if show_popular:
+            buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+
+        # User action buttons
         buttons.append([
-            InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+            InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
             InlineKeyboardButton("📊 My Stats", callback_data="my_stats")
         ])
 
-        # Row 2: Premium Features
-        buttons.append([
-            InlineKeyboardButton("🔍 Search Files", callback_data="search_feature"),
-            InlineKeyboardButton("💎 Premium Plans", callback_data="show_premium_plans")
-        ])
-
-        # Row 3: Information
+        # Information buttons
         buttons.append([
             InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
             InlineKeyboardButton("❓ Help", callback_data="help_menu")
