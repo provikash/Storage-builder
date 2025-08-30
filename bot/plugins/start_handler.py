@@ -119,24 +119,19 @@ async def start_command(client: Client, message: Message):
             logger.error(f"Error fetching clone settings: {e}")
             show_random = show_recent = show_popular = True
 
-        # Create file access buttons
+        # Create file access buttons based on clone settings
         file_buttons = []
 
-        # Show file mode buttons based on settings
-        mode_buttons = []
+        # Only show enabled file mode buttons
+        mode_row1 = []
         if show_random:
-            mode_buttons.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+            mode_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
         if show_recent:
-            mode_buttons.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-
-        # Add mode buttons in rows of 2
-        if mode_buttons:
-            if len(mode_buttons) == 2:
-                file_buttons.append(mode_buttons)
-            else:
-                file_buttons.append([mode_buttons[0]])
-                if len(mode_buttons) > 1:
-                    file_buttons.append([mode_buttons[1]])
+            mode_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+        
+        # Add first row if any buttons exist
+        if mode_row1:
+            file_buttons.append(mode_row1)
 
         # Add popular files button if enabled
         if show_popular:

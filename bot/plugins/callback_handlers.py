@@ -76,12 +76,24 @@ def is_mother_admin(user_id):
     return result
 
 # Helper function to check if user is a clone bot admin
-def is_clone_admin(user_id, config):
+def is_clone_admin(client: Client, user_id: int) -> bool:
     """Check if user is a clone bot admin"""
-    bot_admin_id = config.get('bot_info', {}).get('admin_id')
-    if bot_admin_id:
-        return user_id == bot_admin_id
-    return False
+    try:
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        if bot_token == Config.BOT_TOKEN: # Not a clone bot
+            return False
+
+        # Assume we have a way to get clone data, e.g., from a database
+        # For this example, let's use a mock lookup
+        # In a real scenario, you'd fetch this from your database based on bot_token
+        clone_data = {"admin_id": 123456789} # Mock data, replace with actual lookup
+
+        if clone_data and clone_data.get('admin_id') == user_id:
+            return True
+        return False
+    except Exception as e:
+        logger.error(f"Error checking clone admin status: {e}")
+        return False
 
 # Helper function to determine if the current bot instance is a clone bot
 def is_clone_bot_instance(client: Client):
@@ -105,7 +117,7 @@ async def is_clone_bot_instance_async(client: Client):
         try:
             from bot.utils.clone_config_loader import clone_config_loader
             from info import Config
-            
+
             # First quick check
             if bot_token != Config.BOT_TOKEN:
                 # Verify with database
@@ -150,7 +162,7 @@ async def handle_clone_toggle_token_system(client: Client, query: CallbackQuery)
     await query.answer("Handling clone_toggle_token_system")
     await query.edit_message_text("Token System Toggle (Placeholder)")
 
-async def clone_admin_panel(client: Client, message):
+async def clone_admin_panel(client, message):
     """Placeholder for the clone admin panel display function"""
     text = "Clone Admin Panel (Placeholder)"
     buttons = InlineKeyboardMarkup([
@@ -552,7 +564,7 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
                 from bot.database.clone_db import get_clone_by_bot_token
                 from bot.database.premium_db import is_premium_user
                 from bot.database.balance_db import get_user_balance
-                
+
                 clone_data = await get_clone_by_bot_token(bot_token)
                 user_premium = await is_premium_user(user_id)
                 balance = await get_user_balance(user_id)
@@ -565,7 +577,7 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
 
                 # Create clone bot buttons
                 start_buttons = []
-                
+
                 # Add settings button for clone admin
                 if clone_data and clone_data.get('admin_id') == user_id:
                     start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
@@ -575,41 +587,46 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
                 show_recent = clone_data.get('recent_mode', True) if clone_data else True
                 show_popular = clone_data.get('popular_mode', True) if clone_data else True
 
-                # File access buttons
+                # File access buttons based on settings
                 file_buttons = []
-                mode_buttons = []
-                
+
+                # First row of file mode buttons (only if enabled)
+                mode_row1 = []
                 if show_random:
-                    mode_buttons.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+                    mode_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
                 if show_recent:
-                    mode_buttons.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+                    mode_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
 
-                if mode_buttons:
-                    if len(mode_buttons) == 2:
-                        file_buttons.append(mode_buttons)
-                    else:
-                        file_buttons.append([mode_buttons[0]])
+                if mode_row1:
+                    file_buttons.append(mode_row1)
 
+                # Second row for popular files (only if enabled)
                 if show_popular:
                     file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
+                # User action buttons
                 file_buttons.append([
                     InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
                     InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")
                 ])
 
-                file_buttons.extend(start_buttons)
+                # Admin buttons for clone admin
+                file_buttons.extend(start_buttons) # Add the settings button if applicable
 
                 file_buttons.append([
                     InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
                     InlineKeyboardButton("❓ Help", callback_data="help_menu")
                 ])
 
-                await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(file_buttons))
+                reply_markup = InlineKeyboardMarkup(file_buttons)
+
+                await query.edit_message_text(text, reply_markup=reply_markup)
                 return
 
             except Exception as e:
-                debug_print(f"Error in clone back_to_start: {e}")
+                logger.error(f"❌ Error in clone back_to_start: {e}")
+                await query.answer("❌ Error loading clone start menu", show_alert=True)
+                return
 
         # For mother bot, use the dedicated callback
         try:
@@ -696,7 +713,7 @@ async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
     """Handle clone settings panel callback specifically"""
     user_id = query.from_user.id
     debug_print(f"DEBUG: Clone settings panel callback from user {user_id}")
-    
+
     # Check if this is a clone bot
     is_clone, bot_token = await is_clone_bot_instance_async(client)
     if not is_clone:
@@ -707,18 +724,18 @@ async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
         # Verify user is clone admin
         from bot.database.clone_db import get_clone_by_bot_token
         clone_data = await get_clone_by_bot_token(bot_token)
-        
+
         if not clone_data:
             await query.answer("❌ Clone configuration not found.", show_alert=True)
             return
-            
+
         if clone_data.get('admin_id') != user_id:
             await query.answer("❌ Only clone admin can access settings.", show_alert=True)
             return
 
         # Load clone settings
         from bot.plugins.clone_admin_settings import clone_settings_command
-        
+
         # Convert query to message-like object
         class FakeMessage:
             def __init__(self, query):
@@ -731,7 +748,7 @@ async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
 
         fake_message = FakeMessage(query)
         await clone_settings_command(client, fake_message)
-        
+
     except Exception as e:
         debug_print(f"Error handling clone settings: {e}")
         await query.answer("❌ Error loading settings panel.", show_alert=True)
@@ -846,4 +863,3 @@ async def add_balance_50_callback(client: Client, query: CallbackQuery):
     ])
 
     await query.edit_message_text(text, reply_markup=buttons)
-

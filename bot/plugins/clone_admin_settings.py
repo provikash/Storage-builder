@@ -245,22 +245,40 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         bot_id = clone_data.get('bot_id')
 
         if callback_data == "clone_toggle_random":
-            current_state = clone_data.get('random_mode', False)
+            current_state = clone_data.get('random_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'random_mode', new_state)
             await query.answer(f"🎲 Random mode {'enabled' if new_state else 'disabled'}")
+            # Refresh the settings panel
+            await clone_settings_command(client, query.message)
+            return
 
         elif callback_data == "clone_toggle_recent":
-            current_state = clone_data.get('recent_mode', False)
+            current_state = clone_data.get('recent_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'recent_mode', new_state)
             await query.answer(f"📊 Recent mode {'enabled' if new_state else 'disabled'}")
+            # Refresh the settings panel
+            await clone_settings_command(client, query.message)
+            return
 
         elif callback_data == "clone_toggle_popular":
-            current_state = clone_data.get('popular_mode', False)
+            current_state = clone_data.get('popular_mode', True)
             new_state = not current_state
             await update_clone_setting(bot_id, 'popular_mode', new_state)
             await query.answer(f"🔥 Popular mode {'enabled' if new_state else 'disabled'}")
+            # Refresh the settings panel
+            await clone_settings_command(client, query.message)
+            return
+
+        elif callback_data == "clone_toggle_force_join":
+            current_state = clone_data.get('force_join_enabled', True)
+            new_state = not current_state
+            await update_clone_setting(bot_id, 'force_join_enabled', new_state)
+            await query.answer(f"🔐 Force join {'enabled' if new_state else 'disabled'}")
+            # Refresh the settings panel
+            await clone_settings_command(client, query.message)
+            return
 
         elif callback_data == "clone_force_join":
             await handle_force_join_settings(client, query, clone_data)
@@ -395,6 +413,63 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         
         elif callback_data == "clone_advanced_settings":
             await handle_advanced_settings(client, query, clone_data)
+            return
+
+        elif callback_data == "clone_toggle_batch":
+            current_state = clone_data.get('batch_links', True)
+            new_state = not current_state
+            await update_clone_setting(bot_id, 'batch_links', new_state)
+            await query.answer(f"🔄 Batch links {'enabled' if new_state else 'disabled'}")
+            await handle_advanced_settings(client, query, await get_clone_by_bot_token(bot_token))
+            return
+
+        elif callback_data == "clone_toggle_auto_delete":
+            current_state = clone_data.get('auto_delete', True)
+            new_state = not current_state
+            await update_clone_setting(bot_id, 'auto_delete', new_state)
+            await query.answer(f"🗑️ Auto delete {'enabled' if new_state else 'disabled'}")
+            await handle_advanced_settings(client, query, await get_clone_by_bot_token(bot_token))
+            return
+
+        elif callback_data == "clone_add_force_channel":
+            clone_admin_sessions[user_id] = {
+                'action': 'add_force_channel',
+                'bot_id': bot_id,
+                'message_id': query.message.id
+            }
+            await query.edit_message_text(
+                "➕ **Add Force Join Channel**\n\n"
+                "Send the channel ID or username to add as force join channel.\n\n"
+                "**Examples:**\n"
+                "• `-1001234567890`\n"
+                "• `@yourchannel`\n\n"
+                "**Note:** Make sure the bot is admin in the channel!",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("❌ Cancel", callback_data="clone_cancel_input")]
+                ])
+            )
+            return
+
+        elif callback_data == "clone_remove_force_channel":
+            force_channels = clone_data.get('force_channels', [])
+            if not force_channels:
+                await query.answer("❌ No force channels to remove.")
+                return
+
+            clone_admin_sessions[user_id] = {
+                'action': 'remove_force_channel',
+                'bot_id': bot_id,
+                'message_id': query.message.id
+            }
+            await query.edit_message_text(
+                "➖ **Remove Force Join Channel**\n\n"
+                "Send the channel ID or username to remove from force join.\n\n"
+                "**Current Channels:**\n" + 
+                "\n".join([f"• `{ch}`" for ch in force_channels]),
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("❌ Cancel", callback_data="clone_cancel_input")]
+                ])
+            )
             return
 
         # Refresh the settings display
@@ -614,6 +689,54 @@ async def handle_clone_admin_input(client: Client, message: Message):
                 await message.reply_text(f"✅ Time base set to {hours} hours.")
             except ValueError:
                 await message.reply_text("❌ Please send a valid number of hours.")
+                return
+
+        elif action == 'add_force_channel':
+            channel_input = message.text.strip()
+            try:
+                # Try to get chat info to validate
+                chat = await client.get_chat(channel_input)
+                
+                # Get current force channels
+                clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+                current_channels = clone_data.get('force_channels', [])
+                
+                # Add new channel if not already present
+                if chat.id not in current_channels:
+                    current_channels.append(chat.id)
+                    await update_clone_setting(bot_id, 'force_channels', current_channels)
+                    await message.reply_text(f"✅ Added force join channel: {chat.title}")
+                else:
+                    await message.reply_text("❌ Channel already in force join list.")
+                    
+            except Exception as e:
+                await message.reply_text(f"❌ Error adding channel: {str(e)}")
+                return
+
+        elif action == 'remove_force_channel':
+            channel_input = message.text.strip()
+            try:
+                # Get current force channels
+                clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+                current_channels = clone_data.get('force_channels', [])
+                
+                # Convert input to channel ID if needed
+                try:
+                    chat = await client.get_chat(channel_input)
+                    channel_id = chat.id
+                except:
+                    channel_id = int(channel_input) if channel_input.lstrip('-').isdigit() else channel_input
+                
+                # Remove channel if present
+                if channel_id in current_channels:
+                    current_channels.remove(channel_id)
+                    await update_clone_setting(bot_id, 'force_channels', current_channels)
+                    await message.reply_text(f"✅ Removed force join channel.")
+                else:
+                    await message.reply_text("❌ Channel not found in force join list.")
+                    
+            except Exception as e:
+                await message.reply_text(f"❌ Error removing channel: {str(e)}")
                 return
 
         # Clean up session

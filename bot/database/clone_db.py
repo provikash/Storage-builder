@@ -315,15 +315,37 @@ async def get_total_subscriptions():
         logger.error(f"Error getting total subscriptions: {e}")
         return 0
 
-async def update_clone_setting(bot_id: str, setting_key: str, setting_value):
+async def update_clone_setting(bot_id, setting_key: str, setting_value):
     """Update a specific setting for a clone"""
     try:
-        await clones_collection.update_one(
-            {"bot_id": bot_id},
+        # Handle both string and int bot_id
+        if isinstance(bot_id, str) and ':' in bot_id:
+            bot_id = bot_id.split(':')[0]
+        
+        # Try to convert to int if it's a string number
+        try:
+            bot_id_int = int(bot_id)
+        except (ValueError, TypeError):
+            bot_id_int = bot_id
+
+        # Try both bot_id and _id fields
+        result1 = await clones_collection.update_one(
+            {"bot_id": bot_id_int},
             {"$set": {setting_key: setting_value, "updated_at": datetime.now()}}
         )
-        logger.info(f"✅ Updated {setting_key} for clone {bot_id}")
-        return True
+        
+        result2 = await clones_collection.update_one(
+            {"_id": str(bot_id_int)},
+            {"$set": {setting_key: setting_value, "updated_at": datetime.now()}}
+        )
+        
+        if result1.modified_count > 0 or result2.modified_count > 0:
+            logger.info(f"✅ Updated {setting_key} for clone {bot_id}")
+            return True
+        else:
+            logger.warning(f"⚠️ No clone found to update for {bot_id}")
+            return False
+            
     except Exception as e:
         logger.error(f"❌ Error updating clone setting {setting_key}: {e}")
         return False

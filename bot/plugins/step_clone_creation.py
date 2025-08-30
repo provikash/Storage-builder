@@ -963,17 +963,36 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
 
 # Session cleanup task
 async def cleanup_creation_sessions():
-    """Clean up expired creation sessions"""
-    current_time = datetime.now()
-    expired_session_ids = []
+    """Clean up expired clone creation sessions"""
+    try:
+        from bot.utils.session_manager import get_all_sessions, clear_session
+        current_time = datetime.now()
+        expired_sessions = []
 
-    for user_id, session in session_manager.sessions.items():
-        if (current_time - session['started_at']).seconds > 1800:  # 30 minutes
-            expired_session_ids.append(user_id)
+        # Get all sessions safely
+        try:
+            all_sessions = await get_all_sessions()
+        except:
+            # If get_all_sessions doesn't exist, use global creation_sessions
+            all_sessions = creation_sessions
 
-    for user_id in expired_session_ids:
-        await session_manager.delete_session(user_id)
-        logger.info(f"Cleaned up expired session for user {user_id}")
+        for user_id, session in all_sessions.items():
+            if session.get('type') == 'clone_creation':
+                session_time = session.get('timestamp', current_time)
+                if (current_time - session_time).seconds > 1800:  # 30 minutes
+                    expired_sessions.append(user_id)
+
+        for user_id in expired_sessions:
+            try:
+                await clear_session(user_id)
+            except:
+                # Fallback to direct deletion
+                if user_id in creation_sessions:
+                    del creation_sessions[user_id]
+            logger.info(f"🧹 Cleaned up expired clone creation session for user {user_id}")
+
+    except Exception as e:
+        logger.error(f"❌ Error in session cleanup: {e}")
 
 # Schedule cleanup every 10 minutes
 async def session_cleanup_task():
@@ -989,22 +1008,22 @@ async def start_clone_creation(client: Client, message: Message):
     """Start the clone creation process - wrapper function for external calls"""
     user_id = message.from_user.id
     print(f"🚀 DEBUG CLONE: start_clone_creation function called for user {user_id}")
-    
+
     # Create a fake callback query to reuse existing callback handler
     from pyrogram.types import CallbackQuery
-    
+
     # Create minimal callback query structure
     class FakeCallbackQuery:
         def __init__(self, user, message):
             self.from_user = user
             self.message = message
             self.data = "start_clone_creation"
-            
+
         async def answer(self):
             pass
-            
+
         async def edit_message_text(self, text, reply_markup=None):
             return await self.message.edit_text(text, reply_markup=reply_markup)
-    
+
     fake_query = FakeCallbackQuery(message.from_user, message)
     await start_clone_creation_callback(client, fake_query)
