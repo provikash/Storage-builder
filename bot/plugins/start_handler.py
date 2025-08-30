@@ -8,10 +8,11 @@ from bot.database.users import add_user, present_user
 from info import Config
 from bot.database.premium_db import is_premium_user
 from bot.database.balance_db import get_user_balance
-from bot.utils import handle_force_sub
+from bot import utils
 from bot.logging import LOGGER
 from bot.utils.error_handler import safe_edit_message
 import bot.utils.clone_config_loader as clone_config_loader
+from bot.database.clone_db import get_clone_by_bot_token # Added import
 
 logger = LOGGER(__name__)
 
@@ -24,7 +25,7 @@ async def start_command(client: Client, message: Message):
     print(f"👤 DEBUG COMMAND: User details - ID: {user_id}, Username: @{user.username}, First: {user.first_name}")
 
     # Handle force subscription first (with admin exemption)
-    if not await handle_force_sub(client, message):
+    if not await utils.handle_force_sub(client, message):
         print(f"🔒 DEBUG: User {user_id} blocked by force subscription")
         return  # User hasn't joined required channels
 
@@ -41,7 +42,7 @@ async def start_command(client: Client, message: Message):
     await add_user(user.id)
 
     # Check if user is admin
-    is_admin = user.id in [Config.OWNER_ID] + list(Config.ADMINS)
+    is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
 
     # Check if user is premium
     user_premium = await is_premium_user(user.id)
@@ -60,46 +61,73 @@ async def start_command(client: Client, message: Message):
         text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
         text += f"🎯 Choose an option below:"
 
-        # Clone bot buttons
-        buttons = []
-
-        # Row 1: File Operations
-        buttons.append([
-            InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
-            InlineKeyboardButton("📈 Recent Files", callback_data="recent_files")
-        ])
-
-        # Row 2: Search & Stats
-        buttons.append([
-            InlineKeyboardButton("🔍 Search Files", callback_data="search_files"),
-            InlineKeyboardButton("📊 My Stats", callback_data="user_stats")
-        ])
-
-        # Row 3: Premium & About
-        buttons.append([
-            InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
-            InlineKeyboardButton("💧 About", callback_data="about_water")
-        ])
-
-        # Row 4: Help & Create Clone
-        buttons.append([
-            InlineKeyboardButton("❓ Help", callback_data="help_menu"),
-            InlineKeyboardButton("🤖 Create Clone", url=f"https://t.me/{Config.ADMIN_USERNAME}?start=create_clone")
-        ])
-
-        # Check if user is clone admin (get actual clone admin from config)
+        # Load clone configuration for admin checks and settings
         try:
             config = await clone_config_loader.get_bot_config(bot_token)
             clone_admin_id = config.get('bot_info', {}).get('admin_id')
             is_clone_admin = (user_id == clone_admin_id)
-        except:
+        except Exception as e:
+            logger.error(f"Error loading clone config: {e}")
             is_clone_admin = False
+            config = {} # Ensure config is defined
 
-        # Row 5: Admin panel for clone admins only
+        # Get clone settings to determine which buttons to show
+        try:
+            clone_data = await get_clone_by_bot_token(bot_token)
+            show_random = clone_data.get('random_mode', True) if clone_data else True
+            show_recent = clone_data.get('recent_mode', True) if clone_data else True
+            show_popular = clone_data.get('popular_mode', True) if clone_data else True
+        except Exception as e:
+            # Default to showing all buttons if there's an error
+            logger.error(f"Error fetching clone settings: {e}")
+            show_random = show_recent = show_popular = True
+
+        # Create file access buttons
+        file_buttons = []
+
+        # Always show search button
+        file_buttons.append([InlineKeyboardButton("🔍 Search Files", callback_data="search_files")])
+
+        # Show file mode buttons based on settings
+        mode_buttons = []
+        if show_random:
+            mode_buttons.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+        if show_recent:
+            mode_buttons.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+
+        # Add mode buttons in rows of 2
+        if mode_buttons:
+            if len(mode_buttons) == 2:
+                file_buttons.append(mode_buttons)
+            else:
+                file_buttons.append([mode_buttons[0]])
+                if len(mode_buttons) > 1:
+                    file_buttons.append([mode_buttons[1]]) # This line was missing in the original intent, but needed for proper formatting.
+
+        # Add popular files button if enabled
+        if show_popular:
+            file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+
+        # User action buttons
+        file_buttons.append([
+            InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")
+        ])
+
+        # Admin buttons for clone admin
         if is_clone_admin:
-            buttons.append([
-                InlineKeyboardButton("⚙️ Clone Admin Settings", callback_data="clone_admin_settings")
+            file_buttons.append([
+                InlineKeyboardButton("⚙️ Admin Panel", callback_data="clone_admin_panel"),
+                InlineKeyboardButton("🛠️ Settings", callback_data="clone_settings_panel") # Added settings button
             ])
+
+        file_buttons.append([
+            InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
+            InlineKeyboardButton("❓ Help", callback_data="help_menu")
+        ])
+
+        reply_markup = InlineKeyboardMarkup(file_buttons)
+
     else:
         # Mother bot start message (shortened)
         text = f"🚀 **Welcome {message.from_user.first_name}!**\n\n"
@@ -134,9 +162,12 @@ async def start_command(client: Client, message: Message):
             help_admin_row.append(InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"))
         buttons.append(help_admin_row)
 
+        reply_markup = InlineKeyboardMarkup(buttons)
+
+
     await message.reply_text(
         text,
-        reply_markup=InlineKeyboardMarkup(buttons)
+        reply_markup=reply_markup
     )
 
 @Client.on_callback_query(filters.regex("^user_profile$"))

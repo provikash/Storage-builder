@@ -98,7 +98,8 @@ async def create_clone_config(clone_id: str):
             "auto_delete": True,
             "batch_links": True,
             "random_button": True,
-            "recent_button": True
+            "recent_button": True,
+            "popular_button": True # Added popular button
         },
         "token_settings": {
             "mode": "one_time",  # or "command_limit"
@@ -174,14 +175,18 @@ async def update_clone_shortener(clone_id: str, api_url: str, api_key: str):
         }}
     )
 
-async def update_clone_command_limit(clone_id: str, limit: int):
-    """Update clone command limit"""
+async def update_clone_token_verification(clone_id: str, mode: str, command_limit: int = None, pricing: float = None, enabled: bool = None):
+    """Update clone token verification settings"""
+    update_data = {"token_settings.mode": mode, "updated_at": datetime.now()}
+    if command_limit is not None:
+        update_data["token_settings.command_limit"] = command_limit
+    if pricing is not None:
+        update_data["token_settings.pricing"] = pricing
+    if enabled is not None:
+        update_data["token_settings.enabled"] = enabled
     await clone_configs_collection.update_one(
         {"_id": clone_id},
-        {"$set": {
-            "token_settings.command_limit": limit,
-            "updated_at": datetime.now()
-        }}
+        {"$set": update_data}
     )
 
 async def update_clone_time_settings(clone_id: str, setting: str, value: int):

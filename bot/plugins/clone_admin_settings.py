@@ -1,3 +1,4 @@
+
 import asyncio
 from datetime import datetime
 from pyrogram import Client, filters
@@ -25,8 +26,12 @@ def create_settings_keyboard():
             InlineKeyboardButton("📊 Recent Toggle", callback_data="clone_toggle_recent")
         ],
         [
-            InlineKeyboardButton("🔗 URL Shortener", callback_data="clone_set_shortener"),
-            InlineKeyboardButton("🔑 Token Mode", callback_data="clone_toggle_token")
+            InlineKeyboardButton("🔥 Popular Toggle", callback_data="clone_toggle_popular"),
+            InlineKeyboardButton("📢 Force Join", callback_data="clone_force_join")
+        ],
+        [
+            InlineKeyboardButton("🔑 Token Mode", callback_data="clone_token_mode"),
+            InlineKeyboardButton("🔗 URL Shortener", callback_data="clone_url_shortener")
         ],
         [
             InlineKeyboardButton("⏱️ Command Limit", callback_data="clone_set_limit"),
@@ -68,10 +73,16 @@ async def clone_settings_command(client: Client, message: Message):
 • Name: `{clone_data.get('bot_name', 'Unknown')}`
 • Status: `{'Active' if clone_data.get('status') == 'active' else 'Inactive'}`
 
-**Current Settings:**
+**File Display Settings:**
 • 🎲 Random Mode: `{'ON' if clone_data.get('random_mode', False) else 'OFF'}`
 • 📊 Recent Mode: `{'ON' if clone_data.get('recent_mode', False) else 'OFF'}`
+• 🔥 Popular Mode: `{'ON' if clone_data.get('popular_mode', False) else 'OFF'}`
+
+**Access Control:**
 • 🔑 Token Verification: `{'ON' if clone_data.get('token_verification', False) else 'OFF'}`
+• 📢 Force Join Channels: `{len(clone_data.get('force_channels', []))}`
+
+**System Settings:**
 • ⏱️ Command Limit: `{clone_data.get('command_limit', 'Unlimited')}`
 • 🔗 URL Shortener: `{clone_data.get('shortener_api', 'Not Set')}`
 
@@ -122,13 +133,21 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             await update_clone_setting(bot_id, 'recent_mode', new_state)
             await query.answer(f"📊 Recent mode {'enabled' if new_state else 'disabled'}")
 
-        elif callback_data == "clone_toggle_token":
-            current_state = clone_data.get('token_verification', False)
+        elif callback_data == "clone_toggle_popular":
+            current_state = clone_data.get('popular_mode', False)
             new_state = not current_state
-            await update_clone_setting(bot_id, 'token_verification', new_state)
-            await query.answer(f"🔑 Token verification {'enabled' if new_state else 'disabled'}")
+            await update_clone_setting(bot_id, 'popular_mode', new_state)
+            await query.answer(f"🔥 Popular mode {'enabled' if new_state else 'disabled'}")
 
-        elif callback_data == "clone_set_shortener":
+        elif callback_data == "clone_force_join":
+            await handle_force_join_settings(client, query, clone_data)
+            return
+
+        elif callback_data == "clone_token_mode":
+            await handle_token_mode_settings(client, query, clone_data)
+            return
+
+        elif callback_data == "clone_url_shortener":
             clone_admin_sessions[user_id] = {
                 'action': 'set_shortener',
                 'bot_id': bot_id,
@@ -136,10 +155,12 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             }
 
             await query.edit_message_text(
-                "🔗 **Set URL Shortener**\n\n"
-                "Send your shortener API URL and key in this format:\n"
+                "🔗 **URL Shortener Configuration**\n\n"
+                "Send your shortener configuration in this format:\n"
                 "`api_url|api_key`\n\n"
-                "Example: `https://short.ly/api|your_api_key`\n\n"
+                "**Examples:**\n"
+                "• `https://short.ly/api|your_api_key`\n"
+                "• `https://tinyurl.com/api|your_key`\n\n"
                 "Send 'none' to disable shortener.",
                 reply_markup=InlineKeyboardMarkup([
                     [InlineKeyboardButton("❌ Cancel", callback_data="clone_cancel_input")]
@@ -198,6 +219,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 **Current Settings:**
 • Random Mode: `{'ON' if clone_data.get('random_mode') else 'OFF'}`
 • Recent Mode: `{'ON' if clone_data.get('recent_mode') else 'OFF'}`
+• Popular Mode: `{'ON' if clone_data.get('popular_mode') else 'OFF'}`
 • Token Verification: `{'ON' if clone_data.get('token_verification') else 'OFF'}`
             """
 
@@ -215,7 +237,9 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
 **Random Mode**: Shows random files when browsing
 **Recent Mode**: Shows recently added files first
+**Popular Mode**: Shows most accessed files first
 **Token Verification**: Requires users to verify before access
+**Force Join**: Requires users to join channels before access
 **Command Limit**: Limits user commands per time period
 **URL Shortener**: Shortens shared file links
 **Time Base**: Time period for command limit reset
@@ -251,10 +275,16 @@ All settings are applied immediately and affect all users of your clone bot.
 • Name: `{updated_clone_data.get('bot_name', 'Unknown')}`
 • Status: `{'Active' if updated_clone_data.get('status') == 'active' else 'Inactive'}`
 
-**Current Settings:**
+**File Display Settings:**
 • 🎲 Random Mode: `{'ON' if updated_clone_data.get('random_mode', False) else 'OFF'}`
 • 📊 Recent Mode: `{'ON' if updated_clone_data.get('recent_mode', False) else 'OFF'}`
+• 🔥 Popular Mode: `{'ON' if updated_clone_data.get('popular_mode', False) else 'OFF'}`
+
+**Access Control:**
 • 🔑 Token Verification: `{'ON' if updated_clone_data.get('token_verification', False) else 'OFF'}`
+• 📢 Force Join Channels: `{len(updated_clone_data.get('force_channels', []))}`
+
+**System Settings:**
 • ⏱️ Command Limit: `{updated_clone_data.get('command_limit', 'Unlimited')}`
 • 🔗 URL Shortener: `{updated_clone_data.get('shortener_api', 'Not Set')}`
 
@@ -269,6 +299,127 @@ Click the buttons below to modify settings:
     except Exception as e:
         logger.error(f"Error in clone settings callback: {e}")
         await query.answer("❌ Error processing request. Please try again.", show_alert=True)
+
+async def handle_force_join_settings(client: Client, query: CallbackQuery, clone_data):
+    """Handle force join channel settings"""
+    user_id = query.from_user.id
+    bot_id = clone_data.get('bot_id')
+    force_channels = clone_data.get('force_channels', [])
+
+    text = f"📢 **Force Join Channel Settings**\n\n"
+    
+    if force_channels:
+        text += "**Current Force Join Channels:**\n"
+        for i, channel in enumerate(force_channels, 1):
+            try:
+                chat = await client.get_chat(channel)
+                text += f"{i}. {chat.title} (`{channel}`)\n"
+            except:
+                text += f"{i}. Channel ID: `{channel}`\n"
+        text += "\n"
+    else:
+        text += "❌ No force join channels configured.\n\n"
+
+    text += "**Management Commands:**\n"
+    text += "• `/addforce <channel_id>` - Add force join channel\n"
+    text += "• `/removeforce <channel_id>` - Remove force join channel\n"
+    text += "• `/listforce` - List all force join channels\n\n"
+    text += "**Note:** Users must join these channels to access files."
+
+    clone_admin_sessions[user_id] = {
+        'action': 'manage_force_channels',
+        'bot_id': bot_id,
+        'message_id': query.message.id
+    }
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ Add Channel", callback_data="clone_add_force_channel")],
+            [InlineKeyboardButton("➖ Remove Channel", callback_data="clone_remove_force_channel")],
+            [InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_back_to_settings")]
+        ])
+    )
+
+async def handle_token_mode_settings(client: Client, query: CallbackQuery, clone_data):
+    """Handle token verification mode settings"""
+    user_id = query.from_user.id
+    bot_id = clone_data.get('bot_id')
+    current_mode = clone_data.get('token_mode', 'one_time')
+    token_enabled = clone_data.get('token_verification', False)
+
+    text = f"🔑 **Token Verification Settings**\n\n"
+    text += f"**Current Status:** {'Enabled' if token_enabled else 'Disabled'}\n"
+    text += f"**Current Mode:** {current_mode.replace('_', ' ').title()}\n\n"
+    
+    text += "**Available Modes:**\n"
+    text += "• **One Time** - Token valid for single use\n"
+    text += "• **Command Limit** - Token valid for multiple commands\n"
+    text += "• **Time Based** - Token valid for specific time period\n\n"
+    
+    text += "**Current Settings:**\n"
+    text += f"• Command Limit: {clone_data.get('command_limit', 'Unlimited')}\n"
+    text += f"• Token Price: ${clone_data.get('token_price', 1.0)}\n"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Toggle System", callback_data="clone_toggle_token_system"),
+                InlineKeyboardButton("⚙️ One Time", callback_data="clone_set_token_one_time")
+            ],
+            [
+                InlineKeyboardButton("📊 Command Limit", callback_data="clone_set_token_command_limit"),
+                InlineKeyboardButton("⏰ Time Based", callback_data="clone_set_token_time_based")
+            ],
+            [
+                InlineKeyboardButton("💰 Set Price", callback_data="clone_set_token_price"),
+                InlineKeyboardButton("🔙 Back", callback_data="clone_back_to_settings")
+            ]
+        ])
+    )
+
+@Client.on_callback_query(filters.regex("^clone_toggle_token_system$"))
+async def toggle_token_system(client: Client, query: CallbackQuery):
+    """Toggle token verification system"""
+    user_id = query.from_user.id
+    
+    if not is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    clone_data = await get_clone_by_bot_token(client.bot_token)
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    current_state = clone_data.get('token_verification', False)
+    new_state = not current_state
+    bot_id = clone_data.get('bot_id')
+    
+    await update_clone_setting(bot_id, 'token_verification', new_state)
+    await query.answer(f"🔑 Token system {'enabled' if new_state else 'disabled'}")
+    
+    # Refresh the token mode settings
+    await handle_token_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
+
+@Client.on_callback_query(filters.regex("^clone_set_token_"))
+async def set_token_mode(client: Client, query: CallbackQuery):
+    """Set token verification mode"""
+    user_id = query.from_user.id
+    mode = query.data.replace("clone_set_token_", "")
+    
+    if not is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    clone_data = await get_clone_by_bot_token(client.bot_token)
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    bot_id = clone_data.get('bot_id')
+    await update_clone_setting(bot_id, 'token_mode', mode)
+    await query.answer(f"🔑 Token mode set to {mode.replace('_', ' ').title()}")
+    
+    # Refresh the token mode settings
+    await handle_token_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
 
 @Client.on_message(filters.text & filters.private)
 async def handle_clone_admin_input(client: Client, message: Message):

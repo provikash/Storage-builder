@@ -29,6 +29,34 @@ CALLBACK_PRIORITIES = {
 # For this example, let's assume it's a dictionary.
 creation_sessions = {}
 
+# Placeholder for clone_config_loader, assuming it's defined elsewhere
+class MockCloneConfigLoader:
+    async def get_bot_config(self, bot_token):
+        # Mock implementation, replace with actual loader
+        return {
+            "bot_info": {
+                "admin_id": 123456789, # Example admin ID
+                "bot_token": bot_token
+            },
+            "features": {
+                "random_files": True,
+                "recent_files": True,
+                "popular_files": True,
+                "force_join": True,
+                "token_verification_mode": "strict",
+                "url_shortener": True,
+                "api_key_management": True
+            }
+        }
+clone_config_loader = MockCloneConfigLoader()
+
+# Placeholder for admin_sessions, assuming it's defined elsewhere
+admin_sessions = {}
+
+# Placeholder for debug_print, assuming it's defined elsewhere
+def debug_print(message):
+    print(f"DEBUG: {message}")
+
 # Helper function to check if user is Mother Bot admin
 def is_mother_admin(user_id):
     """Check if user is Mother Bot admin"""
@@ -46,6 +74,56 @@ def is_mother_admin(user_id):
     result = is_owner or is_admin
 
     return result
+
+# Helper function to check if user is a clone bot admin
+def is_clone_admin(user_id, config):
+    """Check if user is a clone bot admin"""
+    bot_admin_id = config.get('bot_info', {}).get('admin_id')
+    if bot_admin_id:
+        return user_id == bot_admin_id
+    return False
+
+# Placeholder functions for clone admin callbacks
+async def handle_clone_local_force_channels(client: Client, query: CallbackQuery):
+    await query.answer("Handling clone_local_force_channels")
+    await query.edit_message_text("Local Force Channels Settings (Placeholder)")
+
+async def handle_clone_request_channels(client: Client, query: CallbackQuery):
+    await query.answer("Handling clone_request_channels")
+    await query.edit_message_text("Request Channels Settings (Placeholder)")
+
+async def handle_clone_token_command_config(client: Client, query: CallbackQuery):
+    await query.answer("Handling clone_token_command_config")
+    await query.edit_message_text("Token Command Configuration (Placeholder)")
+
+async def handle_clone_token_pricing(client: Client, query: CallbackQuery):
+    await query.answer("Handling clone_token_pricing")
+    await query.edit_message_text("Token Pricing Settings (Placeholder)")
+
+async def handle_clone_bot_features(client: Client, query: CallbackQuery):
+    await query.answer("Handling clone_bot_features")
+    await query.edit_message_text("Bot Features Settings (Placeholder)")
+
+async def handle_clone_subscription_status(client: Client, query: CallbackQuery):
+    await query.answer("Handling clone_subscription_status")
+    await query.edit_message_text("Subscription Status (Placeholder)")
+
+async def handle_clone_toggle_token_system(client: Client, query: CallbackQuery):
+    await query.answer("Handling clone_toggle_token_system")
+    await query.edit_message_text("Token System Toggle (Placeholder)")
+
+async def clone_admin_panel(client: Client, message):
+    """Placeholder for the clone admin panel display function"""
+    text = "Clone Admin Panel (Placeholder)"
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("Settings", callback_data="clone_settings_panel")],
+        [InlineKeyboardButton("Back to Home", callback_data="back_to_start")]
+    ])
+    await message.reply_text(text, reply_markup=buttons)
+
+async def handle_clone_about_water(client: Client, query: CallbackQuery):
+    await query.answer("Handling clone_about_water")
+    await query.edit_message_text("About Water Info (Placeholder)")
 
 # Admin Panel Callbacks (Priority 1)
 @Client.on_callback_query(filters.regex("^(mother_|clone_|back_to_|refresh_dashboard)"), group=CALLBACK_PRIORITIES["admin"])
@@ -216,32 +294,32 @@ async def handle_view_request_details(client: Client, query: CallbackQuery, requ
 async def handle_bot_management_callbacks(client: Client, query: CallbackQuery):
     """Handle bot management callbacks"""
     user_id = query.from_user.id
-    
+
     # Check admin permissions
     if not is_mother_admin(user_id):
         await query.answer("❌ Unauthorized access!", show_alert=True)
         return
-    
+
     if query.data == "system_stats":
         try:
             from clone_manager import clone_manager
             running_clones = len(clone_manager.get_running_clones()) if hasattr(clone_manager, 'get_running_clones') else 0
-            
+
             text = f"📊 **System Statistics**\n\n"
             text += f"🤖 **Bot Status:**\n"
             text += f"• Mother Bot: ✅ Online\n"
             text += f"• Running Clones: {running_clones}\n"
             text += f"• System Status: ✅ Healthy\n\n"
-            
+
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔄 Refresh", callback_data="system_stats")],
                 [InlineKeyboardButton("🔙 Back to Management", callback_data="bot_management")]
             ])
-            
+
             await query.edit_message_text(text, reply_markup=buttons)
         except Exception as e:
             await query.answer(f"❌ Error loading stats: {str(e)}", show_alert=True)
-    
+
     elif query.data == "health_check":
         text = f"🏥 **System Health Check**\n\n"
         text += f"✅ **All Systems Operational**\n\n"
@@ -249,12 +327,12 @@ async def handle_bot_management_callbacks(client: Client, query: CallbackQuery):
         text += f"• Database Connection: ✅ OK\n"
         text += f"• Telegram API: ✅ OK\n"
         text += f"• Clone Services: ✅ OK\n"
-        
+
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🔄 Run Check Again", callback_data="health_check")],
             [InlineKeyboardButton("🔙 Back to Management", callback_data="bot_management")]
         ])
-        
+
         await query.edit_message_text(text, reply_markup=buttons)
 
 # Mother Bot callback handlers
@@ -586,3 +664,86 @@ async def add_balance_50_callback(client: Client, query: CallbackQuery):
     ])
 
     await query.edit_message_text(text, reply_markup=buttons)
+
+# Clone Bot Callback Handlers (Higher priority than the router)
+@Client.on_callback_query(filters.regex("^clone_"), group=0)
+async def clone_admin_callbacks(client: Client, query: CallbackQuery):
+    """Handle Clone Bot admin panel callbacks"""
+    user_id = query.from_user.id
+    debug_print(f"Clone Bot callback received from user {user_id}, data: {query.data}")
+
+    # Handle settings panel callback without admin check for now
+    if query.data == "clone_settings_panel":
+        from bot.plugins.clone_admin_settings import clone_settings_command
+        # Convert query to message-like object
+        class FakeMessage:
+            def __init__(self, query):
+                self.from_user = query.from_user
+                self.chat = query.message.chat
+            async def reply_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+
+        fake_message = FakeMessage(query)
+        await clone_settings_command(client, fake_message)
+        return
+
+    # Get bot configuration first
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    debug_print(f"Bot token for clone callback: {bot_token}")
+
+    try:
+        config = await clone_config_loader.get_bot_config(bot_token)
+        debug_print(f"Config loaded successfully for clone callback")
+    except Exception as e:
+        debug_print(f"Error loading config for clone callback: {e}")
+        return await query.answer("❌ Error loading bot configuration!", show_alert=True)
+
+    # Check clone admin permissions
+    if not is_clone_admin(user_id, config):
+        debug_print(f"Unauthorized access to Clone Bot panel for user {user_id}. Expected admin ID: {config['bot_info'].get('admin_id')}")
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    # Validate or create session
+    session = admin_sessions.get(user_id)
+    debug_print(f"Current clone session for user {user_id}: {session}")
+
+    if not session or session['type'] != 'clone':
+        debug_print(f"Creating new clone admin session for user {user_id}")
+        admin_sessions[user_id] = {
+            'type': 'clone',
+            'timestamp': datetime.now(),
+            'bot_token': bot_token,
+            'last_content': None
+        }
+        session = admin_sessions[user_id]
+    else:
+        # Update timestamp and bot_token
+        session['timestamp'] = datetime.now()
+        session['bot_token'] = bot_token
+        debug_print(f"Updated existing clone session for user {user_id}")
+
+    callback_data = query.data
+    debug_print(f"Processing callback_data: {callback_data}")
+
+    if callback_data == "clone_local_force_channels":
+        await handle_clone_local_force_channels(client, query)
+    elif callback_data == "clone_request_channels":
+        await handle_clone_request_channels(client, query)
+    elif callback_data == "clone_token_command_config":
+        await handle_clone_token_command_config(client, query)
+    elif callback_data == "clone_token_pricing":
+        await handle_clone_token_pricing(client, query)
+    elif callback_data == "clone_bot_features":
+        await handle_clone_bot_features(client, query)
+    elif callback_data == "clone_subscription_status":
+        await handle_clone_subscription_status(client, query)
+    elif callback_data == "clone_toggle_token_system":
+        await handle_clone_toggle_token_system(client, query)
+    elif callback_data == "back_to_clone_panel":
+        debug_print(f"Navigating back to Clone Bot panel for user {user_id}")
+        await clone_admin_panel(client, query.message) # Pass message to clone_admin_panel
+    elif callback_data == "clone_about_water": # Handler for the new About Water Info button
+        await handle_clone_about_water(client, query)
+    else:
+        debug_print(f"Unknown Clone Bot callback action: {callback_data}")
+        await query.answer("⚠️ Unknown action", show_alert=True)
