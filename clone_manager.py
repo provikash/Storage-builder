@@ -133,6 +133,10 @@ class CloneManager:
                 try:
                     from bot.utils.handler_manager import handler_manager
                     handler_manager.clear_client_handlers(clone_bot)
+                    
+                    # Additional safety: remove all handlers directly
+                    clone_bot.dispatcher.groups.clear()
+                    logger.info(f"✅ Cleared all handlers for clone {bot_id}")
                 except Exception as handler_error:
                     logger.warning(f"⚠️ Handler cleanup warning for {bot_id}: {handler_error}")
 

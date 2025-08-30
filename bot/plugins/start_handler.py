@@ -52,11 +52,38 @@ async def start_command(client: Client, message: Message):
 
     # Detect if this is a clone bot or mother bot
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
-    
-    # Additional check for clone bot detection
-    if not is_clone_bot:
-        is_clone_bot = bot_token != Config.BOT_TOKEN and hasattr(client, 'clone_config')
+    is_clone_bot = bot_token != Config.BOT_TOKEN
+
+    # Get bot configuration with better detection
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    config = None
+
+    try:
+        from bot.utils.clone_config_loader import clone_config_loader
+        from bot.database.clone_db import get_clone_by_bot_token
+
+        # Try to get config from loader first
+        config = await clone_config_loader.get_bot_config(bot_token)
+
+        # If no config, check if this is a clone bot by token
+        if not config:
+            clone_data = await get_clone_by_bot_token(bot_token)
+            if clone_data:
+                # This is a clone bot, create basic config
+                config = {
+                    'bot_info': {
+                        'is_clone': True,
+                        'admin_id': clone_data.get('admin_id'),
+                        'bot_id': clone_data.get('_id')
+                    }
+                }
+                logger.info(f"📋 Created config from clone data for {bot_token[:10]}...")
+
+        logger.info(f"📋 Config loaded for bot_token: {bot_token[:10]}... (is_clone: {config.get('bot_info', {}).get('is_clone', False) if config else False})")
+    except Exception as e:
+        logger.error(f"❌ Error loading config: {e}")
+        config = None
+
 
     if is_clone_bot:
         # Clone bot start message (shortened)
@@ -68,21 +95,21 @@ async def start_command(client: Client, message: Message):
         # Load clone configuration for admin checks and settings
         start_buttons = []
         clone_admin_id = None
-        
+
         try:
             # Get clone data from database using bot token
             clone_data = await get_clone_by_bot_token(bot_token)
             if clone_data:
                 clone_admin_id = clone_data.get('admin_id')
                 logger.info(f"Clone admin ID: {clone_admin_id}, Current user: {user_id}")
-                
+
                 # Add settings button for clone admin
                 if user_id == clone_admin_id:
                     start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
                     logger.info(f"Added settings button for clone admin {user_id}")
             else:
                 logger.warning(f"No clone data found for bot token: {bot_token}")
-                
+
         except Exception as e:
             logger.error(f"Error checking clone admin status: {e}")
 
@@ -545,140 +572,50 @@ async def user_stats_callback(client: Client, query: CallbackQuery):
 
 @Client.on_callback_query(filters.regex("^back_to_start$"))
 async def back_to_start_callback(client: Client, query: CallbackQuery):
-    """Return to main start menu - separated for mother bot and clone bot"""
+    """Return to main start menu"""
     await query.answer()
 
-    # Detect bot type
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
-    
-    # Additional check for clone bot detection
-    if not is_clone_bot:
-        is_clone_bot = bot_token != Config.BOT_TOKEN and hasattr(client, 'clone_config')
-
+    # Recreate the start message
     user = query.from_user
     user_id = user.id
     user_premium = await is_premium_user(user_id)
     balance = await get_user_balance(user_id)
+    is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if is_clone_bot:
-        # Clone bot start message
-        text = f"🤖 **Welcome {user.first_name}!**\n\n"
-        text += f"📁 **Your Personal File Bot** with secure sharing and search.\n\n"
-        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
-        text += f"🎯 Choose an option below:"
+    # Enhanced welcome message (shortened)
+    text = f"🚀 **Welcome {user.first_name}!**\n\n"
+    text += f"🤖 **Advanced Bot Creator** - Create personal clone bots with file sharing.\n\n"
+    text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+    text += f"🎯 Choose an option below:"
 
-        # Load clone configuration for admin checks and settings
-        start_buttons = []
-        clone_admin_id = None
-        
-        try:
-            # Get clone data from database using bot token
-            clone_data = await get_clone_by_bot_token(bot_token)
-            if clone_data:
-                clone_admin_id = clone_data.get('admin_id')
-                
-                # Add settings button for clone admin
-                if user_id == clone_admin_id:
-                    start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
-                    
-        except Exception as e:
-            logger.error(f"Error checking clone admin status: {e}")
+    # Rebuild main menu buttons
+    buttons = []
 
-        # Get clone settings to determine which buttons to show
-        try:
-            if not 'clone_data' in locals() or clone_data is None:
-                clone_data = await get_clone_by_bot_token(bot_token)
-            show_random = clone_data.get('random_mode', True) if clone_data else True
-            show_recent = clone_data.get('recent_mode', True) if clone_data else True
-            show_popular = clone_data.get('popular_mode', True) if clone_data else True
-        except Exception as e:
-            logger.error(f"Error fetching clone settings: {e}")
-            show_random = show_recent = show_popular = True
+    # Row 1: Main Features
+    buttons.append([
+        InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+        InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+    ])
 
-        # Create file access buttons
-        file_buttons = []
+    # Row 2: Management & Stats
+    buttons.append([
+        InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone"),
+        InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
+    ])
 
-        # Always show search button
-        file_buttons.append([InlineKeyboardButton("🔍 Search Files", callback_data="search_files")])
+    # Row 3: Premium & About
+    buttons.append([
+        InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
+        InlineKeyboardButton("💧 About", callback_data="about_water")
+    ])
 
-        # Show file mode buttons based on settings
-        mode_buttons = []
-        if show_random:
-            mode_buttons.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-        if show_recent:
-            mode_buttons.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+    # Row 4: Help & Admin
+    help_admin_row = [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
+    if is_admin:
+        help_admin_row.append(InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"))
+    buttons.append(help_admin_row)
 
-        # Add mode buttons in rows of 2
-        if mode_buttons:
-            if len(mode_buttons) == 2:
-                file_buttons.append(mode_buttons)
-            else:
-                file_buttons.append([mode_buttons[0]])
-                if len(mode_buttons) > 1:
-                    file_buttons.append([mode_buttons[1]])
-
-        # Add popular files button if enabled
-        if show_popular:
-            file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
-
-        # User action buttons
-        file_buttons.append([
-            InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
-            InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")
-        ])
-
-        # Admin buttons for clone admin
-        file_buttons.extend(start_buttons) # Add the settings button if applicable
-
-        file_buttons.append([
-            InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
-            InlineKeyboardButton("❓ Help", callback_data="help_menu")
-        ])
-
-        reply_markup = InlineKeyboardMarkup(file_buttons)
-
-    else:
-        # Mother bot start message
-        is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
-        
-        text = f"🚀 **Welcome {user.first_name}!**\n\n"
-        text += f"🤖 **Advanced Bot Creator** - Create personal clone bots with file sharing.\n\n"
-        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
-        text += f"🎯 Choose an option below:"
-
-        # Mother bot buttons
-        buttons = []
-
-        # Row 1: Main Features
-        buttons.append([
-            InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
-            InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
-        ])
-
-        # Row 2: Management & Stats
-        buttons.append([
-            InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone"),
-            InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
-        ])
-
-        # Row 3: Premium & About
-        buttons.append([
-            InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
-            InlineKeyboardButton("💧 About", callback_data="about_water")
-        ])
-
-        # Row 4: Help & Admin
-        help_admin_row = [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
-        # Add admin panel button for Mother Bot admins only (not in clone bots)
-        if is_admin:
-            help_admin_row.append(InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"))
-            help_admin_row.append(InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management"))
-        buttons.append(help_admin_row)
-
-        reply_markup = InlineKeyboardMarkup(buttons)
-
-    await safe_edit_message(query, text, reply_markup=reply_markup)
+    await safe_edit_message(query, text, reply_markup=InlineKeyboardMarkup(buttons))
 
 @Client.on_callback_query(filters.regex("^about_water$"))
 async def about_water_callback(client: Client, query: CallbackQuery):

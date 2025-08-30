@@ -172,29 +172,13 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
     print(f"🔄 DEBUG CALLBACK: Start admin button - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
-    # Strict bot type detection
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
-    
-    # Additional checks for clone bot detection
-    if not is_clone_bot:
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or 
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-
     callback_data = query.data
 
     if callback_data == "admin_panel":
-        # Block access in clone bots with multiple checks
+        # Block access in clone bots
+        is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
         if is_clone_bot:
-            await query.answer("❌ Admin panel only available in Mother Bot!", show_alert=True)
-            return
-
-        # Verify this is actually the mother bot
-        if bot_token != Config.BOT_TOKEN:
-            await query.answer("❌ This feature is restricted to Mother Bot!", show_alert=True)
+            await query.answer("❌ Admin panel not available in clone bots!", show_alert=True)
             return
 
         # Check admin permissions for mother bot
@@ -211,14 +195,10 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
             await query.answer("❌ Error loading admin panel!", show_alert=True)
 
     elif callback_data == "bot_management":
-        # Block access in clone bots with multiple checks
+        # Block access in clone bots
+        is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
         if is_clone_bot:
-            await query.answer("❌ Bot management only available in Mother Bot!", show_alert=True)
-            return
-
-        # Verify this is actually the mother bot
-        if bot_token != Config.BOT_TOKEN:
-            await query.answer("❌ This feature is restricted to Mother Bot!", show_alert=True)
+            await query.answer("❌ Bot management not available in clone bots!", show_alert=True)
             return
 
         # Check admin permissions for mother bot
@@ -375,26 +355,10 @@ async def mother_admin_callback_router(client: Client, query: CallbackQuery):
     print(f"🔄 DEBUG CALLBACK: Mother Bot admin callback router - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
-    # Strict bot type detection
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
-    
-    # Additional checks for clone bot detection
-    if not is_clone_bot:
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or 
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-
-    # Block mother bot callbacks in clone bots with multiple checks
+    # Block mother bot callbacks in clone bots
+    is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
     if is_clone_bot:
-        await query.answer("❌ Mother bot features only available in Mother Bot!", show_alert=True)
-        return
-
-    # Verify this is actually the mother bot
-    if bot_token != Config.BOT_TOKEN:
-        await query.answer("❌ This feature is restricted to Mother Bot!", show_alert=True)
+        await query.answer("❌ Mother bot features not available in clone bots!", show_alert=True)
         return
 
     # Check if user is mother bot admin
@@ -517,29 +481,7 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
     print(f"🔄 DEBUG CALLBACK: General callback - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
-    # Detect bot type for proper separation
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
-    
-    # Additional checks for clone bot detection
-    if not is_clone_bot:
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or 
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-
     callback_data = query.data
-
-    # Block mother bot specific features in clone bots
-    if is_clone_bot and callback_data in ["manage_my_clone"]:
-        await query.answer("❌ Clone management only available in Mother Bot!", show_alert=True)
-        return
-
-    # Block clone creation features in clone bots  
-    if is_clone_bot and callback_data in ["start_clone_creation", "create_new_clone"]:
-        await query.answer("❌ Clone creation only available in Mother Bot!", show_alert=True)
-        return
 
     if callback_data == "about":
         from bot.plugins.callback import about_callback
@@ -562,19 +504,49 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
         await transaction_history_callback(client, query)
     elif callback_data == "back_to_start":
         # Handle back to start - show start message
-        from bot.plugins.start_handler import back_to_start_callback
-        await back_to_start_callback(client, query)
+        # Check if this is a clone bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        is_clone_bot_instance = False
+        try:
+            # Attempt to load clone config to check if it's a clone bot instance
+            from bot.utils.clone_config_loader import clone_config_loader
+            config = await clone_config_loader.get_bot_config(bot_token)
+            if config and config.get('bot_info', {}).get('is_clone', False):
+                is_clone_bot_instance = True
+        except Exception as e:
+            logger.error(f"Error checking clone config for back_to_start: {e}")
+
+        if is_clone_bot_instance:
+            admin_id = config.get('bot_info', {}).get('admin_id')
+            if user_id == admin_id:
+                # Clone admin goes to clone panel
+                from bot.plugins.clone_admin_settings import clone_admin_panel
+                class FakeMessage:
+                    def __init__(self, query):
+                        self.from_user = query.from_user
+                        self.chat = query.message.chat
+                    async def reply_text(self, text, reply_markup=None):
+                        await query.edit_message_text(text, reply_markup=reply_markup)
+
+                fake_message = FakeMessage(query)
+                await clone_admin_panel(client, fake_message)
+                return
+            else:
+                # Non-admin in clone bot, show a message or redirect to clone's start if applicable
+                await query.answer("This is a clone bot. Please use its specific commands.", show_alert=True)
+                return
+        else:
+            # For mother bot or regular users, go to normal start
+            from bot.plugins.start_handler import back_to_start_callback
+            await back_to_start_callback(client, query)
     elif callback_data == "add_balance":
         # Handle add balance
         from bot.plugins.balance_management import show_balance_options
         await show_balance_options(client, query)
     elif callback_data == "manage_my_clone":
-        # Only allow in mother bot
-        if not is_clone_bot:
-            from bot.plugins.clone_management import manage_user_clone
-            await manage_user_clone(client, query)
-        else:
-            await query.answer("❌ Clone management only available in Mother Bot!", show_alert=True)
+        # Handle manage clone
+        from bot.plugins.clone_management import manage_user_clone
+        await manage_user_clone(client, query)
     elif callback_data == "my_stats":
         from bot.plugins.callback import my_stats_callback
         await my_stats_callback(client, query)
@@ -629,14 +601,59 @@ async def handle_popular_files(client: Client, query: CallbackQuery):
 
 @Client.on_callback_query(filters.regex("^back_to_start$"))
 async def handle_back_to_start(client: Client, query: CallbackQuery):
-    """Handle back to start callback by calling start command"""
+    """Handle back to start navigation with clone bot protection"""
+    user_id = query.from_user.id
+    print(f"🔄 DEBUG CALLBACK: Back to start handler - '{query.data}' from user {user_id}")
+    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
+
+    # Check if this is a clone bot
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    config = None
+    is_clone_bot_instance = False
+
     try:
-        # Recreate start message properly
-        from bot.plugins.start_handler import back_to_start_callback
-        await back_to_start_callback(client, query)
+        # Attempt to load clone config to check if it's a clone bot instance
+        # Ensure clone_config_loader is correctly imported or defined globally
+        from bot.utils.clone_config_loader import clone_config_loader
+        config = await clone_config_loader.get_bot_config(bot_token)
+        if config and config.get('bot_info', {}).get('is_clone', False):
+            is_clone_bot_instance = True
+            admin_id = config.get('bot_info', {}).get('admin_id')
+            if user_id == admin_id:
+                # Clone admin goes to clone panel
+                from bot.plugins.clone_admin_settings import clone_admin_panel
+                class FakeMessage:
+                    def __init__(self, query):
+                        self.from_user = query.from_user
+                        self.chat = query.message.chat
+                    async def reply_text(self, text, reply_markup=None):
+                        await query.edit_message_text(text, reply_markup=reply_markup)
+
+                fake_message = FakeMessage(query)
+                await clone_admin_panel(client, fake_message)
+                return
+            else:
+                # Non-admin in clone bot, show a message or redirect to clone's start if applicable
+                await query.answer("This is a clone bot. Please use its specific commands.", show_alert=True)
+                return
     except Exception as e:
-        logger.error(f"Error in back_to_start handler: {e}")
-        await query.answer("❌ Error returning to home. Please use /start command.")
+        logger.error(f"Error checking clone config in handle_back_to_start: {e}")
+        # If config loading fails, assume it's not a clone bot or handle as error
+
+    # For mother bot or regular users, go to normal start
+    class FakeMessage:
+        def __init__(self, query):
+            self.from_user = query.from_user
+            self.chat = query.message.chat
+        async def reply_text(self, text, reply_markup=None):
+            await query.edit_message_text(text, reply_markup=reply_markup)
+
+    fake_message = FakeMessage(query)
+
+    # Import and call start command handler
+    from bot.plugins.start_handler import start_command
+    await start_command(client, fake_message)
+
 
 # Additional callback handlers for new features
 @Client.on_callback_query(filters.regex("^add_balance_5$"))
@@ -761,7 +778,7 @@ async def clone_admin_callbacks(client: Client, query: CallbackQuery):
         # First check if this is a clone bot
         bot_token = getattr(client, 'bot_token', None)
         is_clone_bot = bot_token and hasattr(client, 'is_clone') and client.is_clone
-        
+
         if not is_clone_bot:
             return await query.answer("❌ Settings not available in mother bot.", show_alert=True)
 
@@ -769,13 +786,13 @@ async def clone_admin_callbacks(client: Client, query: CallbackQuery):
         try:
             from bot.database.clone_db import get_clone_by_bot_token
             clone_data = await get_clone_by_bot_token(bot_token)
-            
+
             if not clone_data:
                 return await query.answer("❌ Clone configuration not found.", show_alert=True)
-                
+
             if clone_data.get('admin_id') != user_id:
                 return await query.answer("❌ Only clone admin can access settings.", show_alert=True)
-                
+
         except Exception as e:
             debug_print(f"Error verifying clone admin: {e}")
             return await query.answer("❌ Error verifying admin access.", show_alert=True)
