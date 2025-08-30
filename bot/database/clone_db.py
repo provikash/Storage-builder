@@ -110,7 +110,8 @@ async def create_clone_config(clone_id: str):
         "shortener_settings": {
             "enabled": True,
             "api_url": "https://teraboxlinks.com/",
-            "api_key": ""
+            "api_key": "",
+            "custom_domain": ""
         },
         "time_settings": {
             "auto_delete_time": 600,

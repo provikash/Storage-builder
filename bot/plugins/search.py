@@ -3,7 +3,7 @@ from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, 
 from bot.database import get_random_files, get_popular_files, get_recent_files, get_index_stats, increment_access_count, is_premium_user
 from bot.utils import encode, get_readable_file_size, handle_force_sub
 from bot.utils.command_verification import check_command_limit, use_command
-# Rate limiter removed
+from bot.utils.token_verification import TokenVerificationManager
 from info import Config
 import asyncio
 import traceback
@@ -60,8 +60,12 @@ async def random_command(client: Client, message: Message):
         user_id = message.from_user.id
 
         # Check command limit and use command if allowed
-        if not await use_command(user_id):
-            needs_verification, remaining = await check_command_limit(user_id)
+        if not await use_command(user_id, client):
+            needs_verification, remaining = await check_command_limit(user_id, client)
+
+            # Get verification mode for appropriate message
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
 
             # Create verification button
             buttons = InlineKeyboardMarkup([
@@ -69,15 +73,28 @@ async def random_command(client: Client, message: Message):
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
 
-            await message.reply_text(
-                f"⚠️ **Command Limit Reached!**\n\n"
-                f"You've used all your free commands (3/3).\n\n"
-                f"🔓 **Get instant access by:**\n"
-                f"• Getting a verification token (with ads)\n"
-                f"• Upgrading to Premium (no ads)\n\n"
-                f"💡 Premium users get unlimited access without verification!",
-                reply_markup=buttons
-            )
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = (
+                    f"⚠️ **Verification Required!**\n\n"
+                    f"🕐 **Time-Based Access:** Get {duration} hours of unlimited commands!\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({duration}h unlimited access)\n"
+                    f"• Upgrading to Premium (permanent unlimited access)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = (
+                    f"⚠️ **Command Limit Reached!**\n\n"
+                    f"You've used all your free commands.\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({command_limit} more commands)\n"
+                    f"• Upgrading to Premium (unlimited commands)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+
+            await message.reply_text(message_text, reply_markup=buttons)
             return
         await handle_random_files(client, message)
     except Exception as cmd_error:
@@ -105,29 +122,46 @@ async def keyboard_random_handler(client: Client, message: Message):
         user_id = message.from_user.id
 
         # Check command limit first
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         # Only show verification dialog if user actually needs verification AND has no remaining commands
         if needs_verification and remaining <= 0:
+            # Get verification mode for appropriate message
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
             # Create verification button
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
 
-            await message.reply_text(
-                f"⚠️ **Command Limit Reached!**\n\n"
-                f"You've used all your free commands (3/3).\n\n"
-                f"🔓 **Get instant access by:**\n"
-                f"• Getting a verification token (with ads)\n"
-                f"• Upgrading to Premium (no ads)\n\n"
-                f"💡 Premium users get unlimited access without verification!",
-                reply_markup=buttons
-            )
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = (
+                    f"⚠️ **Verification Required!**\n\n"
+                    f"🕐 **Time-Based Access:** Get {duration} hours of unlimited commands!\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({duration}h unlimited access)\n"
+                    f"• Upgrading to Premium (permanent unlimited access)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = (
+                    f"⚠️ **Command Limit Reached!**\n\n"
+                    f"You've used all your free commands.\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({command_limit} more commands)\n"
+                    f"• Upgrading to Premium (unlimited commands)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+
+            await message.reply_text(message_text, reply_markup=buttons)
             return
 
         # Try to use command (this will handle admin/premium logic internally)
-        if not await use_command(user_id):
+        if not await use_command(user_id, client):
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
@@ -163,29 +197,46 @@ async def keyboard_recent_handler(client: Client, message: Message):
         user_id = message.from_user.id
 
         # Check command limit first
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         # Only show verification dialog if user actually needs verification AND has no remaining commands
         if needs_verification and remaining <= 0:
+            # Get verification mode for appropriate message
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
             # Create verification button
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
 
-            await message.reply_text(
-                f"⚠️ **Command Limit Reached!**\n\n"
-                f"You've used all your free commands (3/3).\n\n"
-                f"🔓 **Get instant access by:**\n"
-                f"• Getting a verification token (with ads)\n"
-                f"• Upgrading to Premium (no ads)\n\n"
-                f"💡 Premium users get unlimited access without verification!",
-                reply_markup=buttons
-            )
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = (
+                    f"⚠️ **Verification Required!**\n\n"
+                    f"🕐 **Time-Based Access:** Get {duration} hours of unlimited commands!\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({duration}h unlimited access)\n"
+                    f"• Upgrading to Premium (permanent unlimited access)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = (
+                    f"⚠️ **Command Limit Reached!**\n\n"
+                    f"You've used all your free commands.\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({command_limit} more commands)\n"
+                    f"• Upgrading to Premium (unlimited commands)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+
+            await message.reply_text(message_text, reply_markup=buttons)
             return
 
         # Try to use command (this will handle admin/premium logic internally)
-        if not await use_command(user_id):
+        if not await use_command(user_id, client):
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
@@ -221,29 +272,46 @@ async def keyboard_popular_handler(client: Client, message: Message):
         user_id = message.from_user.id
 
         # Check command limit first
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         # Only show verification dialog if user actually needs verification AND has no remaining commands
         if needs_verification and remaining <= 0:
+            # Get verification mode for appropriate message
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
             # Create verification button
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
 
-            await message.reply_text(
-                f"⚠️ **Command Limit Reached!**\n\n"
-                f"You've used all your free commands (3/3).\n\n"
-                f"🔓 **Get instant access by:**\n"
-                f"• Getting a verification token (with ads)\n"
-                f"• Upgrading to Premium (no ads)\n\n"
-                f"💡 Premium users get unlimited access without verification!",
-                reply_markup=buttons
-            )
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = (
+                    f"⚠️ **Verification Required!**\n\n"
+                    f"🕐 **Time-Based Access:** Get {duration} hours of unlimited commands!\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({duration}h unlimited access)\n"
+                    f"• Upgrading to Premium (permanent unlimited access)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = (
+                    f"⚠️ **Command Limit Reached!**\n\n"
+                    f"You've used all your free commands.\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({command_limit} more commands)\n"
+                    f"• Upgrading to Premium (unlimited commands)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+
+            await message.reply_text(message_text, reply_markup=buttons)
             return
 
         # Try to use command (this will handle admin/premium logic internally)
-        if not await use_command(user_id):
+        if not await use_command(user_id, client):
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
@@ -280,21 +348,40 @@ async def keyboard_random_handler_sync(client: Client, message: Message):
         user_id = message.from_user.id
 
         # First check if verification is needed
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         if needs_verification:
+            # Get verification mode for appropriate message
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
             buttons = [
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ]
-            await message.reply_text(
-                "🔐 **Verification Required!**\n\nYou need to verify your account to continue. Get a verification token to access 3 more commands!",
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
+
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = (
+                    f"⚠️ **Verification Required!**\n\n"
+                    f"🕐 **Time-Based Access:** Get {duration} hours of unlimited commands!\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({duration}h unlimited access)\n"
+                    f"• Upgrading to Premium (permanent unlimited access)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = (
+                    f"⚠️ **Verification Required!**\n\n"
+                    f"You need to verify your account to continue. Get a verification token to access {command_limit} more commands!"
+                )
+
+            await message.reply_text(message_text, reply_markup=InlineKeyboardMarkup(buttons))
             return
 
         # Try to use command
-        if not await use_command(user_id):
+        if not await use_command(user_id, client):
             buttons = [
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
@@ -1371,8 +1458,12 @@ async def popular_files_command(client: Client, message: Message):
         user_id = message.from_user.id
 
         # Check command limit and use command if allowed
-        if not await use_command(user_id):
-            needs_verification, remaining = await check_command_limit(user_id)
+        if not await use_command(user_id, client):
+            needs_verification, remaining = await check_command_limit(user_id, client)
+
+            # Get verification mode for appropriate message
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
 
             # Create verification button
             buttons = InlineKeyboardMarkup([
@@ -1380,15 +1471,28 @@ async def popular_files_command(client: Client, message: Message):
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
 
-            await message.reply_text(
-                f"⚠️ **Command Limit Reached!**\n\n"
-                f"You've used all your free commands (3/3).\n\n"
-                f"🔓 **Get instant access by:**\n"
-                f"• Getting a verification token (with ads)\n"
-                f"• Upgrading to Premium (no ads)\n\n"
-                f"💡 Premium users get unlimited access without verification!",
-                reply_markup=buttons
-            )
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = (
+                    f"⚠️ **Verification Required!**\n\n"
+                    f"🕐 **Time-Based Access:** Get {duration} hours of unlimited commands!\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({duration}h unlimited access)\n"
+                    f"• Upgrading to Premium (permanent unlimited access)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = (
+                    f"⚠️ **Command Limit Reached!**\n\n"
+                    f"You've used all your free commands.\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({command_limit} more commands)\n"
+                    f"• Upgrading to Premium (unlimited commands)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+
+            await message.reply_text(message_text, reply_markup=buttons)
             return
 
         await handle_popular_files_direct(client, message, is_callback=False)
@@ -1413,8 +1517,12 @@ async def recent_files_command(client: Client, message: Message):
         user_id = message.from_user.id
 
         # Check command limit and use command if allowed
-        if not await use_command(user_id):
-            needs_verification, remaining = await check_command_limit(user_id)
+        if not await use_command(user_id, client):
+            needs_verification, remaining = await check_command_limit(user_id, client)
+
+            # Get verification mode for appropriate message
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
 
             # Create verification button
             buttons = InlineKeyboardMarkup([
@@ -1422,15 +1530,28 @@ async def recent_files_command(client: Client, message: Message):
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
 
-            await message.reply_text(
-                f"⚠️ **Command Limit Reached!**\n\n"
-                f"You've used all your free commands (3/3).\n\n"
-                f"🔓 **Get instant access by:**\n"
-                f"• Getting a verification token (with ads)\n"
-                f"• Upgrading to Premium (no ads)\n\n"
-                f"💡 Premium users get unlimited access without verification!",
-                reply_markup=buttons
-            )
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = (
+                    f"⚠️ **Verification Required!**\n\n"
+                    f"🕐 **Time-Based Access:** Get {duration} hours of unlimited commands!\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({duration}h unlimited access)\n"
+                    f"• Upgrading to Premium (permanent unlimited access)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = (
+                    f"⚠️ **Command Limit Reached!**\n\n"
+                    f"You've used all your free commands.\n\n"
+                    f"🔓 **Get instant access by:**\n"
+                    f"• Getting a verification token ({command_limit} more commands)\n"
+                    f"• Upgrading to Premium (unlimited commands)\n\n"
+                    f"💡 Premium users get unlimited access without verification!"
+                )
+
+            await message.reply_text(message_text, reply_markup=buttons)
             return
 
         await handle_recent_files_direct(client, message, is_callback=False)

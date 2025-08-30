@@ -578,16 +578,54 @@ async def handle_token_mode_settings(client: Client, query: CallbackQuery, clone
     """Handle token verification mode settings"""
     user_id = query.from_user.id
     bot_id = clone_data.get('bot_id')
-    current_mode = clone_data.get('token_mode', 'one_time')
-    token_enabled = clone_data.get('token_verification', False)
+    
+    # Get current config
+    config = await get_clone_config(str(bot_id))
+    token_settings = config.get('token_settings', {}) if config else {}
+    
+    current_mode = token_settings.get('verification_mode', 'command_limit')
+    token_enabled = token_settings.get('enabled', True)
+    command_limit = token_settings.get('command_limit', 3)
+    time_duration = token_settings.get('time_duration', 24)
 
     text = f"🔑 **Token Verification Settings**\n\n"
-    text += f"**Current Status:** {'Enabled' if token_enabled else 'Disabled'}\n"
+    text += f"**Current Status:** {'✅ Enabled' if token_enabled else '❌ Disabled'}\n"
     text += f"**Current Mode:** {current_mode.replace('_', ' ').title()}\n\n"
 
+    if current_mode == 'command_limit':
+        text += f"**Command Limit Mode:**\n"
+        text += f"• Commands per token: {command_limit}\n"
+        text += f"• Users get {command_limit} commands after verification\n\n"
+    elif current_mode == 'time_based':
+        text += f"**Time-Based Mode:**\n"
+        text += f"• Token duration: {time_duration} hours\n"
+        text += f"• Users get unlimited commands for {time_duration} hours\n\n"
+
     text += "**Available Modes:**\n"
-    text += "• **One Time** - Token valid for single use\n"
-    text += "• **Command Limit** - Token valid for multiple commands\n"
+    text += "• **Command Limit** - Token gives specific number of commands\n"
+    text += "• **Time Based** - Token valid for specific time period\n\n"
+    text += "**Commands:**\n"
+    text += "• `/settokenmode command_limit|time_based`\n"
+    text += "• `/setcommandlimit <number>` (for command mode)\n"
+    text += "• `/settimeduration <hours>` (for time mode)\n"
+    text += "• `/toggletoken` - Enable/disable system"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Toggle System", callback_data="clone_toggle_token_system"),
+                InlineKeyboardButton("📊 Command Mode", callback_data="clone_set_token_command_limit")
+            ],
+            [
+                InlineKeyboardButton("⏰ Time Mode", callback_data="clone_set_token_time_based"),
+                InlineKeyboardButton("⚙️ Shortener Config", callback_data="clone_shortener_config")
+            ],
+            [
+                InlineKeyboardButton("🔙 Back", callback_data="clone_back_to_settings")
+            ]
+        ])
+    )ext += "• **Command Limit** - Token valid for multiple commands\n"
     text += "• **Time Based** - Token valid for specific time period\n\n"
 
     text += "**Current Settings:**\n"
@@ -643,15 +681,87 @@ async def set_token_mode(client: Client, query: CallbackQuery):
     if not is_clone_admin(client, user_id):
         return await query.answer("❌ Unauthorized access!", show_alert=True)
 
-    clone_data = await get_clone_by_bot_token(client.bot_token)
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
     if not clone_data:
         return await query.answer("❌ Clone configuration not found.", show_alert=True)
 
-    bot_id = clone_data.get('bot_id')
-    await update_clone_setting(bot_id, 'token_mode', mode)
+    bot_id = str(clone_data.get('bot_id'))
+    
+    # Update token verification mode
+    await update_clone_token_verification(bot_id, verification_mode=mode)
     await query.answer(f"🔑 Token mode set to {mode.replace('_', ' ').title()}")
 
     # Refresh the token mode settings
+    updated_clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    await handle_token_mode_settings(client, query, updated_clone_data)
+
+@Client.on_callback_query(filters.regex("^clone_shortener_config$"))
+async def clone_shortener_config(client: Client, query: CallbackQuery):
+    """Handle URL shortener configuration"""
+    user_id = query.from_user.id
+
+    if not is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    # Get current config
+    config = await get_clone_config(str(clone_data.get('bot_id')))
+    shortener_settings = config.get('shortener_settings', {}) if config else {}
+    
+    current_url = shortener_settings.get('api_url', 'https://teraboxlinks.com/')
+    current_key = shortener_settings.get('api_key', 'Not Set')
+    enabled = shortener_settings.get('enabled', True)
+
+    text = f"🔗 **URL Shortener Configuration**\n\n"
+    text += f"**Current Settings:**\n"
+    text += f"• Status: {'✅ Enabled' if enabled else '❌ Disabled'}\n"
+    text += f"• API URL: `{current_url}`\n"
+    text += f"• API Key: `{'*' * (len(current_key) - 4) + current_key[-4:] if len(current_key) > 4 else current_key}`\n\n"
+    text += "**Commands:**\n"
+    text += "• `/setshortenerurl <api_url>` - Set API URL\n"
+    text += "• `/setshortenerkey <api_key>` - Set API key\n"
+    text += "• `/toggleshortener` - Enable/disable shortener\n\n"
+    text += "**Popular Shortener APIs:**\n"
+    text += "• `https://teraboxlinks.com/` (Default)\n"
+    text += "• `https://short.io/`\n"
+    text += "• `https://tinyurl.com/`"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Toggle Shortener", callback_data="clone_toggle_shortener"),
+                InlineKeyboardButton("🔧 Test Config", callback_data="clone_test_shortener")
+            ],
+            [InlineKeyboardButton("🔙 Back to Token Settings", callback_data="clone_token_verification_mode")]
+        ])
+    )
+
+@Client.on_callback_query(filters.regex("^clone_toggle_shortener$"))
+async def toggle_shortener(client: Client, query: CallbackQuery):
+    """Toggle URL shortener system"""
+    user_id = query.from_user.id
+
+    if not is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    bot_id = str(clone_data.get('bot_id'))
+    config = await get_clone_config(bot_id)
+    current_enabled = config.get('shortener_settings', {}).get('enabled', True) if config else True
+    new_state = not current_enabled
+
+    await update_clone_shortener_settings(bot_id, enabled=new_state)
+    await query.answer(f"🔗 URL Shortener {'enabled' if new_state else 'disabled'}")
+
+    # Refresh the shortener config
+    await clone_shortener_config(client, query)
     await handle_token_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
 
 @Client.on_message(filters.text & filters.private)

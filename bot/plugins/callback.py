@@ -39,7 +39,7 @@ async def my_stats_callback(client, query: CallbackQuery):
         from bot.utils.command_verification import check_command_limit
 
         stats = await get_command_stats(user_id)
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
         is_premium = await is_premium_user(user_id)
 
         # Determine status text based on user type
@@ -91,7 +91,7 @@ async def get_token_callback(client, query):
     try:
         # Check command count instead of verification status
         from bot.utils.command_verification import check_command_limit
-        needs_verification, remaining = await check_command_limit(user.id)
+        needs_verification, remaining = await check_command_limit(user.id, client)
 
         if not needs_verification and remaining > 0:
             await query.answer()
@@ -161,25 +161,36 @@ async def execute_rand_callback(client, query: CallbackQuery):
         user_id = query.from_user.id
 
         # First check if verification is needed
-        needs_verification, remaining = await check_command_limit(user_id)
+        from bot.utils.command_verification import check_command_limit, use_command
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         if needs_verification:
-            buttons = [
+            # Get verification mode for appropriate message
+            from bot.utils.token_verification import TokenVerificationManager
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
+            buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ]
+            ])
+
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {duration} hours of unlimited access!"
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {command_limit} more commands!"
+
             await query.answer()
-            return await query.edit_message_text(
-                "🔐 **Verification Required!**\n\nYou need to verify your account to continue. Get a verification token to access 3 more commands!",
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
+            return await query.edit_message_text(message_text, reply_markup=buttons)
 
         # Try to use command
-        if not await use_command(user_id):
-            buttons = [
+        if not await use_command(user_id, client):
+            buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ]
+            ])
             await query.answer()
             return await query.edit_message_text(
                 "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
@@ -226,24 +237,34 @@ async def random_files_callback(client, query: CallbackQuery):
             return
 
         user_id = query.from_user.id
-        
+
         # Check command limit
         from bot.utils.command_verification import check_command_limit, use_command
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         if needs_verification:
+            # Get verification mode for appropriate message
+            from bot.utils.token_verification import TokenVerificationManager
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
+
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {duration} hours of unlimited access!"
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {command_limit} more commands!"
+
             await query.answer()
-            return await query.edit_message_text(
-                "🔐 **Verification Required!**\n\nYou need to verify your account to continue. Get a verification token to access 3 more commands!",
-                reply_markup=buttons
-            )
+            return await query.edit_message_text(message_text, reply_markup=buttons)
 
         # Use command
-        if not await use_command(user_id):
+        if not await use_command(user_id, client):
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
@@ -255,7 +276,7 @@ async def random_files_callback(client, query: CallbackQuery):
             )
 
         await query.answer("Getting random files...", show_alert=False)
-        
+
         # Import and execute random files
         from bot.plugins.search import handle_random_files
         await handle_random_files(client, query.message, is_callback=True, skip_command_check=True)
@@ -288,24 +309,34 @@ async def recent_files_callback(client, query: CallbackQuery):
             return
 
         user_id = query.from_user.id
-        
+
         # Check command limit
         from bot.utils.command_verification import check_command_limit, use_command
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         if needs_verification:
+            # Get verification mode for appropriate message
+            from bot.utils.token_verification import TokenVerificationManager
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
+
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {duration} hours of unlimited access!"
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {command_limit} more commands!"
+
             await query.answer()
-            return await query.edit_message_text(
-                "🔐 **Verification Required!**\n\nYou need to verify your account to continue. Get a verification token to access 3 more commands!",
-                reply_markup=buttons
-            )
+            return await query.edit_message_text(message_text, reply_markup=buttons)
 
         # Use command
-        if not await use_command(user_id):
+        if not await use_command(user_id, client):
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
@@ -317,7 +348,7 @@ async def recent_files_callback(client, query: CallbackQuery):
             )
 
         await query.answer("Getting recent files...", show_alert=False)
-        
+
         # Import and execute recent files
         from bot.plugins.search import handle_recent_files_direct
         await handle_recent_files_direct(client, query.message, is_callback=True)
@@ -350,24 +381,34 @@ async def popular_files_callback(client, query: CallbackQuery):
             return
 
         user_id = query.from_user.id
-        
+
         # Check command limit
         from bot.utils.command_verification import check_command_limit, use_command
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         if needs_verification:
+            # Get verification mode for appropriate message
+            from bot.utils.token_verification import TokenVerificationManager
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
+
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {duration} hours of unlimited access!"
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {command_limit} more commands!"
+
             await query.answer()
-            return await query.edit_message_text(
-                "🔐 **Verification Required!**\n\nYou need to verify your account to continue. Get a verification token to access 3 more commands!",
-                reply_markup=buttons
-            )
+            return await query.edit_message_text(message_text, reply_markup=buttons)
 
         # Use command
-        if not await use_command(user_id):
+        if not await use_command(user_id, client):
             buttons = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
@@ -379,7 +420,7 @@ async def popular_files_callback(client, query: CallbackQuery):
             )
 
         await query.answer("Getting popular files...", show_alert=False)
-        
+
         # Import and execute popular files
         from bot.plugins.search import handle_popular_files_direct
         await handle_popular_files_direct(client, query.message, is_callback=True)
@@ -486,7 +527,7 @@ async def rand_stats_callback(client, query: CallbackQuery):
         from bot.utils.command_verification import check_command_limit
 
         stats = await get_command_stats(user_id)
-        needs_verification, remaining = await check_command_limit(user_id)
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
         status_text = "🔥 **Unlimited**" if remaining == -1 else f"🆓 **{remaining}/3**" if remaining > 0 else "❌ **Limit Reached**"
 
@@ -599,6 +640,14 @@ async def check_membership_callback(client: Client, query: CallbackQuery):
     if user_id == Config.OWNER_ID or user_id in Config.ADMINS:
         await query.answer("✅ Admin access granted!", show_alert=True)
         await query.message.delete()
+        return
+    
+    # Check token verification status for non-admins
+    from bot.utils.token_verification import TokenVerificationManager
+    is_verified_user = await TokenVerificationManager.is_user_verified(client, user_id)
+
+    if not is_verified_user:
+        await query.answer("❌ Please verify your account first!", show_alert=True)
         return
 
     print(f"🔍 DEBUG: Checking membership for user {user_id}")
