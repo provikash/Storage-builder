@@ -175,7 +175,13 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
     callback_data = query.data
 
     if callback_data == "admin_panel":
-        # Check admin permissions
+        # Block access in clone bots
+        is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
+        if is_clone_bot:
+            await query.answer("❌ Admin panel not available in clone bots!", show_alert=True)
+            return
+
+        # Check admin permissions for mother bot
         if not is_mother_admin(user_id):
             await query.answer("❌ Unauthorized access!", show_alert=True)
             return
@@ -189,7 +195,13 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
             await query.answer("❌ Error loading admin panel!", show_alert=True)
 
     elif callback_data == "bot_management":
-        # Check admin permissions
+        # Block access in clone bots
+        is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
+        if is_clone_bot:
+            await query.answer("❌ Bot management not available in clone bots!", show_alert=True)
+            return
+
+        # Check admin permissions for mother bot
         if not is_mother_admin(user_id):
             await query.answer("❌ Unauthorized access!", show_alert=True)
             return
@@ -342,6 +354,17 @@ async def mother_admin_callback_router(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     print(f"🔄 DEBUG CALLBACK: Mother Bot admin callback router - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
+
+    # Block mother bot callbacks in clone bots
+    is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
+    if is_clone_bot:
+        await query.answer("❌ Mother bot features not available in clone bots!", show_alert=True)
+        return
+
+    # Check if user is mother bot admin
+    if not is_mother_admin(user_id):
+        await query.answer("❌ Unauthorized access to mother bot features!", show_alert=True)
+        return
 
     # Let specific handlers handle their callbacks
     pass
@@ -672,8 +695,23 @@ async def clone_admin_callbacks(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     debug_print(f"Clone Bot callback received from user {user_id}, data: {query.data}")
 
-    # Handle settings panel callback without admin check for now
+    # Handle settings panel callback with proper admin verification
     if query.data == "clone_settings_panel":
+        # Verify this is a clone bot and user is the admin
+        if not hasattr(client, 'clone_config') or not client.clone_config:
+            # Try to get clone data from database
+            try:
+                from bot.database.clone_db import get_clone_by_bot_token
+                clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', None))
+                if not clone_data or clone_data.get('admin_id') != user_id:
+                    return await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+            except:
+                return await query.answer("❌ Clone configuration not found.", show_alert=True)
+        else:
+            # Check using clone_config
+            if user_id != client.clone_config.get('admin_id'):
+                return await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+
         from bot.plugins.clone_admin_settings import clone_settings_command
         # Convert query to message-like object
         class FakeMessage:

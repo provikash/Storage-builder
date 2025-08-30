@@ -146,7 +146,24 @@ async def get_clone(bot_id: str):
 
 async def get_clone_config(clone_id: str):
     """Get clone configuration"""
-    return await clone_configs_collection.find_one({"_id": clone_id})
+    try:
+        result = await clone_configs_collection.find_one({"_id": clone_id})
+        return result
+    except Exception as e:
+        logger.error(f"Error getting clone config: {e}")
+        return None
+
+async def get_clone_by_bot_token(bot_token):
+    """Get clone data by bot token"""
+    try:
+        if not bot_token:
+            return None
+        bot_id = bot_token.split(':')[0] if ':' in bot_token else bot_token
+        result = await clones_collection.find_one({"bot_id": bot_id})
+        return result
+    except Exception as e:
+        logger.error(f"Error getting clone by bot token: {e}")
+        return None
 
 async def update_clone_config(clone_id: str, config_updates: dict):
     """Update clone configuration"""

@@ -62,14 +62,22 @@ async def start_command(client: Client, message: Message):
         text += f"🎯 Choose an option below:"
 
         # Load clone configuration for admin checks and settings
+        start_buttons = []
         try:
-            config = await clone_config_loader.get_bot_config(bot_token)
-            clone_admin_id = config.get('bot_info', {}).get('admin_id')
-            is_clone_admin = (user_id == clone_admin_id)
+            # Check if client has clone_config attribute (set during bot initialization)
+            if hasattr(client, 'clone_config') and client.clone_config:
+                clone_admin_id = client.clone_config.get('admin_id')
+                if user_id == clone_admin_id:
+                    # Add settings button for clone admin
+                    start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
+            # Alternative check using bot token
+            elif hasattr(client, 'bot_token'):
+                from bot.database.clone_db import get_clone_by_bot_token
+                clone_data = await get_clone_by_bot_token(client.bot_token)
+                if clone_data and clone_data.get('admin_id') == user_id:
+                    start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
         except Exception as e:
-            logger.error(f"Error loading clone config: {e}")
-            is_clone_admin = False
-            config = {} # Ensure config is defined
+            logger.error(f"Error checking clone admin status: {e}")
 
         # Get clone settings to determine which buttons to show
         try:
@@ -102,7 +110,7 @@ async def start_command(client: Client, message: Message):
             else:
                 file_buttons.append([mode_buttons[0]])
                 if len(mode_buttons) > 1:
-                    file_buttons.append([mode_buttons[1]]) # This line was missing in the original intent, but needed for proper formatting.
+                    file_buttons.append([mode_buttons[1]])
 
         # Add popular files button if enabled
         if show_popular:
@@ -115,11 +123,7 @@ async def start_command(client: Client, message: Message):
         ])
 
         # Admin buttons for clone admin
-        if is_clone_admin:
-            file_buttons.append([
-                InlineKeyboardButton("⚙️ Admin Panel", callback_data="clone_admin_panel"),
-                InlineKeyboardButton("🛠️ Settings", callback_data="clone_settings_panel") # Added settings button
-            ])
+        file_buttons.extend(start_buttons) # Add the settings button if applicable
 
         file_buttons.append([
             InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
@@ -158,8 +162,11 @@ async def start_command(client: Client, message: Message):
 
         # Row 4: Help & Admin
         help_admin_row = [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
-        if is_admin:
+        # Add admin panel button for Mother Bot admins only (not in clone bots)
+        is_mother_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
+        if not is_clone_bot and is_mother_admin:
             help_admin_row.append(InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"))
+            help_admin_row.append(InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management"))
         buttons.append(help_admin_row)
 
         reply_markup = InlineKeyboardMarkup(buttons)
