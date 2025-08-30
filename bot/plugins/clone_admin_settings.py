@@ -16,14 +16,14 @@ async def is_clone_admin(client: Client, user_id: int) -> bool:
     """Check if user is admin of the current clone bot"""
     try:
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
+
         # Not a clone if using mother bot token
         if bot_token == Config.BOT_TOKEN:
             return False
-            
+
         from bot.database.clone_db import get_clone_by_bot_token
         clone_data = await get_clone_by_bot_token(bot_token)
-        
+
         if clone_data:
             return user_id == clone_data.get('admin_id')
         return False
@@ -388,6 +388,14 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 del clone_admin_sessions[user_id]
             await clone_settings_command(client, query.message)
             return
+        
+        elif callback_data == "clone_force_channels_list":
+            await handle_force_channels_list(client, query, clone_data)
+            return
+        
+        elif callback_data == "clone_advanced_settings":
+            await handle_advanced_settings(client, query, clone_data)
+            return
 
         # Refresh the settings display
         updated_clone_data = await get_clone_by_bot_token(client.bot_token)
@@ -447,7 +455,7 @@ async def handle_force_join_settings(client: Client, query: CallbackQuery, clone
     text += "• `/addforce <channel_id>` - Add force join channel\n"
     text += "• `/removeforce <channel_id>` - Remove force join channel\n"
     text += "• `/listforce` - List all force join channels\n\n"
-    text += "**Note:** Users must join these channels to access files."
+    text += "Note: Users must join these channels to access files."
 
     clone_admin_sessions[user_id] = {
         'action': 'manage_force_channels',
@@ -647,3 +655,61 @@ async def get_clone_file_count(bot_id):
         return 0
     except:
         return 0
+
+async def handle_force_channels_list(client: Client, query: CallbackQuery, clone_data):
+    """Handle force channels list display"""
+    force_channels = clone_data.get('force_channels', [])
+
+    text = f"📋 **Force Join Channels**\n\n"
+
+    if force_channels:
+        text += f"**Current Channels ({len(force_channels)}):**\n"
+        for i, channel in enumerate(force_channels, 1):
+            try:
+                chat = await client.get_chat(channel)
+                text += f"{i}. {chat.title} (`{channel}`)\n"
+            except:
+                text += f"{i}. Channel ID: `{channel}`\n"
+    else:
+        text += f"❌ No force join channels configured.\n"
+
+    text += f"\n💡 **Management:**\n"
+    text += f"• Use commands to add/remove channels\n"
+    text += f"• Users must join these channels to access files\n"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ Add Channel", callback_data="clone_add_force_channel")],
+            [InlineKeyboardButton("➖ Remove Channel", callback_data="clone_remove_force_channel")],
+            [InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_back_to_settings")]
+        ])
+    )
+
+async def handle_advanced_settings(client: Client, query: CallbackQuery, clone_data):
+    """Handle advanced settings display"""
+    text = f"🔧 **Advanced Settings**\n\n"
+    text += f"⚙️ **System Configuration:**\n"
+    text += f"• Command Limit: {clone_data.get('command_limit', 'Unlimited')}\n"
+    text += f"• Time Base: {clone_data.get('time_base_hours', 24)} hours\n"
+    text += f"• Auto Delete: {clone_data.get('auto_delete_time', 600)} seconds\n"
+    text += f"• Session Timeout: {clone_data.get('session_timeout', 3600)} seconds\n\n"
+    text += f"🎛️ **Feature Toggles:**\n"
+    text += f"• Batch Links: {'✅' if clone_data.get('batch_links', True) else '❌'}\n"
+    text += f"• Auto Delete: {'✅' if clone_data.get('auto_delete', True) else '❌'}\n"
+    text += f"• Premium Features: {'✅' if clone_data.get('premium_features', True) else '❌'}\n"
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("⏱️ Set Command Limit", callback_data="clone_set_limit"),
+                InlineKeyboardButton("⏰ Set Time Base", callback_data="clone_set_timebase")
+            ],
+            [
+                InlineKeyboardButton("🔄 Toggle Batch Links", callback_data="clone_toggle_batch"),
+                InlineKeyboardButton("🗑️ Toggle Auto Delete", callback_data="clone_toggle_auto_delete")
+            ],
+            [InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_back_to_settings")]
+        ])
+    )

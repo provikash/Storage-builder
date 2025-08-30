@@ -690,72 +690,51 @@ async def handle_search_files(client: Client, query: CallbackQuery):
     await query.answer()
     await query.edit_message_text("🔍 **Search Files**\n\nSearch functionality has been removed from clone bots. Use the available file browsing options instead.")
 
-# Main callback handler to prioritize clone-specific callbacks
-@Client.on_callback_query(group=0)
-async def main_callback_handler(client: Client, query: CallbackQuery):
-    """Main callback handler for all callback queries"""
+# Handle clone settings panel specifically with higher priority
+@Client.on_callback_query(filters.regex("^clone_settings_panel$"), group=-1)
+async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
+    """Handle clone settings panel callback specifically"""
     user_id = query.from_user.id
-    callback_data = query.data
-
-    debug_print(f"🔄 DEBUG CALLBACK: Main callback handler - '{callback_data}' from user {user_id}")
-    debug_print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
-
-    # First check if this is a clone bot and handle clone-specific callbacks
+    debug_print(f"DEBUG: Clone settings panel callback from user {user_id}")
+    
+    # Check if this is a clone bot
     is_clone, bot_token = await is_clone_bot_instance_async(client)
+    if not is_clone:
+        await query.answer("❌ Settings not available in this bot.", show_alert=True)
+        return
 
-    # Handle clone settings panel callback specifically
-    if callback_data == "clone_settings_panel" and is_clone:
-        debug_print(f"DEBUG: Clone settings panel callback from user {user_id}")
-        try:
-            # Verify user is clone admin
-            from bot.database.clone_db import get_clone_by_bot_token
-            clone_data = await get_clone_by_bot_token(bot_token)
-            
-            if not clone_data:
-                await query.answer("❌ Clone configuration not found.", show_alert=True)
-                return
-                
-            if clone_data.get('admin_id') != user_id:
-                await query.answer("❌ Only clone admin can access settings.", show_alert=True)
-                return
-
-            # Load clone settings
-            from bot.plugins.clone_admin_settings import clone_settings_command
-            
-            # Convert query to message-like object
-            class FakeMessage:
-                def __init__(self, query):
-                    self.from_user = query.from_user
-                    self.chat = query.message.chat
-                async def reply_text(self, text, reply_markup=None):
-                    await query.edit_message_text(text, reply_markup=reply_markup)
-                async def edit_message_text(self, text, reply_markup=None):
-                    await query.edit_message_text(text, reply_markup=reply_markup)
-
-            fake_message = FakeMessage(query)
-            await clone_settings_command(client, fake_message)
+    try:
+        # Verify user is clone admin
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+        
+        if not clone_data:
+            await query.answer("❌ Clone configuration not found.", show_alert=True)
             return
             
-        except Exception as e:
-            debug_print(f"Error handling clone settings: {e}")
-            await query.answer("❌ Error loading settings panel.", show_alert=True)
+        if clone_data.get('admin_id') != user_id:
+            await query.answer("❌ Only clone admin can access settings.", show_alert=True)
             return
 
-    # Handle other clone-specific callbacks
-    elif callback_data.startswith("clone_") and is_clone:
-        debug_print(f"DEBUG: Clone Bot callback received from user {user_id}, data: {callback_data}")
-        try:
-            # Import and handle clone admin settings callbacks
-            from bot.plugins.clone_admin_settings import handle_clone_settings_callbacks
-            await handle_clone_settings_callbacks(client, query)
-            return
-        except Exception as e:
-            debug_print(f"Error handling clone callback: {e}")
-            await query.answer("❌ Error processing clone settings. Please try again.", show_alert=True)
-            return
-    # If it's not a clone-specific callback or not a clone bot, let other handlers manage it.
-    # The existing handlers (admin_callback_router, general_callback_handler, etc.)
-    # are already set with specific filters and priorities.
+        # Load clone settings
+        from bot.plugins.clone_admin_settings import clone_settings_command
+        
+        # Convert query to message-like object
+        class FakeMessage:
+            def __init__(self, query):
+                self.from_user = query.from_user
+                self.chat = query.message.chat
+            async def reply_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+            async def edit_message_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+
+        fake_message = FakeMessage(query)
+        await clone_settings_command(client, fake_message)
+        
+    except Exception as e:
+        debug_print(f"Error handling clone settings: {e}")
+        await query.answer("❌ Error loading settings panel.", show_alert=True)
 
 # Additional callback handlers for new features
 @Client.on_callback_query(filters.regex("^add_balance_5$"))

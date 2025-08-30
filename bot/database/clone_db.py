@@ -158,7 +158,14 @@ async def get_clone_by_bot_token(bot_token):
     try:
         if not bot_token:
             return None
-        bot_id = bot_token.split(':')[0] if ':' in bot_token else bot_token
+        
+        # Try to find by bot_token first
+        result = await clones_collection.find_one({"bot_token": bot_token})
+        if result:
+            return result
+            
+        # If not found, try with bot_id extracted from token
+        bot_id = int(bot_token.split(':')[0]) if ':' in bot_token else int(bot_token)
         result = await clones_collection.find_one({"bot_id": bot_id})
         return result
     except Exception as e:
