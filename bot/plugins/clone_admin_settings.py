@@ -50,13 +50,27 @@ async def clone_settings_command(client: Client, message: Message):
     """Handle /settings command for clone admins only"""
     user_id = message.from_user.id
 
-    # Check if this is a clone bot and user is the admin
-    if not hasattr(client, 'is_clone') or not client.is_clone:
+    # Check if this is a clone bot
+    bot_token = getattr(client, 'bot_token', None)
+    is_clone_bot = bot_token and bot_token != Config.BOT_TOKEN
+    
+    if not is_clone_bot:
         await message.reply_text("❌ This command is only available in clone bots.")
         return
 
-    if not is_clone_admin(client, user_id):
-        await message.reply_text("❌ Only the clone admin can access settings.")
+    # Verify user is clone admin using database
+    try:
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data:
+            await message.reply_text("❌ Clone configuration not found.")
+            return
+            
+        if clone_data.get('admin_id') != user_id:
+            await message.reply_text("❌ Only the clone admin can access settings.")
+            return
+    except Exception as e:
+        logger.error(f"Error verifying clone admin in settings: {e}")
+        await message.reply_text("❌ Error verifying admin access.")
         return
 
     try:

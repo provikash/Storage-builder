@@ -697,33 +697,45 @@ async def clone_admin_callbacks(client: Client, query: CallbackQuery):
 
     # Handle settings panel callback with proper admin verification
     if query.data == "clone_settings_panel":
-        # Verify this is a clone bot and user is the admin
-        if not hasattr(client, 'clone_config') or not client.clone_config:
-            # Try to get clone data from database
-            try:
-                from bot.database.clone_db import get_clone_by_bot_token
-                clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', None))
-                if not clone_data or clone_data.get('admin_id') != user_id:
-                    return await query.answer("❌ Only clone admin can access settings.", show_alert=True)
-            except:
+        # First check if this is a clone bot
+        bot_token = getattr(client, 'bot_token', None)
+        is_clone_bot = bot_token and hasattr(client, 'is_clone') and client.is_clone
+        
+        if not is_clone_bot:
+            return await query.answer("❌ Settings not available in mother bot.", show_alert=True)
+
+        # Verify user is the clone admin
+        try:
+            from bot.database.clone_db import get_clone_by_bot_token
+            clone_data = await get_clone_by_bot_token(bot_token)
+            
+            if not clone_data:
                 return await query.answer("❌ Clone configuration not found.", show_alert=True)
-        else:
-            # Check using clone_config
-            if user_id != client.clone_config.get('admin_id'):
+                
+            if clone_data.get('admin_id') != user_id:
                 return await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+                
+        except Exception as e:
+            debug_print(f"Error verifying clone admin: {e}")
+            return await query.answer("❌ Error verifying admin access.", show_alert=True)
 
-        from bot.plugins.clone_admin_settings import clone_settings_command
-        # Convert query to message-like object
-        class FakeMessage:
-            def __init__(self, query):
-                self.from_user = query.from_user
-                self.chat = query.message.chat
-            async def reply_text(self, text, reply_markup=None):
-                await query.edit_message_text(text, reply_markup=reply_markup)
+        # Load and execute settings command
+        try:
+            from bot.plugins.clone_admin_settings import clone_settings_command
+            # Convert query to message-like object
+            class FakeMessage:
+                def __init__(self, query):
+                    self.from_user = query.from_user
+                    self.chat = query.message.chat
+                async def reply_text(self, text, reply_markup=None):
+                    await query.edit_message_text(text, reply_markup=reply_markup)
 
-        fake_message = FakeMessage(query)
-        await clone_settings_command(client, fake_message)
-        return
+            fake_message = FakeMessage(query)
+            await clone_settings_command(client, fake_message)
+            return
+        except Exception as e:
+            debug_print(f"Error loading clone settings: {e}")
+            return await query.answer("❌ Error loading settings panel.", show_alert=True)
 
     # Get bot configuration first
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)

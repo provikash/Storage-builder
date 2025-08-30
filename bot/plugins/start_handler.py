@@ -63,25 +63,29 @@ async def start_command(client: Client, message: Message):
 
         # Load clone configuration for admin checks and settings
         start_buttons = []
+        clone_admin_id = None
+        
         try:
-            # Check if client has clone_config attribute (set during bot initialization)
-            if hasattr(client, 'clone_config') and client.clone_config:
-                clone_admin_id = client.clone_config.get('admin_id')
+            # Get clone data from database using bot token
+            clone_data = await get_clone_by_bot_token(bot_token)
+            if clone_data:
+                clone_admin_id = clone_data.get('admin_id')
+                logger.info(f"Clone admin ID: {clone_admin_id}, Current user: {user_id}")
+                
+                # Add settings button for clone admin
                 if user_id == clone_admin_id:
-                    # Add settings button for clone admin
                     start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
-            # Alternative check using bot token
-            elif hasattr(client, 'bot_token'):
-                from bot.database.clone_db import get_clone_by_bot_token
-                clone_data = await get_clone_by_bot_token(client.bot_token)
-                if clone_data and clone_data.get('admin_id') == user_id:
-                    start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
+                    logger.info(f"Added settings button for clone admin {user_id}")
+            else:
+                logger.warning(f"No clone data found for bot token: {bot_token}")
+                
         except Exception as e:
             logger.error(f"Error checking clone admin status: {e}")
 
         # Get clone settings to determine which buttons to show
         try:
-            clone_data = await get_clone_by_bot_token(bot_token)
+            if not 'clone_data' in locals() or clone_data is None:
+                clone_data = await get_clone_by_bot_token(bot_token)
             show_random = clone_data.get('random_mode', True) if clone_data else True
             show_recent = clone_data.get('recent_mode', True) if clone_data else True
             show_popular = clone_data.get('popular_mode', True) if clone_data else True
