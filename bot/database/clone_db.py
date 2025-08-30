@@ -286,6 +286,47 @@ async def get_total_subscriptions():
         logger.error(f"Error getting total subscriptions: {e}")
         return 0
 
+async def update_clone_setting(bot_id: str, setting_key: str, setting_value):
+    """Update a specific setting for a clone"""
+    try:
+        await clones_collection.update_one(
+            {"bot_id": bot_id},
+            {"$set": {setting_key: setting_value, "updated_at": datetime.now()}}
+        )
+        logger.info(f"✅ Updated {setting_key} for clone {bot_id}")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Error updating clone setting {setting_key}: {e}")
+        return False
+
+async def get_clone_user_count(bot_id: str):
+    """Get user count for a specific clone"""
+    try:
+        # This would need to be implemented based on your user tracking system
+        # For now, return a placeholder
+        return await clones_collection.count_documents({"bot_id": bot_id})
+    except Exception as e:
+        logger.error(f"Error getting user count for clone {bot_id}: {e}")
+        return 0
+
+async def get_clone_file_count(bot_id: str):
+    """Get file count for a specific clone"""
+    try:
+        # This would need to be implemented based on your file tracking system
+        # For now, return a placeholder
+        return 0
+    except Exception as e:
+        logger.error(f"Error getting file count for clone {bot_id}: {e}")
+        return 0
+
+async def get_clone_by_bot_token(bot_token: str):
+    """Get clone data by bot token"""
+    try:
+        return await clones_collection.find_one({"bot_token": bot_token})
+    except Exception as e:
+        logger.error(f"❌ Error getting clone by token: {e}")
+        return None
+
 async def get_active_subscriptions():
     """Get number of active subscriptions"""
     try:

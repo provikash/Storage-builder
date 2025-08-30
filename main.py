@@ -91,11 +91,44 @@ async def initialize_databases():
         logger.error(f"❌ Database initialization failed: {e}")
         return False
 
+async def cleanup_session_files():
+    """Clean up locked session files"""
+    try:
+        import os
+        import glob
+        
+        # Remove journal files that cause locks
+        journal_files = glob.glob("*.session-journal")
+        for journal_file in journal_files:
+            try:
+                os.remove(journal_file)
+                logger.info(f"✅ Removed journal file: {journal_file}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not remove {journal_file}: {e}")
+        
+        # Remove WAL files
+        wal_files = glob.glob("*.session-wal")
+        for wal_file in wal_files:
+            try:
+                os.remove(wal_file)
+                logger.info(f"✅ Removed WAL file: {wal_file}")
+            except Exception as e:
+                logger.warning(f"⚠️ Could not remove {wal_file}: {e}")
+                
+    except Exception as e:
+        logger.error(f"❌ Error cleaning session files: {e}")
+
 async def start_mother_bot():
     """Start the mother bot"""
     try:
         logger.info("📡 Initializing Mother Bot...")
         print("📡 DEBUG BOT: Initializing Mother Bot...")
+
+        # Clean up session files first
+        await cleanup_session_files()
+        
+        # Wait a moment for file system to sync
+        await asyncio.sleep(1)
 
         # Initialize and start Mother Bot with full plugin access
         mother_bot_plugins = {
@@ -118,7 +151,8 @@ async def start_mother_bot():
                 "premium",
                 "token",
                 "stats",
-                "broadcast"
+                "broadcast",
+                "clone_admin_settings"
             ]
         }
 
@@ -127,7 +161,8 @@ async def start_mother_bot():
             api_id=Config.API_ID,
             api_hash=Config.API_HASH,
             bot_token=Config.BOT_TOKEN,
-            plugins=mother_bot_plugins
+            plugins=mother_bot_plugins,
+            workdir="temp_sessions"  # Use separate directory for sessions
         )
 
         # Start with retry logic for rate limiting and connection state checking
