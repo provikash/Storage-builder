@@ -117,7 +117,8 @@ async def mother_admin_panel(client: Client, query_or_message):
         [InlineKeyboardButton("💰 Subscriptions", callback_data="mother_subscriptions")],
         [InlineKeyboardButton("💳 User Balances", callback_data="mother_user_balances")],
         [InlineKeyboardButton("⚙️ Global Settings", callback_data="mother_global_settings")],
-        [InlineKeyboardButton("📊 System Statistics", callback_data="mother_statistics")]
+        [InlineKeyboardButton("📊 System Statistics", callback_data="mother_statistics")],
+        [InlineKeyboardButton("ℹ️ About Water Info", callback_data="mother_about_water")] # Added About Water Info button
     ])
 
     debug_print("Sending Mother Bot admin panel message.")
@@ -196,7 +197,8 @@ async def clone_admin_panel(client: Client, message: Message):
         [InlineKeyboardButton("🎫 Configure Token/Command Limit", callback_data="clone_token_command_config")],
         [InlineKeyboardButton("💰 Set Token/Command Pricing", callback_data="clone_token_pricing")],
         [InlineKeyboardButton("⚙️ Enable/Disable Bot Features", callback_data="clone_bot_features")],
-        [InlineKeyboardButton("📊 View Subscription Status", callback_data="clone_subscription_status")]
+        [InlineKeyboardButton("📊 View Subscription Status", callback_data="clone_subscription_status")],
+        [InlineKeyboardButton("ℹ️ About Water Info", callback_data="clone_about_water")] # Added About Water Info button
     ])
     debug_print(f"Sending Clone Bot admin panel message.")
     await message.reply_text(panel_text, reply_markup=buttons)
@@ -297,6 +299,8 @@ async def mother_admin_callbacks(client: Client, query: CallbackQuery):
     elif callback_data == "back_to_mother_panel":
         debug_print(f"Navigating back to Mother Bot panel for user {user_id}")
         await mother_admin_panel(client, query)
+    elif callback_data == "mother_about_water": # Handler for the new About Water Info button
+        await handle_mother_about_water(client, query)
     else:
         debug_print(f"Unknown Mother Bot callback action: {callback_data}")
         await query.answer("⚠️ Unknown action", show_alert=True)
@@ -363,6 +367,8 @@ async def clone_admin_callbacks(client: Client, query: CallbackQuery):
     elif callback_data == "back_to_clone_panel":
         debug_print(f"Navigating back to Clone Bot panel for user {user_id}")
         await clone_admin_panel(client, query.message) # Pass message to clone_admin_panel
+    elif callback_data == "clone_about_water": # Handler for the new About Water Info button
+        await handle_clone_about_water(client, query)
     else:
         debug_print(f"Unknown Clone Bot callback action: {callback_data}")
         await query.answer("⚠️ Unknown action", show_alert=True)
@@ -1215,7 +1221,7 @@ async def back_to_mother_panel_handler(client: Client, query: CallbackQuery):
 
     await mother_admin_panel(client, query)
 
-# Back to Clone Panel Handler  
+# Back to Clone Panel Handler
 @Client.on_callback_query(filters.regex("^back_to_clone_panel$"), group=0)
 async def back_to_clone_panel_handler(client: Client, query: CallbackQuery):
     """Handle back to clone panel navigation"""
@@ -1318,3 +1324,125 @@ async def cleanup_expired_sessions():
 #         asyncio.create_task(cleanup_expired_sessions())
 #         await idle()
 # asyncio.run(start_bot())
+
+# --- New Handlers for About Water Info ---
+
+async def handle_mother_about_water(client: Client, query: CallbackQuery):
+    """Handles the 'About Water Info' button for the Mother Bot admin panel."""
+    user_id = query.from_user.id
+    debug_print(f"handle_mother_about_water called by user {user_id}")
+
+    # Check Mother Bot admin permissions
+    if not is_mother_admin(user_id):
+        debug_print(f"Unauthorized access to 'About Water Info' for user {user_id}")
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    # Retrieve water-related information. This is a placeholder; you'll need to implement
+    # a way to store and retrieve this information (e.g., from a database or config file).
+    water_info = {
+        "general": "Water is essential for all known forms of life. It covers 71% of the Earth's surface.",
+        "uses": "Used for drinking, sanitation, agriculture, industry, and recreation.",
+        "conservation": "Conserving water is crucial due to scarcity. Simple actions like fixing leaks and shorter showers help.",
+        "facts": [
+            "A leaky faucet can waste thousands of gallons per year.",
+            "The average person uses 80-100 gallons of water per day.",
+            "Only 3% of the world's water is fresh water, and much of that is frozen."
+        ]
+    }
+
+    text = "💧 **About Water Information**\n\n"
+    text += f"**General:**\n{water_info['general']}\n\n"
+    text += f"**Common Uses:**\n{water_info['uses']}\n\n"
+    text += f"**Conservation Tips:**\n{water_info['conservation']}\n\n"
+    text += "**Did You Know?**\n"
+    for fact in water_info['facts']:
+        text += f"• {fact}\n"
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back to Main Panel", callback_data="back_to_mother_panel")]
+    ])
+
+    try:
+        await query.edit_message_text(text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
+        debug_print(f"Displayed 'About Water Info' for user {user_id}")
+    except Exception as e:
+        debug_print(f"Error displaying 'About Water Info' for user {user_id}: {e}")
+        await query.answer("❌ Error loading water information!", show_alert=True)
+
+async def handle_clone_about_water(client: Client, query: CallbackQuery):
+    """Handles the 'About Water Info' button for the Clone Bot admin panel."""
+    user_id = query.from_user.id
+    debug_print(f"handle_clone_about_water called by user {user_id}")
+
+    session = admin_sessions.get(user_id)
+    if not session or session['type'] != 'clone':
+        debug_print(f"Invalid session for handle_clone_about_water from user {user_id}")
+        return await query.answer("❌ Session expired!", show_alert=True)
+
+    bot_token = session.get('bot_token', getattr(client, 'bot_token', Config.BOT_TOKEN))
+    config = await clone_config_loader.get_bot_config(bot_token)
+
+    # Check clone admin permissions
+    if not is_clone_admin(user_id, config):
+        debug_print(f"Unauthorized access to 'About Water Info' for user {user_id}. Expected admin ID: {config['bot_info'].get('admin_id')}")
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    # Retrieve water-related information. This is a placeholder; you'll need to implement
+    # a way to store and retrieve this information. For clone bots, this might be
+    # a global setting from the mother bot or specific to the clone.
+    # Here, we'll use the same general info as the mother bot for simplicity.
+    water_info = {
+        "general": "Water is essential for all known forms of life. It covers 71% of the Earth's surface.",
+        "uses": "Used for drinking, sanitation, agriculture, industry, and recreation.",
+        "conservation": "Conserving water is crucial due to scarcity. Simple actions like fixing leaks and shorter showers help.",
+        "facts": [
+            "A leaky faucet can waste thousands of gallons per year.",
+            "The average person uses 80-100 gallons of water per day.",
+            "Only 3% of the world's water is fresh water, and much of that is frozen."
+        ]
+    }
+
+    text = "💧 **About Water Information**\n\n"
+    text += f"**General:**\n{water_info['general']}\n\n"
+    text += f"**Common Uses:**\n{water_info['uses']}\n\n"
+    text += f"**Conservation Tips:**\n{water_info['conservation']}\n\n"
+    text += "**Did You Know?**\n"
+    for fact in water_info['facts']:
+        text += f"• {fact}\n"
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back to Clone Panel", callback_data="back_to_clone_panel")]
+    ])
+
+    try:
+        await query.edit_message_text(text, reply_markup=buttons, parse_mode=enums.ParseMode.MARKDOWN)
+        debug_print(f"Displayed 'About Water Info' for user {user_id}")
+    except Exception as e:
+        debug_print(f"Error displaying 'About Water Info' for user {user_id}: {e}")
+        await query.answer("❌ Error loading water information!", show_alert=True)
+
+# Start message modification
+@Client.on_message(filters.command("start") & filters.private)
+async def start_command_handler(client: Client, message: Message):
+    """Handles the /start command with a shortened message."""
+    user_id = message.from_user.id
+    debug_print(f"Received /start command from user {user_id}")
+
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    config = await clone_config_loader.get_bot_config(bot_token)
+    is_clone = config.get('bot_info', {}).get('is_clone', False)
+
+    if is_clone:
+        bot_username = (await client.get_me()).username
+        start_message = (
+            f"👋 Hello! Welcome to **@{bot_username}**.\n\n"
+            f"I'm your personal bot assistant. Use /help to see available commands."
+        )
+    else:
+        start_message = (
+            f"👋 Hello! Welcome to the Mother Bot.\n\n"
+            f"Manage clones, subscriptions, and more. Use /admin to access the admin panel."
+        )
+
+    await message.reply_text(start_message)
+    debug_print(f"Sent start message to user {user_id}")

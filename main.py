@@ -152,7 +152,8 @@ async def start_mother_bot():
                 "token",
                 "stats",
                 "broadcast",
-                "clone_admin_settings"
+                "clone_admin_settings",
+                "water_about"
             ]
         }
 
