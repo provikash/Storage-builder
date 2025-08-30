@@ -1,10 +1,10 @@
-
 import asyncio
 from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from info import Config
-from bot.database.clone_db import *
+from bot.database.clone_db import get_clone_config, update_clone_config, get_clone_by_bot_token
+from bot.utils import clone_config_loader
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
@@ -45,72 +45,158 @@ def create_settings_keyboard():
     ]
     return InlineKeyboardMarkup(keyboard)
 
-@Client.on_message(filters.command("settings") & filters.private)
-async def clone_settings_command(client: Client, message: Message):
-    """Handle /settings command for clone admins only"""
+@Client.on_message(filters.command("cloneadmin") & filters.private)
+async def clone_admin_command(client: Client, message: Message):
+    """Clone admin panel command"""
     user_id = message.from_user.id
 
-    # Check if this is a clone bot
-    bot_token = getattr(client, 'bot_token', None)
-    is_clone_bot = bot_token and bot_token != Config.BOT_TOKEN
-    
-    if not is_clone_bot:
-        await message.reply_text("❌ This command is only available in clone bots.")
-        return
+    # Strict clone bot detection
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
 
-    # Verify user is clone admin using database
+    # Additional checks for clone bot detection
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
+    if not is_clone_bot or bot_token == Config.BOT_TOKEN:
+        return await message.reply_text("❌ Clone admin panel is only available in clone bots!")
+
+    # Get clone data to verify admin
     try:
         clone_data = await get_clone_by_bot_token(bot_token)
         if not clone_data:
-            await message.reply_text("❌ Clone configuration not found.")
-            return
-            
+            return await message.reply_text("❌ Clone configuration not found!")
+
         if clone_data.get('admin_id') != user_id:
-            await message.reply_text("❌ Only the clone admin can access settings.")
-            return
+            return await message.reply_text("❌ Only clone admin can access this panel!")
+
     except Exception as e:
-        logger.error(f"Error verifying clone admin in settings: {e}")
-        await message.reply_text("❌ Error verifying admin access.")
-        return
+        logger.error(f"Error verifying clone admin: {e}")
+        return await message.reply_text("❌ Error verifying admin access!")
 
-    try:
-        # Get current clone settings
-        clone_data = await get_clone_by_bot_token(client.bot_token)
-        if not clone_data:
-            await message.reply_text("❌ Clone configuration not found.")
-            return
+    # Show clone admin panel
+    await clone_admin_panel(client, message)
 
-        settings_text = f"""
-🛠️ **Clone Bot Settings**
+async def clone_admin_panel(client: Client, message):
+    """Display clone admin panel"""
+    text = f"⚙️ **Clone Bot Admin Panel**\n\n"
+    text += f"🤖 **Bot Management:**\n"
+    text += f"Manage your clone bot's settings and features.\n\n"
+    text += f"🔧 **Available Options:**\n"
+    text += f"• Configure bot features\n"
+    text += f"• Manage force channels\n" 
+    text += f"• Token verification settings\n"
+    text += f"• URL shortener configuration\n\n"
+    text += f"📊 **Choose an option below:**"
 
-**Bot Info:**
-• Name: `{clone_data.get('bot_name', 'Unknown')}`
-• Status: `{'Active' if clone_data.get('status') == 'active' else 'Inactive'}`
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("🎛️ Bot Features", callback_data="clone_bot_features"),
+            InlineKeyboardButton("🔐 Force Channels", callback_data="clone_local_force_channels")
+        ],
+        [
+            InlineKeyboardButton("🔑 Token Settings", callback_data="clone_token_command_config"),
+            InlineKeyboardButton("💰 Token Pricing", callback_data="clone_token_pricing")
+        ],
+        [
+            InlineKeyboardButton("🔗 URL Shortener", callback_data="clone_url_shortener"),
+            InlineKeyboardButton("📊 Subscription Status", callback_data="clone_subscription_status")
+        ],
+        [
+            InlineKeyboardButton("🔄 Toggle Token System", callback_data="clone_toggle_token_system"),
+            InlineKeyboardButton("📋 Request Channels", callback_data="clone_request_channels")
+        ],
+        [InlineKeyboardButton("💧 About Water", callback_data="clone_about_water")]
+    ])
 
-**File Display Settings:**
-• 🎲 Random Mode: `{'ON' if clone_data.get('random_mode', False) else 'OFF'}`
-• 📊 Recent Mode: `{'ON' if clone_data.get('recent_mode', False) else 'OFF'}`
-• 🔥 Popular Mode: `{'ON' if clone_data.get('popular_mode', False) else 'OFF'}`
+    if hasattr(message, 'edit_message_text'):
+        await message.edit_message_text(text, reply_markup=buttons)
+    else:
+        await message.reply_text(text, reply_markup=buttons)
 
-**Access Control:**
-• 🔑 Token Verification: `{'ON' if clone_data.get('token_verification', False) else 'OFF'}`
-• 📢 Force Join Channels: `{len(clone_data.get('force_channels', []))}`
 
-**System Settings:**
-• ⏱️ Command Limit: `{clone_data.get('command_limit', 'Unlimited')}`
-• 🔗 URL Shortener: `{clone_data.get('shortener_api', 'Not Set')}`
+@Client.on_message(filters.command("clonesettings") & filters.private)
+async def clone_settings_command(client: Client, message: Message):
+    """Clone settings command for the settings button"""
+    user_id = message.from_user.id
 
-Click the buttons below to modify settings:
-        """
+    # Strict clone bot detection  
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
 
-        await message.reply_text(
-            settings_text,
-            reply_markup=create_settings_keyboard()
+    # Additional checks for clone bot detection
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
         )
 
+    if not is_clone_bot or bot_token == Config.BOT_TOKEN:
+        return await message.reply_text("❌ Settings panel is only available in clone bots!")
+
+    # Get clone data to verify admin
+    try:
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data:
+            return await message.reply_text("❌ Clone configuration not found!")
+
+        if clone_data.get('admin_id') != user_id:
+            return await message.reply_text("❌ Only clone admin can access settings!")
+
     except Exception as e:
-        logger.error(f"Error in clone settings command: {e}")
-        await message.reply_text("❌ Error loading settings. Please try again.")
+        logger.error(f"Error verifying clone admin: {e}")
+        return await message.reply_text("❌ Error verifying admin access!")
+
+    # Show clone settings panel
+    text = f"⚙️ **Clone Bot Settings**\n\n"
+    text += f"🔧 **Configuration Panel**\n"
+    text += f"Manage your clone bot's features and behavior.\n\n"
+    text += f"📋 **Settings Categories:**\n"
+    text += f"• File sharing features (Random, Recent, Popular)\n"
+    text += f"• Force join channels\n"
+    text += f"• Token verification mode\n"
+    text += f"• URL shortener & API keys\n\n"
+    text += f"⚡ **Quick Actions:**"
+
+    # Get current settings
+    try:
+        show_random = clone_data.get('random_mode', True)
+        show_recent = clone_data.get('recent_mode', True) 
+        show_popular = clone_data.get('popular_mode', True)
+        force_join = clone_data.get('force_join_enabled', True)
+    except:
+        show_random = show_recent = show_popular = force_join = True
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(f"🎲 Random: {'✅' if show_random else '❌'}", callback_data="clone_toggle_random"),
+            InlineKeyboardButton(f"🆕 Recent: {'✅' if show_recent else '❌'}", callback_data="clone_toggle_recent")
+        ],
+        [
+            InlineKeyboardButton(f"🔥 Popular: {'✅' if show_popular else '❌'}", callback_data="clone_toggle_popular"),
+            InlineKeyboardButton(f"🔐 Force Join: {'✅' if force_join else '❌'}", callback_data="clone_toggle_force_join")
+        ],
+        [
+            InlineKeyboardButton("🔑 Token Settings", callback_data="clone_token_verification_mode"),
+            InlineKeyboardButton("🔗 URL Shortener", callback_data="clone_url_shortener_config")
+        ],
+        [
+            InlineKeyboardButton("📋 Force Channels", callback_data="clone_force_channels_list"),
+            InlineKeyboardButton("🔧 Advanced Settings", callback_data="clone_advanced_settings")
+        ],
+        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+    ])
+
+    if hasattr(message, 'edit_message_text'):
+        await message.edit_message_text(text, reply_markup=buttons)
+    else:
+        await message.reply_text(text, reply_markup=buttons)
+
 
 @Client.on_callback_query(filters.regex("^clone_"))
 async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
@@ -119,7 +205,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
     callback_data = query.data
 
     # Check if this is a clone bot and user is the admin
-    if not hasattr(client, 'is_clone') or not client.is_clone:
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
+    if not is_clone_bot:
         await query.answer("❌ Not available in this bot.", show_alert=True)
         return
 
@@ -128,7 +224,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         return
 
     try:
-        clone_data = await get_clone_by_bot_token(client.bot_token)
+        clone_data = await get_clone_by_bot_token(bot_token)
         if not clone_data:
             await query.answer("❌ Clone configuration not found.", show_alert=True)
             return
@@ -223,19 +319,19 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
         elif callback_data == "clone_view_stats":
             stats_text = f"""
-📈 **Clone Bot Statistics**
-
-**Usage Stats:**
-• Total Users: `{await get_clone_user_count(bot_id)}`
-• Files Shared: `{await get_clone_file_count(bot_id)}`
-• Active Since: `{clone_data.get('created_at', 'Unknown')}`
-
-**Current Settings:**
-• Random Mode: `{'ON' if clone_data.get('random_mode') else 'OFF'}`
-• Recent Mode: `{'ON' if clone_data.get('recent_mode') else 'OFF'}`
-• Popular Mode: `{'ON' if clone_data.get('popular_mode') else 'OFF'}`
-• Token Verification: `{'ON' if clone_data.get('token_verification') else 'OFF'}`
-            """
+            📈 **Clone Bot Statistics**
+            
+            **Usage Stats:**
+            • Total Users: `{await get_clone_user_count(bot_id)}`
+            • Files Shared: `{await get_clone_file_count(bot_id)}`
+            • Active Since: `{clone_data.get('created_at', 'Unknown')}`
+            
+            **Current Settings:**
+            • Random Mode: `{'ON' if clone_data.get('random_mode') else 'OFF'}`
+            • Recent Mode: `{'ON' if clone_data.get('recent_mode') else 'OFF'}`
+            • Popular Mode: `{'ON' if clone_data.get('popular_mode') else 'OFF'}`
+            • Token Verification: `{'ON' if clone_data.get('token_verification') else 'OFF'}`
+                        """
 
             await query.edit_message_text(
                 stats_text,
@@ -247,19 +343,19 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
         elif callback_data == "clone_about_settings":
             about_text = """
-ℹ️ **About Clone Settings**
-
-**Random Mode**: Shows random files when browsing
-**Recent Mode**: Shows recently added files first
-**Popular Mode**: Shows most accessed files first
-**Token Verification**: Requires users to verify before access
-**Force Join**: Requires users to join channels before access
-**Command Limit**: Limits user commands per time period
-**URL Shortener**: Shortens shared file links
-**Time Base**: Time period for command limit reset
-
-All settings are applied immediately and affect all users of your clone bot.
-            """
+            ℹ️ **About Clone Settings**
+            
+            **Random Mode**: Shows random files when browsing
+            **Recent Mode**: Shows recently added files first
+            **Popular Mode**: Shows most accessed files first
+            **Token Verification**: Requires users to verify before access
+            **Force Join**: Requires users to join channels before access
+            **Command Limit**: Limits user commands per time period
+            **URL Shortener**: Shortens shared file links
+            **Time Base**: Time period for command limit reset
+            
+            All settings are applied immediately and affect all users of your clone bot.
+                        """
 
             await query.edit_message_text(
                 about_text,
@@ -283,27 +379,27 @@ All settings are applied immediately and affect all users of your clone bot.
         # Refresh the settings display
         updated_clone_data = await get_clone_by_bot_token(client.bot_token)
         settings_text = f"""
-🛠️ **Clone Bot Settings**
-
-**Bot Info:**
-• Name: `{updated_clone_data.get('bot_name', 'Unknown')}`
-• Status: `{'Active' if updated_clone_data.get('status') == 'active' else 'Inactive'}`
-
-**File Display Settings:**
-• 🎲 Random Mode: `{'ON' if updated_clone_data.get('random_mode', False) else 'OFF'}`
-• 📊 Recent Mode: `{'ON' if updated_clone_data.get('recent_mode', False) else 'OFF'}`
-• 🔥 Popular Mode: `{'ON' if updated_clone_data.get('popular_mode', False) else 'OFF'}`
-
-**Access Control:**
-• 🔑 Token Verification: `{'ON' if updated_clone_data.get('token_verification', False) else 'OFF'}`
-• 📢 Force Join Channels: `{len(updated_clone_data.get('force_channels', []))}`
-
-**System Settings:**
-• ⏱️ Command Limit: `{updated_clone_data.get('command_limit', 'Unlimited')}`
-• 🔗 URL Shortener: `{updated_clone_data.get('shortener_api', 'Not Set')}`
-
-Click the buttons below to modify settings:
-        """
+        🛠️ **Clone Bot Settings**
+        
+        **Bot Info:**
+        • Name: `{updated_clone_data.get('bot_name', 'Unknown')}`
+        • Status: `{'Active' if updated_clone_data.get('status') == 'active' else 'Inactive'}`
+        
+        **File Display Settings:**
+        • 🎲 Random Mode: `{'ON' if updated_clone_data.get('random_mode', False) else 'OFF'}`
+        • 📊 Recent Mode: `{'ON' if updated_clone_data.get('recent_mode', False) else 'OFF'}`
+        • 🔥 Popular Mode: `{'ON' if updated_clone_data.get('popular_mode', False) else 'OFF'}`
+        
+        **Access Control:**
+        • 🔑 Token Verification: `{'ON' if updated_clone_data.get('token_verification', False) else 'OFF'}`
+        • 📢 Force Join Channels: `{len(updated_clone_data.get('force_channels', []))}`
+        
+        **System Settings:**
+        • ⏱️ Command Limit: `{updated_clone_data.get('command_limit', 'Unlimited')}`
+        • 🔗 URL Shortener: `{updated_clone_data.get('shortener_api', 'Not Set')}`
+        
+        Click the buttons below to modify settings:
+                """
 
         await query.edit_message_text(
             settings_text,
@@ -443,7 +539,17 @@ async def handle_clone_admin_input(client: Client, message: Message):
     if user_id not in clone_admin_sessions:
         return
 
-    if not hasattr(client, 'is_clone') or not client.is_clone or not is_clone_admin(client, user_id):
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+        
+    if not is_clone_bot or not is_clone_admin(client, user_id):
         return
 
     session = clone_admin_sessions[user_id]

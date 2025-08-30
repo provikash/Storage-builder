@@ -1361,15 +1361,41 @@ async def disabled_file_commands(client: Client, message: Message):
     user_id = message.from_user.id
     command = message.command[0]
     
-    text = f"🤖 **File Features Not Available Here**\n\n"
-    text += f"The `/{command}` command is only available in **clone bots**, not in the mother bot.\n\n"
-    text += f"🔧 **How to access file features:**\n"
-    text += f"1. Create your personal clone bot with `/createclone`\n"
-    text += f"2. Use your clone bot to access:\n"
-    text += f"   • 🎲 Random files\n"
-    text += f"   • 🆕 Recent files\n"
-    text += f"   • 🔥 Most popular files\n"
-    text += f"   • 🔍 Search functionality\n\n"
+    # Detect if this is mother bot
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+    
+    # Additional checks for clone bot detection
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+    
+    # Only show this message in mother bot
+    if not is_clone_bot and bot_token == Config.BOT_TOKEN:
+        text = f"🤖 **File Features Not Available Here**\n\n"
+        text += f"The `/{command}` command is only available in **clone bots**, not in the mother bot.\n\n"
+        text += f"🔧 **How to access file features:**\n"
+        text += f"1. Create your personal clone bot with `/createclone`\n"
+        text += f"2. Use your clone bot to access:\n"
+        text += f"   • 🎲 Random files\n"
+        text += f"   • 🆕 Recent files\n"
+        text += f"   • 🔥 Most popular files\n"
+        text += f"   • 🔍 Search functionality\n\n"
+        text += f"💡 **Why use clones?**\n"
+        text += f"Clone bots provide dedicated file sharing while keeping the mother bot clean for management tasks."
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")],
+            [InlineKeyboardButton("📋 Manage My Clones", callback_data="manage_my_clone")]
+        ])
+
+        await message.reply_text(text, reply_markup=buttons)
+    else:
+        # If this somehow runs in a clone bot, let it pass through to actual handlers
+        passch functionality\n\n"
     text += f"💡 **Why use clones?**\n"
     text += f"Clone bots provide dedicated file sharing while keeping the mother bot clean for management tasks."
 

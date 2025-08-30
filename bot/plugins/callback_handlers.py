@@ -172,13 +172,29 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
     print(f"🔄 DEBUG CALLBACK: Start admin button - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
+    # Strict bot type detection
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+    
+    # Additional checks for clone bot detection
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
     callback_data = query.data
 
     if callback_data == "admin_panel":
-        # Block access in clone bots
-        is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
+        # Block access in clone bots with multiple checks
         if is_clone_bot:
-            await query.answer("❌ Admin panel not available in clone bots!", show_alert=True)
+            await query.answer("❌ Admin panel only available in Mother Bot!", show_alert=True)
+            return
+
+        # Verify this is actually the mother bot
+        if bot_token != Config.BOT_TOKEN:
+            await query.answer("❌ This feature is restricted to Mother Bot!", show_alert=True)
             return
 
         # Check admin permissions for mother bot
@@ -195,10 +211,14 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
             await query.answer("❌ Error loading admin panel!", show_alert=True)
 
     elif callback_data == "bot_management":
-        # Block access in clone bots
-        is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
+        # Block access in clone bots with multiple checks
         if is_clone_bot:
-            await query.answer("❌ Bot management not available in clone bots!", show_alert=True)
+            await query.answer("❌ Bot management only available in Mother Bot!", show_alert=True)
+            return
+
+        # Verify this is actually the mother bot
+        if bot_token != Config.BOT_TOKEN:
+            await query.answer("❌ This feature is restricted to Mother Bot!", show_alert=True)
             return
 
         # Check admin permissions for mother bot
@@ -355,10 +375,26 @@ async def mother_admin_callback_router(client: Client, query: CallbackQuery):
     print(f"🔄 DEBUG CALLBACK: Mother Bot admin callback router - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
-    # Block mother bot callbacks in clone bots
-    is_clone_bot = hasattr(client, 'clone_config') and client.clone_config
+    # Strict bot type detection
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+    
+    # Additional checks for clone bot detection
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
+    # Block mother bot callbacks in clone bots with multiple checks
     if is_clone_bot:
-        await query.answer("❌ Mother bot features not available in clone bots!", show_alert=True)
+        await query.answer("❌ Mother bot features only available in Mother Bot!", show_alert=True)
+        return
+
+    # Verify this is actually the mother bot
+    if bot_token != Config.BOT_TOKEN:
+        await query.answer("❌ This feature is restricted to Mother Bot!", show_alert=True)
         return
 
     # Check if user is mother bot admin
@@ -481,7 +517,29 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
     print(f"🔄 DEBUG CALLBACK: General callback - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
+    # Detect bot type for proper separation
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+    
+    # Additional checks for clone bot detection
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
     callback_data = query.data
+
+    # Block mother bot specific features in clone bots
+    if is_clone_bot and callback_data in ["manage_my_clone"]:
+        await query.answer("❌ Clone management only available in Mother Bot!", show_alert=True)
+        return
+
+    # Block clone creation features in clone bots  
+    if is_clone_bot and callback_data in ["start_clone_creation", "create_new_clone"]:
+        await query.answer("❌ Clone creation only available in Mother Bot!", show_alert=True)
+        return
 
     if callback_data == "about":
         from bot.plugins.callback import about_callback
@@ -511,9 +569,12 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
         from bot.plugins.balance_management import show_balance_options
         await show_balance_options(client, query)
     elif callback_data == "manage_my_clone":
-        # Handle manage clone
-        from bot.plugins.clone_management import manage_user_clone
-        await manage_user_clone(client, query)
+        # Only allow in mother bot
+        if not is_clone_bot:
+            from bot.plugins.clone_management import manage_user_clone
+            await manage_user_clone(client, query)
+        else:
+            await query.answer("❌ Clone management only available in Mother Bot!", show_alert=True)
     elif callback_data == "my_stats":
         from bot.plugins.callback import my_stats_callback
         await my_stats_callback(client, query)
