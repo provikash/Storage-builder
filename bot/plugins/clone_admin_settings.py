@@ -3,7 +3,7 @@ from datetime import datetime
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from info import Config
-from bot.database.clone_db import get_clone_config, update_clone_config, get_clone_by_bot_token
+from bot.database.clone_db import get_clone_config, update_clone_config, get_clone_by_bot_token, update_clone_setting, get_clone_user_count, get_clone_file_count
 from bot.utils import clone_config_loader
 from bot.logging import LOGGER
 
@@ -408,7 +408,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             return
         
         elif callback_data == "clone_force_channels_list":
-            await handle_force_channels_list(client, query, clone_data)
+            await handle_force_join_settings(client, query, clone_data)
             return
         
         elif callback_data == "clone_advanced_settings":

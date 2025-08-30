@@ -220,6 +220,23 @@ def run_server():
         except Exception as e:
             return f"Dashboard Error: {str(e)}", 500
 
+    @app.route('/health')
+    def health():
+        try:
+            from clone_manager import clone_manager
+            return jsonify({
+                "status": "ok",
+                "health": "healthy",
+                "running_clones": len(clone_manager.get_running_clones()),
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception as e:
+            return jsonify({
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.now().isoformat()
+            }), 500
+
     @app.route('/api/status')
     def api_status():
         try:
