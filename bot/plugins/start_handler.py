@@ -11,6 +11,7 @@ from bot.database.balance_db import get_user_balance
 from bot.utils import handle_force_sub
 from bot.logging import LOGGER
 from bot.utils.error_handler import safe_edit_message
+import bot.utils.clone_config_loader as clone_config_loader
 
 logger = LOGGER(__name__)
 
@@ -64,40 +65,40 @@ async def start_command(client: Client, message: Message):
         text += f"• 📈 Recent files tracking\n"
         text += f"• 🔐 Token-based file access\n"
         text += f"• ⚡ Lightning-fast file processing\n\n"
-        
+
         if user_premium:
             text += f"💎 **Premium Status:** Active\n"
         else:
             text += f"👤 **Free User**\n"
-        
+
         text += f"\n🎯 **Ready to get started?** Choose an option below:"
 
         # Clone bot buttons
         buttons = []
-        
+
         # Row 1: File Operations
         buttons.append([
             InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
             InlineKeyboardButton("📈 Recent Files", callback_data="recent_files")
         ])
-        
+
         # Row 2: Search & Stats
         buttons.append([
             InlineKeyboardButton("🔍 Search Files", callback_data="search_files"),
             InlineKeyboardButton("📊 My Stats", callback_data="user_stats")
         ])
-        
+
         # Row 3: Premium & Help
         buttons.append([
             InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
             InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu")
         ])
-        
+
         # Row 4: Create Clone (redirect to mother bot)
         buttons.append([
             InlineKeyboardButton("🤖 Create Your Own Clone", url=f"https://t.me/{Config.ADMIN_USERNAME}?start=create_clone")
         ])
-        
+
         # Row 5: Admin panel for clone admins
         if is_admin:
             buttons.append([
@@ -278,7 +279,7 @@ async def help_callback(client: Client, query: CallbackQuery):
     is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     is_clone_bot = bot_token != Config.BOT_TOKEN
-    
+
     if is_clone_bot:
         # Clone bot help - only user commands
         text += f"📋 **Available Commands:**\n"
@@ -290,12 +291,12 @@ async def help_callback(client: Client, query: CallbackQuery):
         text += f"• `/mystats` - Your personal stats\n"
         text += f"• `/premium` - Premium plan information\n"
         text += f"• `/token` - Generate access tokens\n\n"
-        
+
         text += f"**📁 File Operations:**\n"
         text += f"• Send any file - I'll store and share it\n"
         text += f"• `/genlink <file_id>` - Generate file link\n"
         text += f"• `/batch <start> <end>` - Batch link generator\n\n"
-        
+
         if is_admin:
             text += f"**⚙️ Clone Admin Commands:**\n"
             text += f"• `/cloneadmin` - Clone admin panel\n"
@@ -314,7 +315,7 @@ async def help_callback(client: Client, query: CallbackQuery):
         text += f"**🔧 Clone Bot Commands:**\n"
         text += f"• `/createclone` - Create new clone bot\n"
         text += f"• `/manageclone` - Manage your clones\n\n"
-        
+
         if is_admin:
             text += f"**⚙️ Admin Commands:**\n"
             text += f"• `/motheradmin` - Mother Bot admin panel\n"
