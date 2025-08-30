@@ -320,12 +320,12 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         elif callback_data == "clone_view_stats":
             stats_text = f"""
             📈 **Clone Bot Statistics**
-            
+
             **Usage Stats:**
             • Total Users: `{await get_clone_user_count(bot_id)}`
             • Files Shared: `{await get_clone_file_count(bot_id)}`
             • Active Since: `{clone_data.get('created_at', 'Unknown')}`
-            
+
             **Current Settings:**
             • Random Mode: `{'ON' if clone_data.get('random_mode') else 'OFF'}`
             • Recent Mode: `{'ON' if clone_data.get('recent_mode') else 'OFF'}`
@@ -344,7 +344,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         elif callback_data == "clone_about_settings":
             about_text = """
             ℹ️ **About Clone Settings**
-            
+
             **Random Mode**: Shows random files when browsing
             **Recent Mode**: Shows recently added files first
             **Popular Mode**: Shows most accessed files first
@@ -353,7 +353,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             **Command Limit**: Limits user commands per time period
             **URL Shortener**: Shortens shared file links
             **Time Base**: Time period for command limit reset
-            
+
             All settings are applied immediately and affect all users of your clone bot.
                         """
 
@@ -380,24 +380,24 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         updated_clone_data = await get_clone_by_bot_token(client.bot_token)
         settings_text = f"""
         🛠️ **Clone Bot Settings**
-        
+
         **Bot Info:**
         • Name: `{updated_clone_data.get('bot_name', 'Unknown')}`
         • Status: `{'Active' if updated_clone_data.get('status') == 'active' else 'Inactive'}`
-        
+
         **File Display Settings:**
         • 🎲 Random Mode: `{'ON' if updated_clone_data.get('random_mode', False) else 'OFF'}`
         • 📊 Recent Mode: `{'ON' if updated_clone_data.get('recent_mode', False) else 'OFF'}`
         • 🔥 Popular Mode: `{'ON' if updated_clone_data.get('popular_mode', False) else 'OFF'}`
-        
+
         **Access Control:**
         • 🔑 Token Verification: `{'ON' if updated_clone_data.get('token_verification', False) else 'OFF'}`
         • 📢 Force Join Channels: `{len(updated_clone_data.get('force_channels', []))}`
-        
+
         **System Settings:**
         • ⏱️ Command Limit: `{updated_clone_data.get('command_limit', 'Unlimited')}`
         • 🔗 URL Shortener: `{updated_clone_data.get('shortener_api', 'Not Set')}`
-        
+
         Click the buttons below to modify settings:
                 """
 
@@ -417,7 +417,7 @@ async def handle_force_join_settings(client: Client, query: CallbackQuery, clone
     force_channels = clone_data.get('force_channels', [])
 
     text = f"📢 **Force Join Channel Settings**\n\n"
-    
+
     if force_channels:
         text += "**Current Force Join Channels:**\n"
         for i, channel in enumerate(force_channels, 1):
@@ -461,12 +461,12 @@ async def handle_token_mode_settings(client: Client, query: CallbackQuery, clone
     text = f"🔑 **Token Verification Settings**\n\n"
     text += f"**Current Status:** {'Enabled' if token_enabled else 'Disabled'}\n"
     text += f"**Current Mode:** {current_mode.replace('_', ' ').title()}\n\n"
-    
+
     text += "**Available Modes:**\n"
     text += "• **One Time** - Token valid for single use\n"
     text += "• **Command Limit** - Token valid for multiple commands\n"
     text += "• **Time Based** - Token valid for specific time period\n\n"
-    
+
     text += "**Current Settings:**\n"
     text += f"• Command Limit: {clone_data.get('command_limit', 'Unlimited')}\n"
     text += f"• Token Price: ${clone_data.get('token_price', 1.0)}\n"
@@ -493,7 +493,7 @@ async def handle_token_mode_settings(client: Client, query: CallbackQuery, clone
 async def toggle_token_system(client: Client, query: CallbackQuery):
     """Toggle token verification system"""
     user_id = query.from_user.id
-    
+
     if not is_clone_admin(client, user_id):
         return await query.answer("❌ Unauthorized access!", show_alert=True)
 
@@ -504,10 +504,10 @@ async def toggle_token_system(client: Client, query: CallbackQuery):
     current_state = clone_data.get('token_verification', False)
     new_state = not current_state
     bot_id = clone_data.get('bot_id')
-    
+
     await update_clone_setting(bot_id, 'token_verification', new_state)
     await query.answer(f"🔑 Token system {'enabled' if new_state else 'disabled'}")
-    
+
     # Refresh the token mode settings
     await handle_token_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
 
@@ -516,7 +516,7 @@ async def set_token_mode(client: Client, query: CallbackQuery):
     """Set token verification mode"""
     user_id = query.from_user.id
     mode = query.data.replace("clone_set_token_", "")
-    
+
     if not is_clone_admin(client, user_id):
         return await query.answer("❌ Unauthorized access!", show_alert=True)
 
@@ -527,7 +527,7 @@ async def set_token_mode(client: Client, query: CallbackQuery):
     bot_id = clone_data.get('bot_id')
     await update_clone_setting(bot_id, 'token_mode', mode)
     await query.answer(f"🔑 Token mode set to {mode.replace('_', ' ').title()}")
-    
+
     # Refresh the token mode settings
     await handle_token_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
 
@@ -548,7 +548,7 @@ async def handle_clone_admin_input(client: Client, message: Message):
             hasattr(client, 'clone_config') and client.clone_config or
             hasattr(client, 'clone_data')
         )
-        
+
     if not is_clone_bot or not is_clone_admin(client, user_id):
         return
 
@@ -607,3 +607,30 @@ async def handle_clone_admin_input(client: Client, message: Message):
         await message.reply_text("❌ Error processing your input. Please try again.")
         if user_id in clone_admin_sessions:
             del clone_admin_sessions[user_id]
+
+async def update_clone_setting(bot_id, key, value):
+    """Update a specific clone setting"""
+    try:
+        if ':' in str(bot_id):
+            bot_id = bot_id.split(':')[0]
+        await update_clone_config(bot_id, {key: value})
+        return True
+    except Exception as e:
+        logger.error(f"Error updating clone setting: {e}")
+        return False
+
+async def get_clone_user_count(bot_id):
+    """Get user count for clone bot"""
+    try:
+        # This would need to be implemented based on your user tracking system
+        return 0
+    except:
+        return 0
+
+async def get_clone_file_count(bot_id):
+    """Get file count for clone bot"""
+    try:
+        # This would need to be implemented based on your file tracking system
+        return 0
+    except:
+        return 0

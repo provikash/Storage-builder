@@ -50,36 +50,37 @@ async def start_command(client: Client, message: Message):
     # Get user balance
     balance = await get_user_balance(user.id)
 
-    # Detect if this is a clone bot or mother bot
+    # Enhanced bot type detection
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     is_clone_bot = bot_token != Config.BOT_TOKEN
-
-    # Get bot configuration with better detection
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     config = None
 
     try:
         from bot.utils.clone_config_loader import clone_config_loader
         from bot.database.clone_db import get_clone_by_bot_token
 
-        # Try to get config from loader first
-        config = await clone_config_loader.get_bot_config(bot_token)
-
-        # If no config, check if this is a clone bot by token
-        if not config:
-            clone_data = await get_clone_by_bot_token(bot_token)
-            if clone_data:
-                # This is a clone bot, create basic config
-                config = {
-                    'bot_info': {
-                        'is_clone': True,
-                        'admin_id': clone_data.get('admin_id'),
-                        'bot_id': clone_data.get('_id')
-                    }
+        # Always check if this is a clone bot first
+        clone_data = await get_clone_by_bot_token(bot_token)
+        
+        if clone_data:
+            is_clone_bot = True
+            # Create/update config with clone data
+            config = {
+                'bot_info': {
+                    'is_clone': True,
+                    'admin_id': clone_data.get('admin_id'),
+                    'bot_id': clone_data.get('_id')
                 }
-                logger.info(f"📋 Created config from clone data for {bot_token[:10]}...")
+            }
+            logger.info(f"📋 Clone bot detected - Admin: {clone_data.get('admin_id')}, Token: {bot_token[:10]}...")
+        else:
+            # Try to get config from loader for non-clone bots
+            config = await clone_config_loader.get_bot_config(bot_token)
+            if config and config.get('bot_info', {}).get('is_clone', False):
+                is_clone_bot = True
 
-        logger.info(f"📋 Config loaded for bot_token: {bot_token[:10]}... (is_clone: {config.get('bot_info', {}).get('is_clone', False) if config else False})")
+        logger.info(f"📋 Config loaded for bot_token: {bot_token[:10]}... (is_clone: {is_clone_bot})")
+        
     except Exception as e:
         logger.error(f"❌ Error loading config: {e}")
         config = None
@@ -92,36 +93,29 @@ async def start_command(client: Client, message: Message):
         text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
         text += f"🎯 Choose an option below:"
 
-        # Load clone configuration for admin checks and settings
+        # Admin settings button for clone bots
         start_buttons = []
-        clone_admin_id = None
+        
+        if config and config.get('bot_info', {}).get('is_clone', False):
+            clone_admin_id = config.get('bot_info', {}).get('admin_id')
+            logger.info(f"Clone admin ID: {clone_admin_id}, Current user: {user_id}")
 
-        try:
-            # Get clone data from database using bot token
-            clone_data = await get_clone_by_bot_token(bot_token)
-            if clone_data:
-                clone_admin_id = clone_data.get('admin_id')
-                logger.info(f"Clone admin ID: {clone_admin_id}, Current user: {user_id}")
-
-                # Add settings button for clone admin
-                if user_id == clone_admin_id:
-                    start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
-                    logger.info(f"Added settings button for clone admin {user_id}")
-            else:
-                logger.warning(f"No clone data found for bot token: {bot_token}")
-
-        except Exception as e:
-            logger.error(f"Error checking clone admin status: {e}")
+            # Add settings button for clone admin
+            if user_id == clone_admin_id:
+                start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
+                logger.info(f"Added settings button for clone admin {user_id}")
 
         # Get clone settings to determine which buttons to show
+        show_random = show_recent = show_popular = True
         try:
-            if not 'clone_data' in locals() or clone_data is None:
+            if config and config.get('bot_info', {}).get('is_clone', False):
                 clone_data = await get_clone_by_bot_token(bot_token)
-            show_random = clone_data.get('random_mode', True) if clone_data else True
-            show_recent = clone_data.get('recent_mode', True) if clone_data else True
-            show_popular = clone_data.get('popular_mode', True) if clone_data else True
+                if clone_data:
+                    show_random = clone_data.get('random_mode', True)
+                    show_recent = clone_data.get('recent_mode', True)
+                    show_popular = clone_data.get('popular_mode', True)
+                    logger.info(f"Clone settings loaded - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
         except Exception as e:
-            # Default to showing all buttons if there's an error
             logger.error(f"Error fetching clone settings: {e}")
             show_random = show_recent = show_popular = True
 
