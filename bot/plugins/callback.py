@@ -369,7 +369,7 @@ async def buy_premium_callback(client, query: CallbackQuery):
                 "duration": "12 Months",
                 "per_month": "$2.25", 
                 "discount": "25%"
-            }ccess", "price": "299", "tokens": -1}
+            }
         }
 
         plan = PREMIUM_PLANS.get(plan_key)

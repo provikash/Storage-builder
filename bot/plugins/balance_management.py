@@ -43,8 +43,29 @@ async def show_balance_options(client: Client, query: CallbackQuery):
 
 @Client.on_message(filters.command("balance") & filters.private)
 async def check_balance_command(client: Client, message: Message):
-    """Check user balance and transaction history"""
+    """Check user balance and transaction history - only in mother bot"""
     user_id = message.from_user.id
+
+    # Check if this is a clone bot
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+    
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or 
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+    
+    if is_clone_bot or bot_token != Config.BOT_TOKEN:
+        return await message.reply_text(
+            "💳 **Balance Feature Not Available**\n\n"
+            "❌ Balance commands are only available in the Mother Bot.\n\n"
+            "🤖 **To check your balance:**\n"
+            "• Visit the main Mother Bot\n"
+            "• Use `/balance` command there\n"
+            "• Clone bots are for file sharing only"
+        )
 
     # Create user profile if doesn't exist
     user_profile = await create_user_profile(
