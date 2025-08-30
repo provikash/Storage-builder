@@ -89,14 +89,36 @@ def is_clone_bot_instance(client: Client):
     bot_token = getattr(client, 'bot_token', None)
     if bot_token:
         try:
-            # Attempt to load clone config to check if it's a clone bot instance
-            # Ensure clone_config_loader is correctly imported or defined globally
-            from bot.utils.clone_config_loader import clone_config_loader
-            config = asyncio.run(clone_config_loader.get_bot_config(bot_token)) # Synchronous call for simplicity here
-            if config and config.get('bot_info', {}).get('is_clone', False):
+            # Simple check - if bot_token is different from Config.BOT_TOKEN, it's likely a clone
+            from info import Config
+            if bot_token != Config.BOT_TOKEN:
                 return True, bot_token
         except Exception as e:
             logger.error(f"Error checking clone config in is_clone_bot_instance: {e}")
+    return False, None
+
+# Async version for use in async contexts
+async def is_clone_bot_instance_async(client: Client):
+    """Async version of clone bot detection"""
+    bot_token = getattr(client, 'bot_token', None)
+    if bot_token:
+        try:
+            from bot.utils.clone_config_loader import clone_config_loader
+            from info import Config
+            
+            # First quick check
+            if bot_token != Config.BOT_TOKEN:
+                # Verify with database
+                try:
+                    from bot.database.clone_db import get_clone_by_bot_token
+                    clone_data = await get_clone_by_bot_token(bot_token)
+                    if clone_data:
+                        return True, bot_token
+                except:
+                    pass
+                return True, bot_token  # Assume clone if token is different
+        except Exception as e:
+            logger.error(f"Error in async clone detection: {e}")
     return False, None
 
 # Placeholder functions for clone admin callbacks
@@ -520,31 +542,70 @@ async def general_callback_handler(client: Client, query: CallbackQuery):
         await transaction_history_callback(client, query)
     elif callback_data == "back_to_start":
         # Handle back to start - should go to appropriate start menu
-        is_clone, bot_token = is_clone_bot_instance(client)
+        is_clone, bot_token = await is_clone_bot_instance_async(client)
         debug_print(f"Back to start - Is clone: {is_clone}, User: {user_id}")
 
         if is_clone:
-            # For clone bots, go back to clone start menu
+            # For clone bots, recreate clone start menu
             try:
+                # Get clone data and user info
                 from bot.database.clone_db import get_clone_by_bot_token
+                from bot.database.premium_db import is_premium_user
+                from bot.database.balance_db import get_user_balance
+                
                 clone_data = await get_clone_by_bot_token(bot_token)
+                user_premium = await is_premium_user(user_id)
+                balance = await get_user_balance(user_id)
 
+                # Clone bot start message
+                text = f"🤖 **Welcome {query.from_user.first_name}!**\n\n"
+                text += f"📁 **Your Personal File Bot** with secure sharing and search.\n\n"
+                text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+                text += f"🎯 Choose an option below:"
+
+                # Create clone bot buttons
+                start_buttons = []
+                
+                # Add settings button for clone admin
                 if clone_data and clone_data.get('admin_id') == user_id:
-                    debug_print(f"Clone admin {user_id} going back to clone start")
+                    start_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
 
-                # Use the start handler for clone bots
-                from bot.plugins.start_handler import start_command
-                class FakeMessage:
-                    def __init__(self, query):
-                        self.from_user = query.from_user
-                        self.chat = query.message.chat
-                        self.command = ["start"]  # Add command attribute
+                # Get clone settings for file buttons
+                show_random = clone_data.get('random_mode', True) if clone_data else True
+                show_recent = clone_data.get('recent_mode', True) if clone_data else True
+                show_popular = clone_data.get('popular_mode', True) if clone_data else True
 
-                    async def reply_text(self, text, reply_markup=None):
-                        await query.edit_message_text(text, reply_markup=reply_markup)
+                # File access buttons
+                file_buttons = []
+                mode_buttons = []
+                
+                if show_random:
+                    mode_buttons.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+                if show_recent:
+                    mode_buttons.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
 
-                fake_message = FakeMessage(query)
-                await start_command(client, fake_message)
+                if mode_buttons:
+                    if len(mode_buttons) == 2:
+                        file_buttons.append(mode_buttons)
+                    else:
+                        file_buttons.append([mode_buttons[0]])
+
+                if show_popular:
+                    file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+
+                file_buttons.append([
+                    InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+                    InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")
+                ])
+
+                file_buttons.extend(start_buttons)
+
+                file_buttons.append([
+                    InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
+                    InlineKeyboardButton("❓ Help", callback_data="help_menu")
+                ])
+
+                await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(file_buttons))
                 return
 
             except Exception as e:
@@ -640,10 +701,48 @@ async def main_callback_handler(client: Client, query: CallbackQuery):
     debug_print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     # First check if this is a clone bot and handle clone-specific callbacks
-    is_clone, bot_token = is_clone_bot_instance(client)
+    is_clone, bot_token = await is_clone_bot_instance_async(client)
 
-    # Handle clone-specific callbacks first
-    if callback_data.startswith("clone_") and is_clone:
+    # Handle clone settings panel callback specifically
+    if callback_data == "clone_settings_panel" and is_clone:
+        debug_print(f"DEBUG: Clone settings panel callback from user {user_id}")
+        try:
+            # Verify user is clone admin
+            from bot.database.clone_db import get_clone_by_bot_token
+            clone_data = await get_clone_by_bot_token(bot_token)
+            
+            if not clone_data:
+                await query.answer("❌ Clone configuration not found.", show_alert=True)
+                return
+                
+            if clone_data.get('admin_id') != user_id:
+                await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+                return
+
+            # Load clone settings
+            from bot.plugins.clone_admin_settings import clone_settings_command
+            
+            # Convert query to message-like object
+            class FakeMessage:
+                def __init__(self, query):
+                    self.from_user = query.from_user
+                    self.chat = query.message.chat
+                async def reply_text(self, text, reply_markup=None):
+                    await query.edit_message_text(text, reply_markup=reply_markup)
+                async def edit_message_text(self, text, reply_markup=None):
+                    await query.edit_message_text(text, reply_markup=reply_markup)
+
+            fake_message = FakeMessage(query)
+            await clone_settings_command(client, fake_message)
+            return
+            
+        except Exception as e:
+            debug_print(f"Error handling clone settings: {e}")
+            await query.answer("❌ Error loading settings panel.", show_alert=True)
+            return
+
+    # Handle other clone-specific callbacks
+    elif callback_data.startswith("clone_") and is_clone:
         debug_print(f"DEBUG: Clone Bot callback received from user {user_id}, data: {callback_data}")
         try:
             # Import and handle clone admin settings callbacks
@@ -769,111 +868,3 @@ async def add_balance_50_callback(client: Client, query: CallbackQuery):
 
     await query.edit_message_text(text, reply_markup=buttons)
 
-# Clone Bot Callback Handlers (Higher priority than the router)
-@Client.on_callback_query(filters.regex("^clone_"), group=0)
-async def clone_admin_callbacks(client: Client, query: CallbackQuery):
-    """Handle Clone Bot admin panel callbacks"""
-    user_id = query.from_user.id
-    debug_print(f"Clone Bot callback received from user {user_id}, data: {query.data}")
-
-    # Handle settings panel callback with proper admin verification
-    if query.data == "clone_settings_panel":
-        # First check if this is a clone bot
-        is_clone_bot_instance, bot_token = is_clone_bot_instance(client)
-
-        if not is_clone_bot_instance:
-            return await query.answer("❌ Settings not available in mother bot.", show_alert=True)
-
-        # Verify user is the clone admin
-        try:
-            from bot.database.clone_db import get_clone_by_bot_token
-            clone_data = await get_clone_by_bot_token(bot_token)
-
-            if not clone_data:
-                return await query.answer("❌ Clone configuration not found.", show_alert=True)
-
-            if clone_data.get('admin_id') != user_id:
-                return await query.answer("❌ Only clone admin can access settings.", show_alert=True)
-
-        except Exception as e:
-            debug_print(f"Error verifying clone admin: {e}")
-            return await query.answer("❌ Error verifying admin access.", show_alert=True)
-
-        # Load and execute settings command
-        try:
-            from bot.plugins.clone_admin_settings import clone_settings_command
-            # Convert query to message-like object
-            class FakeMessage:
-                def __init__(self, query):
-                    self.from_user = query.from_user
-                    self.chat = query.message.chat
-                async def reply_text(self, text, reply_markup=None):
-                    await query.edit_message_text(text, reply_markup=reply_markup)
-
-            fake_message = FakeMessage(query)
-            await clone_settings_command(client, fake_message)
-            return
-        except Exception as e:
-            debug_print(f"Error loading clone settings: {e}")
-            return await query.answer("❌ Error loading settings panel.", show_alert=True)
-
-    # Get bot configuration first
-    is_clone_bot_instance, bot_token = is_clone_bot_instance(client)
-    debug_print(f"Bot token for clone callback: {bot_token}")
-
-    try:
-        config = await clone_config_loader.get_bot_config(bot_token)
-        debug_print(f"Config loaded successfully for clone callback")
-    except Exception as e:
-        debug_print(f"Error loading config for clone callback: {e}")
-        return await query.answer("❌ Error loading bot configuration!", show_alert=True)
-
-    # Check clone admin permissions
-    if not is_clone_admin(user_id, config):
-        debug_print(f"Unauthorized access to Clone Bot panel for user {user_id}. Expected admin ID: {config['bot_info'].get('admin_id')}")
-        return await query.answer("❌ Unauthorized access!", show_alert=True)
-
-    # Validate or create session
-    session = admin_sessions.get(user_id)
-    debug_print(f"Current clone session for user {user_id}: {session}")
-
-    if not session or session['type'] != 'clone':
-        debug_print(f"Creating new clone admin session for user {user_id}")
-        admin_sessions[user_id] = {
-            'type': 'clone',
-            'timestamp': datetime.now(),
-            'bot_token': bot_token,
-            'last_content': None
-        }
-        session = admin_sessions[user_id]
-    else:
-        # Update timestamp and bot_token
-        session['timestamp'] = datetime.now()
-        session['bot_token'] = bot_token
-        debug_print(f"Updated existing clone session for user {user_id}")
-
-    callback_data = query.data
-    debug_print(f"Processing callback_data: {callback_data}")
-
-    if callback_data == "clone_local_force_channels":
-        await handle_clone_local_force_channels(client, query)
-    elif callback_data == "clone_request_channels":
-        await handle_clone_request_channels(client, query)
-    elif callback_data == "clone_token_command_config":
-        await handle_clone_token_command_config(client, query)
-    elif callback_data == "clone_token_pricing":
-        await handle_clone_token_pricing(client, query)
-    elif callback_data == "clone_bot_features":
-        await handle_clone_bot_features(client, query)
-    elif callback_data == "clone_subscription_status":
-        await handle_clone_subscription_status(client, query)
-    elif callback_data == "clone_toggle_token_system":
-        await handle_clone_toggle_token_system(client, query)
-    elif callback_data == "back_to_clone_panel":
-        debug_print(f"Navigating back to Clone Bot panel for user {user_id}")
-        await clone_admin_panel(client, query.message) # Pass message to clone_admin_panel
-    elif callback_data == "clone_about_water": # Handler for the new About Water Info button
-        await handle_clone_about_water(client, query)
-    else:
-        debug_print(f"Unknown Clone Bot callback action: {callback_data}")
-        await query.answer("⚠️ Unknown action", show_alert=True)

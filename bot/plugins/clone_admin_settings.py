@@ -12,11 +12,24 @@ logger = LOGGER(__name__)
 # Store clone admin sessions
 clone_admin_sessions = {}
 
-def is_clone_admin(client: Client, user_id: int) -> bool:
+async def is_clone_admin(client: Client, user_id: int) -> bool:
     """Check if user is admin of the current clone bot"""
-    if not hasattr(client, 'clone_config') or not client.clone_config:
+    try:
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Not a clone if using mother bot token
+        if bot_token == Config.BOT_TOKEN:
+            return False
+            
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+        
+        if clone_data:
+            return user_id == clone_data.get('admin_id')
         return False
-    return user_id == client.clone_config.get('admin_id')
+    except Exception as e:
+        logger.error(f"Error checking clone admin: {e}")
+        return False
 
 def create_settings_keyboard():
     """Create the clone admin settings keyboard"""
@@ -219,7 +232,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         await query.answer("❌ Not available in this bot.", show_alert=True)
         return
 
-    if not is_clone_admin(client, user_id):
+    if not await is_clone_admin(client, user_id):
         await query.answer("❌ Only clone admin can access settings.", show_alert=True)
         return
 
