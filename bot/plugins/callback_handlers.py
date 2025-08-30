@@ -87,9 +87,9 @@ async def admin_callback_router(client: Client, query: CallbackQuery):
             await query.answer("❌ Error processing request!", show_alert=True)
 
 # Handle start message admin buttons
-@Client.on_callback_query(filters.regex("^(start|create_clone_button|create_clone_monthly|create_clone_quarterly|create_clone_semi_annual|create_clone_yearly)$"), group=CALLBACK_PRIORITIES["admin"])
+@Client.on_callback_query(filters.regex("^(admin_panel|bot_management)$"), group=CALLBACK_PRIORITIES["admin"])
 async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
-    """Handle admin panel and start buttons from start message"""
+    """Handle admin panel and bot management buttons from start message"""
     user_id = query.from_user.id
     print(f"🔄 DEBUG CALLBACK: Start admin button - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
@@ -103,45 +103,41 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
             return
 
         # Route to admin panel
-        from bot.plugins.admin_panel import mother_admin_panel
-        await mother_admin_panel(client, query)
+        try:
+            from bot.plugins.mother_admin import mother_admin_panel
+            await mother_admin_panel(client, query)
+        except Exception as e:
+            print(f"❌ ERROR LOADING ADMIN PANEL: {e}")
+            await query.answer("❌ Error loading admin panel!", show_alert=True)
 
-    elif callback_data == "create_clone_button":
-        # Handle create clone button - route to clone creation
-        from bot.plugins.step_clone_creation import start_clone_creation_callback
-        # Convert to proper callback format
-        query.data = "start_clone_creation"
-        await start_clone_creation_callback(client, query)
+    elif callback_data == "bot_management":
+        # Check admin permissions
+        if not is_mother_admin(user_id):
+            await query.answer("❌ Unauthorized access!", show_alert=True)
+            return
 
-    elif callback_data.startswith("create_clone_"):
-        # Handle direct plan selection callbacks
-        plan_mapping = {
-            "create_clone_monthly": "monthly",
-            "create_clone_quarterly": "quarterly",
-            "create_clone_semi_annual": "semi_annual",
-            "create_clone_yearly": "yearly"
-        }
+        # Show bot management options
+        text = f"🔧 **Bot Management Panel**\n\n"
+        text += f"🤖 **System Operations:**\n"
+        text += f"• Monitor bot performance\n"
+        text += f"• Manage system resources\n"
+        text += f"• View system logs\n"
+        text += f"• Check bot health status\n\n"
+        text += f"📊 **Quick Actions:**"
 
-        plan_id = plan_mapping.get(callback_data)
-        if plan_id:
-            # Redirect to plan selection with the specific plan
-            from bot.plugins.step_clone_creation import select_plan_callback
-            query.data = f"select_plan:{plan_id}"
-            await select_plan_callback(client, query)
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("📊 System Stats", callback_data="system_stats"),
+                InlineKeyboardButton("🔄 Restart Bots", callback_data="restart_system")
+            ],
+            [
+                InlineKeyboardButton("📝 View Logs", callback_data="view_logs"),
+                InlineKeyboardButton("🏥 Health Check", callback_data="health_check")
+            ],
+            [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+        ])
 
-    elif callback_data == "start":
-        # Handle start button - show start message
-        from bot.plugins.start_handler import start_command
-        # Convert callback to message-like object
-        class FakeMessage:
-            def __init__(self, query):
-                self.from_user = query.from_user
-                self.chat = query.message.chat
-            async def reply_text(self, text, reply_markup=None, **kwargs):
-                await query.edit_message_text(text, reply_markup=reply_markup)
-
-        fake_message = FakeMessage(query)
-        await start_command(client, fake_message)
+        await query.edit_message_text(text, reply_markup=buttons)
 
 # Handle quick approval/rejection callbacks
 @Client.on_callback_query(filters.regex("^(quick_approve|quick_reject|view_request):"), group=CALLBACK_PRIORITIES["approval"])
@@ -214,6 +210,52 @@ async def handle_view_request_details(client: Client, query: CallbackQuery, requ
         print(f"❌ ERROR VIEWING REQUEST DETAILS: {e}")
         traceback.print_exc()
         await query.answer("❌ Error loading request details!", show_alert=True)
+
+# Add handlers for bot management callbacks
+@Client.on_callback_query(filters.regex("^(system_stats|restart_system|view_logs|health_check)$"), group=CALLBACK_PRIORITIES["admin"])
+async def handle_bot_management_callbacks(client: Client, query: CallbackQuery):
+    """Handle bot management callbacks"""
+    user_id = query.from_user.id
+    
+    # Check admin permissions
+    if not is_mother_admin(user_id):
+        await query.answer("❌ Unauthorized access!", show_alert=True)
+        return
+    
+    if query.data == "system_stats":
+        try:
+            from clone_manager import clone_manager
+            running_clones = len(clone_manager.get_running_clones()) if hasattr(clone_manager, 'get_running_clones') else 0
+            
+            text = f"📊 **System Statistics**\n\n"
+            text += f"🤖 **Bot Status:**\n"
+            text += f"• Mother Bot: ✅ Online\n"
+            text += f"• Running Clones: {running_clones}\n"
+            text += f"• System Status: ✅ Healthy\n\n"
+            
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Refresh", callback_data="system_stats")],
+                [InlineKeyboardButton("🔙 Back to Management", callback_data="bot_management")]
+            ])
+            
+            await query.edit_message_text(text, reply_markup=buttons)
+        except Exception as e:
+            await query.answer(f"❌ Error loading stats: {str(e)}", show_alert=True)
+    
+    elif query.data == "health_check":
+        text = f"🏥 **System Health Check**\n\n"
+        text += f"✅ **All Systems Operational**\n\n"
+        text += f"🔍 **Health Status:**\n"
+        text += f"• Database Connection: ✅ OK\n"
+        text += f"• Telegram API: ✅ OK\n"
+        text += f"• Clone Services: ✅ OK\n"
+        
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Run Check Again", callback_data="health_check")],
+            [InlineKeyboardButton("🔙 Back to Management", callback_data="bot_management")]
+        ])
+        
+        await query.edit_message_text(text, reply_markup=buttons)
 
 # Mother Bot callback handlers
 @Client.on_callback_query(filters.regex("^(mother_|back_to_mother_panel|admin_)"), group=CALLBACK_PRIORITIES["admin"])

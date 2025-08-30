@@ -48,53 +48,109 @@ async def start_command(client: Client, message: Message):
     # Get user balance
     balance = await get_user_balance(user.id)
 
-    # Enhanced welcome message
-    text = f"🚀 **Welcome to Advanced File Storage Bot Creator!**\n\n"
-    text += f"👋 Hello **{message.from_user.first_name}**!\n\n"
-    text += f"🤖 **I am an advanced file storing bot creator** with powerful features:\n\n"
-    text += f"✨ **What I can do for you:**\n"
-    text += f"• 📁 Advanced file storage & management\n"
-    text += f"• 🤖 Create your own personal clone bots\n"
-    text += f"• 🔐 Secure file sharing with token verification\n"
-    text += f"• 💎 Premium subscriptions with exclusive features\n"
-    text += f"• 📊 Detailed analytics and statistics\n"
-    text += f"• 🎯 Smart file organization and search\n"
-    text += f"• ⚡ Lightning-fast file processing\n\n"
+    # Detect if this is a clone bot or mother bot
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = bot_token != Config.BOT_TOKEN
 
-    if user_premium:
-        text += f"💎 **Premium Status:** Active | Balance: **${balance:.2f}**\n"
-    else:
-        text += f"👤 **Free User** | Balance: **${balance:.2f}**\n"
+    if is_clone_bot:
+        # Clone bot start message
+        text = f"🤖 **Welcome to Your Personal File Sharing Bot!**\n\n"
+        text += f"👋 Hello **{message.from_user.first_name}**!\n\n"
+        text += f"📁 **This is your personal clone bot** with amazing features:\n\n"
+        text += f"✨ **What I can do for you:**\n"
+        text += f"• 📁 Store and share files securely\n"
+        text += f"• 🔍 Advanced search capabilities\n"
+        text += f"• 🎲 Random file discovery\n"
+        text += f"• 📈 Recent files tracking\n"
+        text += f"• 🔐 Token-based file access\n"
+        text += f"• ⚡ Lightning-fast file processing\n\n"
+        
+        if user_premium:
+            text += f"💎 **Premium Status:** Active\n"
+        else:
+            text += f"👤 **Free User**\n"
+        
+        text += f"\n🎯 **Ready to get started?** Choose an option below:"
 
-    text += f"\n🎯 **Ready to get started?** Choose an option below:"
-
-    # Create main menu buttons
-    buttons = []
-
-    # Row 1: Main Features
-    buttons.append([
-        InlineKeyboardButton("🤖 Create Your Own Clone", callback_data="start_clone_creation"),
-        InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
-    ])
-
-    # Row 2: Clone Management
-    buttons.append([
-        InlineKeyboardButton("📋 Manage My Clones", callback_data="manage_my_clone"),
-        InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
-    ])
-
-    # Row 3: Premium & Help
-    buttons.append([
-        InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
-        InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu")
-    ])
-
-    # Row 4: Admin panel for admins
-    if is_admin:
+        # Clone bot buttons
+        buttons = []
+        
+        # Row 1: File Operations
         buttons.append([
-            InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
-            InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
+            InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+            InlineKeyboardButton("📈 Recent Files", callback_data="recent_files")
         ])
+        
+        # Row 2: Search & Stats
+        buttons.append([
+            InlineKeyboardButton("🔍 Search Files", callback_data="search_files"),
+            InlineKeyboardButton("📊 My Stats", callback_data="user_stats")
+        ])
+        
+        # Row 3: Premium & Help
+        buttons.append([
+            InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
+            InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu")
+        ])
+        
+        # Row 4: Create Clone (redirect to mother bot)
+        buttons.append([
+            InlineKeyboardButton("🤖 Create Your Own Clone", url=f"https://t.me/{Config.ADMIN_USERNAME}?start=create_clone")
+        ])
+        
+        # Row 5: Admin panel for clone admins
+        if is_admin:
+            buttons.append([
+                InlineKeyboardButton("⚙️ Clone Admin Panel", callback_data="clone_admin_panel")
+            ])
+    else:
+        # Mother bot start message
+        text = f"🚀 **Welcome to Advanced File Storage Bot Creator!**\n\n"
+        text += f"👋 Hello **{message.from_user.first_name}**!\n\n"
+        text += f"🤖 **I am an advanced file storing bot creator** with powerful features:\n\n"
+        text += f"✨ **What I can do for you:**\n"
+        text += f"• 📁 Advanced file storage & management\n"
+        text += f"• 🤖 Create your own personal clone bots\n"
+        text += f"• 🔐 Secure file sharing with token verification\n"
+        text += f"• 💎 Premium subscriptions with exclusive features\n"
+        text += f"• 📊 Detailed analytics and statistics\n"
+        text += f"• 🎯 Smart file organization and search\n"
+        text += f"• ⚡ Lightning-fast file processing\n\n"
+
+        if user_premium:
+            text += f"💎 **Premium Status:** Active | Balance: **${balance:.2f}**\n"
+        else:
+            text += f"👤 **Free User** | Balance: **${balance:.2f}**\n"
+
+        text += f"\n🎯 **Ready to get started?** Choose an option below:"
+
+        # Mother bot buttons
+        buttons = []
+
+        # Row 1: Main Features
+        buttons.append([
+            InlineKeyboardButton("🤖 Create Your Own Clone", callback_data="start_clone_creation"),
+            InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+        ])
+
+        # Row 2: Clone Management
+        buttons.append([
+            InlineKeyboardButton("📋 Manage My Clones", callback_data="manage_my_clone"),
+            InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
+        ])
+
+        # Row 3: Premium & Help
+        buttons.append([
+            InlineKeyboardButton("💎 Premium Plans", callback_data="premium_info"),
+            InlineKeyboardButton("❓ Help & Commands", callback_data="help_menu")
+        ])
+
+        # Row 4: Admin panel for admins
+        if is_admin:
+            buttons.append([
+                InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
+                InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
+            ])
 
     await message.reply_text(
         text,
@@ -217,24 +273,55 @@ async def help_callback(client: Client, query: CallbackQuery):
     text += f"• 💎 Premium subscription benefits\n"
     text += f"• 🔐 Secure token verification system\n\n"
 
-    text += f"📋 **Available Commands:**\n"
-    text += f"• `/start` - Main menu and bot homepage\n"
-    text += f"• `/profile` - View your detailed profile\n"
-    text += f"• `/balance` - Check account balance\n"
-    text += f"• `/premium` - Premium plan information\n"
-    text += f"• `/myclones` - Manage your clone bots\n"
-    text += f"• `/stats` - View bot statistics\n\n"
+    # Check if user is admin and if this is a clone bot
+    user_id = query.from_user.id
+    is_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = bot_token != Config.BOT_TOKEN
+    
+    if is_clone_bot:
+        # Clone bot help - only user commands
+        text += f"📋 **Available Commands:**\n"
+        text += f"• `/start` - Main menu and bot homepage\n"
+        text += f"• `/search <query>` - Search for files\n"
+        text += f"• `/rand` - Get random files\n"
+        text += f"• `/recent` - Get recent files\n"
+        text += f"• `/stats` - View bot statistics\n"
+        text += f"• `/mystats` - Your personal stats\n"
+        text += f"• `/premium` - Premium plan information\n"
+        text += f"• `/token` - Generate access tokens\n\n"
+        
+        text += f"**📁 File Operations:**\n"
+        text += f"• Send any file - I'll store and share it\n"
+        text += f"• `/genlink <file_id>` - Generate file link\n"
+        text += f"• `/batch <start> <end>` - Batch link generator\n\n"
+        
+        if is_admin:
+            text += f"**⚙️ Clone Admin Commands:**\n"
+            text += f"• `/cloneadmin` - Clone admin panel\n"
+            text += f"• `/addforce <channel>` - Add force channel\n"
+            text += f"• `/removeforce <channel>` - Remove force channel\n\n"
+    else:
+        # Mother bot help - different commands for regular users vs admins
+        text += f"📋 **Available Commands:**\n"
+        text += f"• `/start` - Main menu and bot homepage\n"
+        text += f"• `/profile` - View your detailed profile\n"
+        text += f"• `/balance` - Check account balance\n"
+        text += f"• `/premium` - Premium plan information\n"
+        text += f"• `/myclones` - Manage your clone bots\n"
+        text += f"• `/stats` - View bot statistics\n\n"
 
-    text += f"**🔧 Clone Bot Commands:**\n"
-    text += f"• `/createclone` - Create new clone bot\n"
-    text += f"• `/deleteclone` - Remove clone bot\n"
-    text += f"• `/clonestatus` - Check clone status\n\n"
-
-    text += f"**⚙️ Admin Commands:**\n"
-    text += f"• `/admin` - Admin control panel\n"
-    text += f"• `/addbalance` - Add user balance\n"
-    text += f"• `/broadcast` - Send announcements\n"
-    text += f"• `/users` - Total user statistics\n\n"
+        text += f"**🔧 Clone Bot Commands:**\n"
+        text += f"• `/createclone` - Create new clone bot\n"
+        text += f"• `/manageclone` - Manage your clones\n\n"
+        
+        if is_admin:
+            text += f"**⚙️ Admin Commands:**\n"
+            text += f"• `/motheradmin` - Mother Bot admin panel\n"
+            text += f"• `/addbalance` - Add user balance\n"
+            text += f"• `/broadcast` - Send announcements\n"
+            text += f"• `/users` - Total user statistics\n"
+            text += f"• `/listclones` - List all clones\n\n"
 
     text += f"**🆘 Need More Help?**\n"
     text += f"Contact our support team for assistance!"
