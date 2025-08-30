@@ -106,6 +106,16 @@ async def create_clone_config(clone_id: str):
             "pricing": 1.0,
             "enabled": True
         },
+        "shortener_settings": {
+            "enabled": True,
+            "api_url": "https://teraboxlinks.com/",
+            "api_key": ""
+        },
+        "time_settings": {
+            "auto_delete_time": 600,
+            "session_timeout": 3600,
+            "cooldown_time": 30
+        },
         "channels": {
             "force_channels": [],
             "request_channels": []
@@ -144,6 +154,50 @@ async def update_clone_config(clone_id: str, config_updates: dict):
         {"_id": clone_id},
         {"$set": config_updates}
     )
+
+# Clone admin settings functions
+async def toggle_clone_feature(clone_id: str, feature: str, enabled: bool):
+    """Toggle a specific feature for a clone"""
+    await clone_configs_collection.update_one(
+        {"_id": clone_id},
+        {"$set": {f"features.{feature}": enabled, "updated_at": datetime.now()}}
+    )
+
+async def update_clone_shortener(clone_id: str, api_url: str, api_key: str):
+    """Update clone shortener settings"""
+    await clone_configs_collection.update_one(
+        {"_id": clone_id},
+        {"$set": {
+            "shortener_settings.api_url": api_url,
+            "shortener_settings.api_key": api_key,
+            "updated_at": datetime.now()
+        }}
+    )
+
+async def update_clone_command_limit(clone_id: str, limit: int):
+    """Update clone command limit"""
+    await clone_configs_collection.update_one(
+        {"_id": clone_id},
+        {"$set": {
+            "token_settings.command_limit": limit,
+            "updated_at": datetime.now()
+        }}
+    )
+
+async def update_clone_time_settings(clone_id: str, setting: str, value: int):
+    """Update clone time-based settings"""
+    await clone_configs_collection.update_one(
+        {"_id": clone_id},
+        {"$set": {
+            f"time_settings.{setting}": value,
+            "updated_at": datetime.now()
+        }}
+    )
+
+async def get_clone_admin_id(clone_id: str):
+    """Get the admin ID for a specific clone"""
+    clone = await clones_collection.find_one({"_id": clone_id})
+    return clone.get("admin_id") if clone else None
 
 async def get_all_clones():
     """Get all clones"""

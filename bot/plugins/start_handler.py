@@ -101,7 +101,7 @@ async def start_command(client: Client, message: Message):
         # Row 5: Admin panel for clone admins
         if is_admin:
             buttons.append([
-                InlineKeyboardButton("⚙️ Clone Admin Panel", callback_data="clone_admin_panel")
+                InlineKeyboardButton("⚙️ Clone Admin Settings", callback_data="clone_admin_settings")
             ])
     else:
         # Mother bot start message
