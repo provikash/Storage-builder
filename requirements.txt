@@ -84,3 +84,4 @@ python-dotenv==1.0.0
 shortzy
 TgCrypto==1.2.5
 uvloop==0.19.0
+loguru
