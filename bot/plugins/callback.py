@@ -211,6 +211,20 @@ async def random_files_callback(client, query: CallbackQuery):
             await query.answer()
             return
 
+        # Detect if this is mother bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or
+            hasattr(client, 'is_clone') and client.is_clone or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
+        # Redirect if mother bot
+        if not is_clone_bot and bot_token == Config.BOT_TOKEN:
+            await query.answer("❌ Random files feature is only available in clone bots.", show_alert=True)
+            return
+
         user_id = query.from_user.id
         
         # Check command limit
@@ -259,6 +273,20 @@ async def recent_files_callback(client, query: CallbackQuery):
             await query.answer()
             return
 
+        # Detect if this is mother bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or
+            hasattr(client, 'is_clone') and client.is_clone or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
+        # Redirect if mother bot
+        if not is_clone_bot and bot_token == Config.BOT_TOKEN:
+            await query.answer("❌ Recent files feature is only available in clone bots.", show_alert=True)
+            return
+
         user_id = query.from_user.id
         
         # Check command limit
@@ -305,6 +333,20 @@ async def popular_files_callback(client, query: CallbackQuery):
         # Check force subscription first
         if await handle_force_sub(client, query.message):
             await query.answer()
+            return
+
+        # Detect if this is mother bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or
+            hasattr(client, 'is_clone') and client.is_clone or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
+        # Redirect if mother bot
+        if not is_clone_bot and bot_token == Config.BOT_TOKEN:
+            await query.answer("❌ Popular files feature is only available in clone bots.", show_alert=True)
             return
 
         user_id = query.from_user.id

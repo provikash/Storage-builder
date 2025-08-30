@@ -14,24 +14,31 @@ async def check_feature_enabled(client: Client, feature_name: str) -> bool:
     try:
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
 
-        # Mother bot has all features enabled
-        if bot_token == Config.BOT_TOKEN:
-            return True
+        # Check if this is a clone bot first
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or
+            hasattr(client, 'is_clone') and client.is_clone or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+
+        # Mother bot - features are disabled (redirect to clone creation)
+        if not is_clone_bot and bot_token == Config.BOT_TOKEN:
+            return False
 
         # For clone bots, check the database
         from bot.database.clone_db import get_clone_by_bot_token
         clone_data = await get_clone_by_bot_token(bot_token)
 
         if not clone_data:
-            # If clone data not found, assume feature is disabled or handle as an error
-            print(f"WARNING: Clone data not found for bot token {bot_token}. Assuming feature '{feature_name}' is disabled.")
-            return False
+            print(f"WARNING: Clone data not found for bot token {bot_token}. Assuming feature '{feature_name}' is enabled for clone.")
+            return True  # Default to enabled for clone bots
 
         # Return the enabled status of the feature, default to True if not specified
         return clone_data.get(f'{feature_name}_mode', True)
     except Exception as e:
         print(f"Error checking feature {feature_name}: {e}")
-        return False
+        return True  # Default to enabled on error for clone bots
 
 # --- Command Handlers ---
 
@@ -1430,28 +1437,23 @@ async def recent_files_command(client: Client, message: Message):
     except Exception as e:
         print(f"Error in recent_files_command: {e}")
         await message.reply_text(f"❌ Error: {str(e)}")
-# Mother bot search.py - File features disabled
-# All file features (random, recent, popular) are only available in clone bots
-
+# Mother bot redirection for file commands
 @Client.on_message(filters.command(["rand", "random", "recent", "popular", "search"]) & filters.private)
-async def disabled_file_commands(client: Client, message: Message):
-    """Redirect users to create clone for file features"""
+async def redirect_file_commands(client: Client, message: Message):
+    """Redirect users to create clone for file features if on mother bot"""
     user_id = message.from_user.id
     command = message.command[0]
 
     # Detect if this is mother bot
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+    is_clone_bot = (
+        bot_token != Config.BOT_TOKEN or
+        hasattr(client, 'is_clone') and client.is_clone or
+        hasattr(client, 'clone_config') and client.clone_config or
+        hasattr(client, 'clone_data')
+    )
 
-    # Additional checks for clone bot detection
-    if not is_clone_bot:
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-
-    # Only show this message in mother bot
+    # Only show redirect message in mother bot
     if not is_clone_bot and bot_token == Config.BOT_TOKEN:
         text = f"🤖 **File Features Not Available Here**\n\n"
         text += f"The `/{command}` command is only available in **clone bots**, not in the mother bot.\n\n"
@@ -1472,18 +1474,29 @@ async def disabled_file_commands(client: Client, message: Message):
         await message.reply_text(text, reply_markup=buttons)
 
 @Client.on_message(filters.private & filters.text & filters.regex(r"^(🎲 Random|🆕 Recent Added|🔥 Most Popular|🎲 Random Files)$"))
-async def disabled_keyboard_handlers(client: Client, message: Message):
-    """Handle disabled keyboard buttons for file features"""
+async def redirect_keyboard_handlers(client: Client, message: Message):
+    """Handle keyboard buttons for file features - redirect on mother bot"""
     button_text = message.text
 
-    text = f"🤖 **Feature Not Available in Mother Bot**\n\n"
-    text += f"The **{button_text}** feature is only available in clone bots.\n\n"
-    text += f"🔧 **Get Access:**\n"
-    text += f"1. Create your clone bot: `/createclone`\n"
-    text += f"2. Use your clone for file features\n\n"
-    text += f"💡 This keeps the mother bot focused on clone management!"
+    # Detect if this is mother bot
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = (
+        bot_token != Config.BOT_TOKEN or
+        hasattr(client, 'is_clone') and client.is_clone or
+        hasattr(client, 'clone_config') and client.clone_config or
+        hasattr(client, 'clone_data')
+    )
 
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")]
-    ])
-    await message.reply_text(text, reply_markup=buttons)
+    # Only show redirect message in mother bot
+    if not is_clone_bot and bot_token == Config.BOT_TOKEN:
+        text = f"🤖 **Feature Not Available in Mother Bot**\n\n"
+        text += f"The **{button_text}** feature is only available in clone bots.\n\n"
+        text += f"🔧 **Get Access:**\n"
+        text += f"1. Create your clone bot: `/createclone`\n"
+        text += f"2. Use your clone for file features\n\n"
+        text += f"💡 This keeps the mother bot focused on clone management!"
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")]
+        ])
+        await message.reply_text(text, reply_markup=buttons)
