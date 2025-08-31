@@ -322,39 +322,17 @@ async def get_total_subscriptions():
         logger.error(f"Error getting total subscriptions: {e}")
         return 0
 
-async def update_clone_setting(bot_id, setting_key: str, setting_value):
-    """Update a specific setting for a clone"""
+async def update_clone_setting(bot_id, key, value):
+    """Update a specific clone setting"""
     try:
-        # Handle both string and int bot_id
-        if isinstance(bot_id, str) and ':' in bot_id:
+        if ':' in str(bot_id):
             bot_id = bot_id.split(':')[0]
 
-        # Try to convert to int if it's a string number
-        try:
-            bot_id_int = int(bot_id)
-        except (ValueError, TypeError):
-            bot_id_int = bot_id
-
-        # Try both bot_id and _id fields
-        result1 = await clones_collection.update_one(
-            {"bot_id": bot_id_int},
-            {"$set": {setting_key: setting_value, "updated_at": datetime.now()}}
-        )
-
-        result2 = await clones_collection.update_one(
-            {"_id": str(bot_id_int)},
-            {"$set": {setting_key: setting_value, "updated_at": datetime.now()}}
-        )
-
-        if result1.modified_count > 0 or result2.modified_count > 0:
-            logger.info(f"✅ Updated {setting_key} for clone {bot_id}")
-            return True
-        else:
-            logger.warning(f"⚠️ No clone found to update for {bot_id}")
-            return False
-
+        # Update the setting in the clone data directly
+        await update_clone_data(bot_id, {key: value})
+        return True
     except Exception as e:
-        logger.error(f"❌ Error updating clone setting {setting_key}: {e}")
+        logger.error(f"Error updating clone setting: {e}")
         return False
 
 async def get_clone_user_count(bot_id: str):
@@ -622,16 +600,20 @@ async def get_pending_clone_request(user_id: int):
         return None
 
 async def update_clone_data(clone_id: str, update_data: dict):
-    """Update clone data directly"""
+    """Update clone data in the database"""
     try:
-        # Assuming db is accessible here, or pass it as an argument
-        # For this example, I'll use clone_db directly. You might need to adjust this.
-        clone_col = clone_db.clones # Using the globally defined collection
-        await clone_col.update_one(
-            {"_id": clone_id},
+        if ':' in str(clone_id):
+            clone_id = clone_id.split(':')[0]
+
+        update_data['updated_at'] = datetime.now()
+
+        result = await clones_collection.update_one(
+            {"bot_id": int(clone_id)},
             {"$set": update_data}
         )
-        logger.info(f"✅ Updated clone {clone_id} with data: {update_data}")
+
+        logger.info(f"Updated clone {clone_id} data: {update_data}")
+        return result.modified_count > 0
     except Exception as e:
-        logger.error(f"❌ Error updating clone data for {clone_id}: {e}")
-        raise
+        logger.error(f"Error updating clone data: {e}")
+        return False

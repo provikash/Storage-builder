@@ -133,7 +133,7 @@ async def clone_admin_panel(client: Client, message):
 
 
 @Client.on_message(filters.command("clonesettings") & filters.private)
-async def clone_settings_command(client: Client, message: Message):
+async def clone_settings_command(client: Client, message):
     """Clone settings command for the settings button"""
     user_id = message.from_user.id
 
@@ -144,26 +144,44 @@ async def clone_settings_command(client: Client, message: Message):
     # Additional checks for clone bot detection
     if not is_clone_bot:
         is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or 
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
+            bot_token != Config.BOT_TOKEN and 
+            (hasattr(client, 'clone_config') and client.clone_config or
+             hasattr(client, 'clone_data'))
         )
 
+    logger.info(f"Clone settings: user_id={user_id}, bot_token={bot_token}, is_clone_bot={is_clone_bot}")
+
     if not is_clone_bot or bot_token == Config.BOT_TOKEN:
-        return await message.reply_text("❌ Settings panel is only available in clone bots!")
+        error_msg = "❌ Settings panel is only available in clone bots!"
+        if hasattr(message, 'edit_message_text'):
+            return await message.edit_message_text(error_msg)
+        else:
+            return await message.reply_text(error_msg)
 
     # Get clone data to verify admin
     try:
         clone_data = await get_clone_by_bot_token(bot_token)
         if not clone_data:
-            return await message.reply_text("❌ Clone configuration not found!")
+            error_msg = "❌ Clone configuration not found!"
+            if hasattr(message, 'edit_message_text'):
+                return await message.edit_message_text(error_msg)
+            else:
+                return await message.reply_text(error_msg)
 
         if clone_data.get('admin_id') != user_id:
-            return await message.reply_text("❌ Only clone admin can access settings!")
+            error_msg = "❌ Only clone admin can access settings!"
+            if hasattr(message, 'edit_message_text'):
+                return await message.edit_message_text(error_msg)
+            else:
+                return await message.reply_text(error_msg)
 
     except Exception as e:
         logger.error(f"Error verifying clone admin: {e}")
-        return await message.reply_text("❌ Error verifying admin access!")
+        error_msg = "❌ Error verifying admin access!"
+        if hasattr(message, 'edit_message_text'):
+            return await message.edit_message_text(error_msg)
+        else:
+            return await message.reply_text(error_msg)
 
     # Show clone settings panel
     text = f"⚙️ **Clone Bot Settings**\n\n"
@@ -449,6 +467,10 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             await handle_force_join_settings(client, query, clone_data)
             return
 
+        elif callback_data == "clone_url_shortener_config":
+            await handle_shortener_config_settings(client, query)
+            return
+
         elif callback_data == "clone_advanced_settings":
             await handle_advanced_settings(client, query, clone_data)
             return
@@ -467,6 +489,42 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             await update_clone_setting(bot_id, 'auto_delete', new_state)
             await query.answer(f"🗑️ Auto delete {'enabled' if new_state else 'disabled'}")
             await handle_advanced_settings(client, query, await get_clone_by_bot_token(bot_token))
+            return
+
+        elif callback_data == "clone_set_shortener_url":
+            clone_admin_sessions[user_id] = {
+                'action': 'set_shortener_url',
+                'bot_id': bot_id,
+                'message_id': query.message.id
+            }
+            await query.edit_message_text(
+                "🔗 **Set Shortener URL**\n\n"
+                "Send the API URL for your shortener service.\n\n"
+                "**Examples:**\n"
+                "• `https://teraboxlinks.com/`\n"
+                "• `https://short.io/`\n"
+                "• `https://tinyurl.com/`",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("❌ Cancel", callback_data="clone_cancel_input")]
+                ])
+            )
+            return
+
+        elif callback_data == "clone_set_shortener_key":
+            clone_admin_sessions[user_id] = {
+                'action': 'set_shortener_key',
+                'bot_id': bot_id,
+                'message_id': query.message.id
+            }
+            await query.edit_message_text(
+                "🔑 **Set Shortener API Key**\n\n"
+                "Send your API key for the shortener service.\n\n"
+                "**Security Note:**\n"
+                "Your API key will be securely stored and masked in displays.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("❌ Cancel", callback_data="clone_cancel_input")]
+                ])
+            )
             return
 
         elif callback_data == "clone_add_force_channel":
@@ -863,6 +921,24 @@ async def handle_clone_admin_input(client: Client, message: Message):
                 await message.reply_text(f"❌ Error removing channel: {str(e)}")
                 return
 
+        elif action == 'set_shortener_url':
+            url = message.text.strip()
+            try:
+                await update_clone_shortener_settings(bot_id, api_url=url)
+                await message.reply_text(f"✅ Shortener URL updated to: {url}")
+            except Exception as e:
+                await message.reply_text(f"❌ Error updating URL: {str(e)}")
+                return
+
+        elif action == 'set_shortener_key':
+            key = message.text.strip()
+            try:
+                await update_clone_shortener_settings(bot_id, api_key=key)
+                await message.reply_text("✅ Shortener API key updated successfully.")
+            except Exception as e:
+                await message.reply_text(f"❌ Error updating API key: {str(e)}")
+                return
+
         # Clean up session
         del clone_admin_sessions[user_id]
 
@@ -938,6 +1014,48 @@ async def handle_force_channels_list(client: Client, query: CallbackQuery, clone
         reply_markup=InlineKeyboardMarkup([
             [InlineKeyboardButton("➕ Add Channel", callback_data="clone_add_force_channel")],
             [InlineKeyboardButton("➖ Remove Channel", callback_data="clone_remove_force_channel")],
+            [InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_back_to_settings")]
+        ])
+    )
+
+async def handle_shortener_config_settings(client: Client, query: CallbackQuery):
+    """Handle URL shortener configuration settings"""
+    user_id = query.from_user.id
+
+    if not await is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    # Get current config
+    config = await get_clone_config(str(clone_data.get('bot_id')))
+    shortener_settings = config.get('shortener_settings', {}) if config else {}
+
+    current_url = shortener_settings.get('api_url', 'https://teraboxlinks.com/')
+    current_key = shortener_settings.get('api_key', 'Not Set')
+    enabled = shortener_settings.get('enabled', True)
+
+    text = f"🔗 **URL Shortener Configuration**\n\n"
+    text += f"**Current Settings:**\n"
+    text += f"• Status: {'✅ Enabled' if enabled else '❌ Disabled'}\n"
+    text += f"• API URL: `{current_url}`\n"
+    text += f"• API Key: `{'*' * (len(current_key) - 4) + current_key[-4:] if len(current_key) > 4 else current_key}`\n\n"
+    text += "**Management:**\n"
+    text += "Use the buttons below to configure your shortener settings."
+
+    await query.edit_message_text(
+        text,
+        reply_markup=InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Toggle Shortener", callback_data="clone_toggle_shortener"),
+                InlineKeyboardButton("🔧 Set URL", callback_data="clone_set_shortener_url")
+            ],
+            [
+                InlineKeyboardButton("🔑 Set API Key", callback_data="clone_set_shortener_key"),
+                InlineKeyboardButton("🧪 Test Config", callback_data="clone_test_shortener")
+            ],
             [InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_back_to_settings")]
         ])
     )

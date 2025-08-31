@@ -377,23 +377,43 @@ async def settings_callback(client: Client, query: CallbackQuery):
         user_id = query.from_user.id
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         
+        logger.info(f"Settings callback triggered by user {user_id}, bot_token: {bot_token}")
+        
         # Check if this is a clone bot
         is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or
-            hasattr(client, 'is_clone') and client.is_clone or
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
+            bot_token != Config.BOT_TOKEN and
+            (hasattr(client, 'is_clone') and client.is_clone or
+             hasattr(client, 'clone_config') and client.clone_config or
+             hasattr(client, 'clone_data'))
         )
         
-        if is_clone_bot and bot_token != Config.BOT_TOKEN:
+        logger.info(f"Is clone bot: {is_clone_bot}")
+        
+        if is_clone_bot:
             # Check if user is clone admin
             from bot.database.clone_db import get_clone_by_bot_token
             clone_data = await get_clone_by_bot_token(bot_token)
             
+            logger.info(f"Clone data: {clone_data}")
+            
             if clone_data and clone_data.get('admin_id') == user_id:
+                # Create a fake message object for clone settings
+                class FakeMessage:
+                    def __init__(self, query):
+                        self.from_user = query.from_user
+                        self.chat = query.message.chat
+                        self.message_id = query.message.id
+                    
+                    async def reply_text(self, text, reply_markup=None, **kwargs):
+                        await query.edit_message_text(text, reply_markup=reply_markup)
+                    
+                    async def edit_message_text(self, text, reply_markup=None, **kwargs):
+                        await query.edit_message_text(text, reply_markup=reply_markup)
+                
                 # Redirect to clone settings
                 from bot.plugins.clone_admin_settings import clone_settings_command
-                await clone_settings_command(client, query.message)
+                fake_message = FakeMessage(query)
+                await clone_settings_command(client, fake_message)
                 return
             else:
                 await query.answer("❌ Only clone admin can access settings.", show_alert=True)
@@ -418,6 +438,7 @@ async def settings_callback(client: Client, query: CallbackQuery):
             
     except Exception as e:
         logger.error(f"Error in settings callback: {e}")
+        traceback.print_exc()
         await query.answer("❌ Error loading settings. Please try again.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^show_premium_plans$"))
