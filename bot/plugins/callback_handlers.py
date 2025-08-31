@@ -686,20 +686,89 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex("^random_files$"))
 async def handle_random_files(client: Client, query: CallbackQuery):
     """Handle random files callback"""
-    await query.answer()
-    await query.edit_message_text("🎲 **Random Files**\n\nRandom file features are disabled in the mother bot. This functionality is only available in clone bots.")
+    try:
+        await query.answer()
+        
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Check if this is mother bot
+        if bot_token == Config.BOT_TOKEN:
+            await query.edit_message_text("🎲 **Random Files**\n\nRandom file features are disabled in the mother bot. This functionality is only available in clone bots.")
+            return
+            
+        # Check if feature is enabled for this clone
+        from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
+        if not await is_feature_enabled_for_user(client, 'random_mode'):
+            await query.edit_message_text("🎲 **Random Files**\n\nThis feature has been disabled by the admin.")
+            return
+            
+        # Feature is enabled - show random files
+        await query.edit_message_text("🎲 **Random Files**\n\nShowing random files from the database...")
+        
+    except Exception as e:
+        logger.error(f"Error in random files handler: {e}")
+        try:
+            await query.answer("❌ Error loading random files.", show_alert=True)
+        except:
+            pass
 
 @Client.on_callback_query(filters.regex("^recent_files$"))
 async def handle_recent_files(client: Client, query: CallbackQuery):
     """Handle recent files callback"""
-    await query.answer()
-    await query.edit_message_text("🆕 **Recent Files**\n\nRecent file features are disabled in the mother bot. This functionality is only available in clone bots.")
+    try:
+        await query.answer()
+        
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Check if this is mother bot
+        if bot_token == Config.BOT_TOKEN:
+            await query.edit_message_text("🆕 **Recent Files**\n\nRecent file features are disabled in the mother bot. This functionality is only available in clone bots.")
+            return
+            
+        # Check if feature is enabled for this clone
+        from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
+        if not await is_feature_enabled_for_user(client, 'recent_mode'):
+            await query.edit_message_text("🆕 **Recent Files**\n\nThis feature has been disabled by the admin.")
+            return
+            
+        # Feature is enabled - show recent files
+        await query.edit_message_text("🆕 **Recent Files**\n\nShowing recently added files...")
+        
+    except Exception as e:
+        logger.error(f"Error in recent files handler: {e}")
+        try:
+            await query.answer("❌ Error loading recent files.", show_alert=True)
+        except:
+            pass
 
 @Client.on_callback_query(filters.regex("^popular_files$"))
 async def handle_popular_files(client: Client, query: CallbackQuery):
     """Handle popular files callback"""
-    await query.answer()
-    await query.edit_message_text("🔥 **Most Popular Files**\n\nPopular file features are disabled in the mother bot. This functionality is only available in clone bots.")
+    try:
+        await query.answer()
+        
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Check if this is mother bot  
+        if bot_token == Config.BOT_TOKEN:
+            await query.edit_message_text("🔥 **Most Popular Files**\n\nPopular file features are disabled in the mother bot. This functionality is only available in clone bots.")
+            return
+            
+        # Check if feature is enabled for this clone
+        from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
+        if not await is_feature_enabled_for_user(client, 'popular_mode'):
+            await query.edit_message_text("🔥 **Popular Files**\n\nThis feature has been disabled by the admin.")
+            return
+            
+        # Feature is enabled - show popular files
+        await query.edit_message_text("🔥 **Most Popular Files**\n\nShowing most popular files...")
+        
+    except Exception as e:
+        logger.error(f"Error in popular files handler: {e}")
+        try:
+            await query.answer("❌ Error loading popular files.", show_alert=True)
+        except:
+            pass
 
 @Client.on_callback_query(filters.regex("^search_files$"))
 async def handle_search_files(client: Client, query: CallbackQuery):

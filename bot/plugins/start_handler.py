@@ -133,54 +133,33 @@ async def start_command(client: Client, message: Message):
         logger.error(f"❌ Error loading config: {e}")
         config = None
 
+    is_admin_user = await is_clone_admin(client, user_id) # Check if the current user is an admin for this clone bot
+
+    # Create main menu buttons based on bot type
     if is_clone_bot:
-        # Clone bot start message
-        text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
-        text += f"📁 **Your Personal File Bot** with secure sharing and search.\n\n"
-        text += f"💎 Status: {'Premium' if user_premium else 'Free'}\n\n"
-        text += f"🎯 Choose an option below:"
+        # Clone bot menu - check admin vs user
+        if is_admin_user:
+            # Clone admin gets settings access
+            buttons = [
+                [InlineKeyboardButton("🎛️ Clone Settings", callback_data="clone_settings_panel")],
+                [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")]
+            ]
+        else:
+            # Normal users get file access (features always available unless explicitly disabled)
+            from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
+            buttons = []
 
-        # Check if user is clone admin
-        is_admin = await is_clone_admin(client, user_id)
+            # Check each feature for normal user availability
+            if await is_feature_enabled_for_user(client, 'random_mode'):
+                buttons.append([InlineKeyboardButton("🎲 Random Files", callback_data="random_files")])
+            if await is_feature_enabled_for_user(client, 'recent_mode'):
+                buttons.append([InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")])
+            if await is_feature_enabled_for_user(client, 'popular_mode'):
+                buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
-        # Get user settings
-        settings = get_user_settings(user_id)
-
-        # Create file access buttons based on user settings
-        file_buttons = []
-
-        # Only show enabled file mode buttons
-        mode_row1 = []
-        if settings['random_files']:
-            mode_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-        if settings['recent_files']:
-            mode_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-
-        # Add first row if any buttons exist
-        if mode_row1:
-            file_buttons.append(mode_row1)
-
-        # Add popular files button if enabled
-        if settings['popular_files']:
-            file_buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
-
-        # Settings button - only for clone admin
-        if is_admin:
-            file_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings")])
-
-        # User action buttons
-        file_buttons.append([
-            InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
-            InlineKeyboardButton("📊 My Stats", callback_data="my_stats")
-        ])
-
-        file_buttons.append([
-            InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
-            InlineKeyboardButton("❓ Help", callback_data="help_menu")
-        ])
-
-        reply_markup = InlineKeyboardMarkup(file_buttons)
-
+            # Always show help and about for normal users
+            buttons.append([InlineKeyboardButton("❓ Help", callback_data="help")])
+            buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about")])
     else:
         # Mother bot start message
         text = f"🚀 **Welcome {message.from_user.first_name}!**\n\n"
@@ -226,7 +205,7 @@ async def start_command(client: Client, message: Message):
 
     await message.reply_text(
         text,
-        reply_markup=reply_markup
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
 
 # File access handlers with feature checks

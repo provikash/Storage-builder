@@ -31,6 +31,27 @@ async def is_clone_admin(client: Client, user_id: int) -> bool:
         logger.error(f"Error checking clone admin: {e}")
         return False
 
+async def is_feature_enabled_for_user(client: Client, feature_name: str) -> bool:
+    """Check if feature is enabled for normal users (not admin settings)"""
+    try:
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Mother bot - features available by default
+        if bot_token == Config.BOT_TOKEN:
+            return True
+            
+        # Clone bot - check configuration
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+        
+        if clone_data:
+            # Features are enabled for normal users unless explicitly disabled
+            return clone_data.get(feature_name, True)
+        return True
+    except Exception as e:
+        logger.error(f"Error checking feature availability: {e}")
+        return True
+
 def create_settings_keyboard():
     """Create the clone admin settings keyboard"""
     keyboard = [

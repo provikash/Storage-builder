@@ -62,7 +62,7 @@ class CloneManager:
                 "root": "bot.plugins",
                 "include": [
                     "start_handler",
-                    "search", 
+                    "search",
                     "genlink",
                     "channel",
                     "callback_handlers",
@@ -128,22 +128,22 @@ class CloneManager:
             clone_info = self.active_clones[bot_id]
             clone_bot = clone_info['client']
 
-            if clone_bot.is_connected:
-                # Clear handlers first to prevent removal errors
-                try:
-                    from bot.utils.handler_manager import handler_manager
-                    handler_manager.clear_client_handlers(clone_bot)
-                    
-                    # Additional safety: remove all handlers directly
-                    clone_bot.dispatcher.groups.clear()
-                    logger.info(f"✅ Cleared all handlers for clone {bot_id}")
-                except Exception as handler_error:
-                    logger.warning(f"⚠️ Handler cleanup warning for {bot_id}: {handler_error}")
+            try:
+                # Clean up handlers safely before stopping
+                from bot.utils.handler_manager import handler_manager
+                await handler_manager.cleanup_all_handlers(clone_bot)
 
-                await clone_bot.stop()
+                # Stop the clone client
+                if clone_bot.is_connected:
+                    await clone_bot.stop()
+                    logger.info(f"✅ Clone {bot_id} stopped")
+            except Exception as e:
+                logger.error(f"❌ Error stopping clone {bot_id}: {e}")
+            finally:
+                # Remove from active clones
+                if bot_id in self.active_clones:
+                    del self.active_clones[bot_id]
 
-            # Remove from active clones
-            del self.active_clones[bot_id]
 
             # Update database status
             await stop_clone_in_db(bot_id)

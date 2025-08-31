@@ -141,6 +141,21 @@ async def safe_answer_callback(query, text="", show_alert=False):
     except Exception as e:
         logger.error(f"Error answering callback: {e}")
 
+async def safe_remove_handler(client, handler, group=0):
+    """Safely remove handler without errors"""
+    try:
+        if hasattr(client, 'dispatcher') and hasattr(client.dispatcher, 'groups'):
+            if group in client.dispatcher.groups:
+                if handler in client.dispatcher.groups[group]:
+                    client.dispatcher.groups[group].remove(handler)
+                    logger.debug(f"Successfully removed handler from group {group}")
+                else:
+                    logger.debug(f"Handler not found in group {group}")
+            else:
+                logger.debug(f"Group {group} not found in dispatcher")
+    except Exception as e:
+        logger.error(f"Error removing handler: {e}")
+
 def handle_database_lock():
     """Handle SQLite database lock by using in-memory storage"""
     try:

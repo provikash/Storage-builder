@@ -6,8 +6,41 @@ from typing import Dict, Set
 from pyrogram import Client
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from bot.logging import LOGGER
+from bot.utils.error_handler import safe_remove_handler
 
 logger = LOGGER(__name__)
+
+class HandlerManager:
+    """Manage handler registration and removal safely"""
+    
+    def __init__(self):
+        self.registered_handlers = {}
+    
+    async def add_handler(self, client: Client, handler, group: int = 0):
+        """Safely add handler"""
+        try:
+            client.add_handler(handler, group)
+            handler_id = id(handler)
+            self.registered_handlers[handler_id] = (handler, group)
+            logger.debug(f"Added handler {handler_id} to group {group}")
+        except Exception as e:
+            logger.error(f"Error adding handler: {e}")
+    
+    async def remove_handler(self, client: Client, handler, group: int = 0):
+        """Safely remove handler"""
+        await safe_remove_handler(client, handler, group)
+        handler_id = id(handler)
+        if handler_id in self.registered_handlers:
+            del self.registered_handlers[handler_id]
+    
+    async def cleanup_all_handlers(self, client: Client):
+        """Remove all registered handlers safely"""
+        for handler_id, (handler, group) in list(self.registered_handlers.items()):
+            await self.remove_handler(client, handler, group)
+        self.registered_handlers.clear()
+
+# Global handler manager instance
+handler_manager = HandlerManager()
 
 class HandlerManager:
     """Manage handlers to prevent duplicate registration/removal errors"""
