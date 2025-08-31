@@ -153,7 +153,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     try:
         # Import start handler
         from bot.plugins.start_handler import start_handler
-        
+
         # Create a fake message object for start handler
         class FakeMessage:
             def __init__(self, query):
@@ -161,13 +161,13 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
                 self.chat = query.message.chat
                 self.command = ["start"]
                 self.text = "/start"
-            
+
             async def reply_text(self, text, reply_markup=None, **kwargs):
                 await query.edit_message_text(text, reply_markup=reply_markup)
-        
+
         fake_message = FakeMessage(query)
         await start_handler(client, fake_message)
-        
+
     except Exception as e:
         logger.error(f"Error in back_to_start callback: {e}")
         await query.answer("❌ Error going back to start. Please send /start", show_alert=True)
@@ -187,7 +187,7 @@ async def check_command_access(client, user_id, feature_name):
     # Placeholder: Assume access is granted if not admin and not limited
     if user_id in Config.ADMINS or user_id == Config.OWNER_ID:
         return True
-    
+
     needs_verification, remaining = await check_command_limit(user_id, client)
     if needs_verification:
         return False
@@ -241,134 +241,70 @@ async def handle_popular_files_request(client, query: CallbackQuery):
 
 
 @Client.on_callback_query(filters.regex("^random_files$"))
-async def random_files_callback(client, query: CallbackQuery):
-    """Handle random files callback"""
-    try:
-        # Check force subscription first
-        if await handle_force_sub(client, query.message):
-            await query.answer()
-            return
+async def random_files_callback(client: Client, query: CallbackQuery):
+    """Handle random files button"""
+    user_id = query.from_user.id
+    logger.info(f"Random files callback from user {user_id}")
 
-        # Detect if this is mother bot
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or
-            hasattr(client, 'is_clone') and client.is_clone or
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
+    # Check if feature is enabled
+    from bot.utils.clone_config_loader import clone_config_loader
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    config = await clone_config_loader.get_bot_config(bot_token)
 
-        # Redirect if mother bot
-        if not is_clone_bot and bot_token == Config.BOT_TOKEN:
-            await query.answer("❌ Random files feature is only available in clone bots.", show_alert=True)
-            return
+    if not config.get('features', {}).get('random_files', True):
+        await query.answer("❌ This feature is disabled by the admin.", show_alert=True)
+        return
 
-        user_id = query.from_user.id
+    # Check force subscription first
+    if await handle_force_sub(client, query.message):
+        return
 
-        # Check command limit
-        from bot.utils.command_verification import check_command_limit, use_command
-        needs_verification, remaining = await check_command_limit(user_id, client)
-
-        if needs_verification:
-            # Get verification mode for appropriate message
-            from bot.utils.token_verification import TokenVerificationManager
-            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
-            verification_mode = token_settings.get('verification_mode', 'command_limit')
-
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
-                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
-
-            if verification_mode == 'time_based':
-                duration = token_settings.get('time_duration', 24)
-                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {duration} hours of unlimited access!"
-            else:
-                command_limit = token_settings.get('command_limit', 3)
-                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {command_limit} more commands!"
-
-            await query.answer()
-            return await query.edit_message_text(message_text, reply_markup=buttons)
-
-        # Use command
-        if not await use_command(user_id, client):
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
-                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
-            await query.answer()
-            return await query.edit_message_text(
-                "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
-                reply_markup=buttons
-            )
-
-        await query.answer("Getting random files...", show_alert=False)
-
-        # Import and execute random files
-        from bot.plugins.search import handle_random_files
-        await handle_random_files(client, query.message, is_callback=True, skip_command_check=True)
-
-    except Exception as e:
-        logger.error(f"ERROR in random_files_callback: {e}")
-        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+    # Placeholder for random files functionality
+    await query.edit_message_text("🎲 **Random Files**\n\nShowing random files...")
 
 @Client.on_callback_query(filters.regex("^recent_files$"))
 async def recent_files_callback(client: Client, query: CallbackQuery):
     """Handle recent files button"""
-    try:
-        # Check if this is mother bot
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        if bot_token == Config.BOT_TOKEN:
-            await query.answer("Recent file features are disabled in the mother bot. This functionality is only available in clone bots.", show_alert=True)
-            return
+    user_id = query.from_user.id
+    logger.info(f"Recent files callback from user {user_id}")
 
-        # Check if recent feature is enabled in clone settings
-        from bot.database.clone_db import get_clone_by_bot_token
-        clone_data = await get_clone_by_bot_token(bot_token)
-        if not clone_data or not clone_data.get('recent_mode', True):
-            await query.answer("❌ Recent files feature is disabled by admin.", show_alert=True)
-            return
+    # Check if feature is enabled
+    from bot.utils.clone_config_loader import clone_config_loader
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    config = await clone_config_loader.get_bot_config(bot_token)
 
-        # Check command access and token verification
-        if not await check_command_access(client, query.from_user.id, "recent"):
-            await query.answer("❌ You don't have access or need to verify token.", show_alert=True)
-            return
+    if not config.get('features', {}).get('recent_files', True):
+        await query.answer("❌ This feature is disabled by the admin.", show_alert=True)
+        return
 
-        # Rest of the recent files logic...
-        await handle_recent_files_request(client, query)
+    # Check force subscription first
+    if await handle_force_sub(client, query.message):
+        return
 
-    except Exception as e:
-        logger.error(f"Error in recent files callback: {e}")
-        await query.answer("❌ Error processing request.", show_alert=True)
+    # Placeholder for recent files functionality
+    await query.edit_message_text("🆕 **Recent Files**\n\nShowing recent files...")
 
 @Client.on_callback_query(filters.regex("^popular_files$"))
 async def popular_files_callback(client: Client, query: CallbackQuery):
     """Handle popular files button"""
-    try:
-        # Check if this is mother bot
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        if bot_token == Config.BOT_TOKEN:
-            await query.answer("Popular file features are disabled in the mother bot. This functionality is only available in clone bots.", show_alert=True)
-            return
+    user_id = query.from_user.id
+    logger.info(f"Popular files callback from user {user_id}")
 
-        # Check if popular feature is enabled in clone settings
-        from bot.database.clone_db import get_clone_by_bot_token
-        clone_data = await get_clone_by_bot_token(bot_token)
-        if not clone_data or not clone_data.get('popular_mode', True):
-            await query.answer("❌ Popular files feature is disabled by admin.", show_alert=True)
-            return
+    # Check if feature is enabled
+    from bot.utils.clone_config_loader import clone_config_loader
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    config = await clone_config_loader.get_bot_config(bot_token)
 
-        # Check command access and token verification
-        if not await check_command_access(client, query.from_user.id, "popular"):
-            await query.answer("❌ You don't have access or need to verify token.", show_alert=True)
-            return
+    if not config.get('features', {}).get('popular_files', True):
+        await query.answer("❌ This feature is disabled by the admin.", show_alert=True)
+        return
 
-        # Rest of the popular files logic...
-        await handle_popular_files_request(client, query)
+    # Check force subscription first  
+    if await handle_force_sub(client, query.message):
+        return
 
-    except Exception as e:
-        logger.error(f"Error in popular files callback: {e}")
-        await query.answer("❌ Error processing request.", show_alert=True)
+    # Placeholder for popular files functionality
+    await query.edit_message_text("🔥 **Most Popular Files**\n\nShowing most popular files...")
 
 @Client.on_callback_query(filters.regex("^settings$"))
 async def settings_callback(client: Client, query: CallbackQuery):
@@ -376,9 +312,9 @@ async def settings_callback(client: Client, query: CallbackQuery):
     try:
         user_id = query.from_user.id
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
+
         logger.info(f"Settings callback triggered by user {user_id}, bot_token: {bot_token}")
-        
+
         # Check if this is a clone bot
         is_clone_bot = (
             bot_token != Config.BOT_TOKEN and
@@ -386,16 +322,16 @@ async def settings_callback(client: Client, query: CallbackQuery):
              hasattr(client, 'clone_config') and client.clone_config or
              hasattr(client, 'clone_data'))
         )
-        
+
         logger.info(f"Is clone bot: {is_clone_bot}")
-        
+
         if is_clone_bot:
             # Check if user is clone admin
             from bot.database.clone_db import get_clone_by_bot_token
             clone_data = await get_clone_by_bot_token(bot_token)
-            
+
             logger.info(f"Clone data: {clone_data}")
-            
+
             if clone_data and clone_data.get('admin_id') == user_id:
                 # Create a fake message object for clone settings
                 class FakeMessage:
@@ -403,13 +339,13 @@ async def settings_callback(client: Client, query: CallbackQuery):
                         self.from_user = query.from_user
                         self.chat = query.message.chat
                         self.message_id = query.message.id
-                    
+
                     async def reply_text(self, text, reply_markup=None, **kwargs):
                         await query.edit_message_text(text, reply_markup=reply_markup)
-                    
+
                     async def edit_message_text(self, text, reply_markup=None, **kwargs):
                         await query.edit_message_text(text, reply_markup=reply_markup)
-                
+
                 # Redirect to clone settings
                 from bot.plugins.clone_admin_settings import clone_settings_command
                 fake_message = FakeMessage(query)
@@ -423,23 +359,31 @@ async def settings_callback(client: Client, query: CallbackQuery):
             if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
                 await query.answer("❌ Only admins can access settings.", show_alert=True)
                 return
-            
-            # Show mother bot settings
+
+            # Import token verification manager to check settings
+            from bot.utils.token_verification import TokenVerificationManager
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client) # This gets global settings or clone-specific if applicable
+            verification_mode = token_settings.get('verification_mode', 'command_limit') # Default to command_limit if not set
+
+            # Build the settings text dynamically
             text = "⚙️ **Mother Bot Settings**\n\n"
+            text += f"Current Token Verification Mode: **{verification_mode.replace('_', ' ').title()}**\n\n"
             text += "🔧 **Admin Panel Access Only**\n"
             text += "Settings are managed through admin commands."
-            
+
             await query.edit_message_text(
                 text,
                 reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 Change Token Mode", callback_data="change_token_mode")],
                     [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
                 ])
             )
-            
+
     except Exception as e:
         logger.error(f"Error in settings callback: {e}")
         traceback.print_exc()
         await query.answer("❌ Error loading settings. Please try again.", show_alert=True)
+
 
 @Client.on_callback_query(filters.regex("^show_premium_plans$"))
 async def show_premium_callback(client, query: CallbackQuery):
@@ -468,43 +412,6 @@ async def show_premium_callback(client, query: CallbackQuery):
                 "name": "Standard Token Pack",
                 "price": "79",
                 "tokens": 150,
-
-
-@Client.on_callback_query(filters.regex("^clone_settings_panel$"))
-async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
-    """Handle clone settings panel callback"""
-    try:
-        user_id = query.from_user.id
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
-        # Check if this is a clone bot
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or
-            hasattr(client, 'is_clone') and client.is_clone or
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-        
-        if not is_clone_bot or bot_token == Config.BOT_TOKEN:
-            await query.answer("❌ Settings panel is only available in clone bots.", show_alert=True)
-            return
-        
-        # Verify user is clone admin
-        from bot.database.clone_db import get_clone_by_bot_token
-        clone_data = await get_clone_by_bot_token(bot_token)
-        
-        if not clone_data or clone_data.get('admin_id') != user_id:
-            await query.answer("❌ Only clone admin can access settings.", show_alert=True)
-            return
-        
-        # Load clone settings
-        from bot.plugins.clone_admin_settings import clone_settings_command
-        await clone_settings_command(client, query.message)
-        
-    except Exception as e:
-        logger.error(f"Error in clone settings panel callback: {e}")
-        await query.answer("❌ Error loading settings panel. Please try again.", show_alert=True)
-
                 "description": "150 Command Tokens"
             },
             "premium": {
@@ -554,12 +461,100 @@ async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
         logger.error(f"Error showing premium plans: {e}")
         await query.answer("❌ Error loading premium plans. Please try again.", show_alert=True)
 
-# Removed conflicting handlers - these features are disabled in mother bot
-            ])
+@Client.on_callback_query(filters.regex("^clone_settings_panel$"))
+async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
+    """Handle clone settings panel callback"""
+    try:
+        user_id = query.from_user.id
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+
+        # Check if this is a clone bot
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or
+            hasattr(client, 'is_clone') and client.is_clone or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
         )
+
+        if not is_clone_bot or bot_token == Config.BOT_TOKEN:
+            await query.answer("❌ Settings panel is only available in clone bots.", show_alert=True)
+            return
+
+        # Verify user is clone admin
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+
+        if not clone_data or clone_data.get('admin_id') != user_id:
+            await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+            return
+
+        # Load clone settings
+        from bot.plugins.clone_admin_settings import clone_settings_command
+        await clone_settings_command(client, query.message)
+
     except Exception as e:
-        logger.error(f"ERROR in popular_files_callback: {e}")
-        await query.answer("❌ Feature unavailable.", show_alert=True)
+        logger.error(f"Error in clone settings panel callback: {e}")
+        await query.answer("❌ Error loading settings panel. Please try again.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^change_token_mode$"))
+async def change_token_mode_callback(client: Client, query: CallbackQuery):
+    """Handle changing token verification mode"""
+    try:
+        user_id = query.from_user.id
+
+        # Only admins can change this setting
+        if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
+            await query.answer("❌ Only admins can change this setting.", show_alert=True)
+            return
+
+        # Get current settings
+        from bot.utils.token_verification import TokenVerificationManager
+        token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+        current_mode = token_settings.get('verification_mode', 'command_limit')
+
+        # Prepare buttons for changing mode
+        buttons = [
+            [InlineKeyboardButton("✅ Command Limit Based", callback_data="set_token_mode:command_limit")],
+            [InlineKeyboardButton("⏰ Time Based", callback_data="set_token_mode:time_based")],
+            [InlineKeyboardButton("🔒 Close", callback_data="close")]
+        ]
+
+        await query.edit_message_text(
+            f"⚙️ **Change Token Verification Mode**\n\n"
+            f"Current Mode: **{current_mode.replace('_', ' ').title()}**\n\n"
+            "Select the new mode:",
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+    except Exception as e:
+        logger.error(f"Error in change_token_mode callback: {e}")
+        await query.answer("❌ Error changing token mode. Please try again.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^set_token_mode:"))
+async def set_token_mode_callback(client: Client, query: CallbackQuery):
+    """Handle setting the new token verification mode"""
+    try:
+        user_id = query.from_user.id
+
+        # Only admins can change this setting
+        if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
+            await query.answer("❌ Only admins can change this setting.", show_alert=True)
+            return
+
+        new_mode = query.data.split(":")[1]
+
+        # Update settings
+        from bot.utils.token_verification import TokenVerificationManager
+        await TokenVerificationManager.set_clone_token_settings(client, {'verification_mode': new_mode})
+
+        await query.answer(f"✅ Token verification mode set to {new_mode.replace('_', ' ').title()}!")
+        # Refresh the settings message
+        await settings_callback(client, query)
+
+    except Exception as e:
+        logger.error(f"Error in set_token_mode callback: {e}")
+        await query.answer("❌ Error setting token mode. Please try again.", show_alert=True)
+
 
 @Client.on_callback_query(filters.regex("^rand_stats$"))
 async def rand_stats_callback(client, query: CallbackQuery):
@@ -578,7 +573,7 @@ async def rand_stats_callback(client, query: CallbackQuery):
         stats = await get_command_stats(user_id)
         needs_verification, remaining = await check_command_limit(user_id, client)
 
-        status_text = "🔥 **Unlimited**" if remaining == -1 else f"🆓 **{remaining}/3**" if remaining > 0 else "❌ **Limit Reached**"
+        status_text = "🔥 **Unlimited**" if remaining == -1 else "🆓 **" + str(remaining) + "/3**" if remaining > 0 else "❌ **Limit Reached**"
 
         stats_text = f"""📊 **Your Usage Stats**
 

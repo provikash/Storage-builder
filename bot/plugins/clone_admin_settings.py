@@ -213,7 +213,7 @@ async def clone_settings_command(client: Client, message):
             InlineKeyboardButton(f"🔐 Force Join: {'✅' if force_join else '❌'}", callback_data="clone_toggle_force_join")
         ],
         [
-            InlineKeyboardButton("🔑 Token Settings", callback_data="clone_token_verification_mode"),
+            InlineKeyboardButton("🔑 Token Verification Mode", callback_data="clone_token_verification_mode"),
             InlineKeyboardButton("🔗 URL Shortener", callback_data="clone_url_shortener_config")
         ],
         [
@@ -341,7 +341,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             return
 
         elif callback_data == "clone_token_verification_mode":
-            await handle_token_mode_settings(client, query, clone_data)
+            await handle_token_verification_mode_settings(client, query, clone_data)
             return
 
         elif callback_data == "clone_url_shortener":
@@ -643,7 +643,7 @@ async def handle_force_join_settings(client: Client, query: CallbackQuery, clone
         ])
     )
 
-async def handle_token_mode_settings(client: Client, query: CallbackQuery, clone_data):
+async def handle_token_verification_mode_settings(client: Client, query: CallbackQuery, clone_data):
     """Handle token verification mode settings"""
     user_id = query.from_user.id
     bot_id = clone_data.get('bot_id')
@@ -653,7 +653,7 @@ async def handle_token_mode_settings(client: Client, query: CallbackQuery, clone
     token_settings = config.get('token_settings', {}) if config else {}
 
     current_mode = token_settings.get('verification_mode', 'command_limit')
-    token_enabled = token_settings.get('enabled', True)
+    token_enabled = clone_data.get('token_verification', True) # Use clone_data for enabled status
     command_limit = token_settings.get('command_limit', 3)
     time_duration = token_settings.get('time_duration', 24)
 
@@ -715,7 +715,7 @@ async def toggle_token_system(client: Client, query: CallbackQuery):
     await query.answer(f"🔑 Token system {'enabled' if new_state else 'disabled'}")
 
     # Refresh the token mode settings
-    await handle_token_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
+    await handle_token_verification_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
 
 @Client.on_callback_query(filters.regex("^clone_set_token_"))
 async def set_token_mode(client: Client, query: CallbackQuery):
@@ -738,7 +738,7 @@ async def set_token_mode(client: Client, query: CallbackQuery):
 
     # Refresh the token mode settings
     updated_clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
-    await handle_token_mode_settings(client, query, updated_clone_data)
+    await handle_token_verification_mode_settings(client, query, updated_clone_data)
 
 @Client.on_callback_query(filters.regex("^clone_url_shortener_config$"))
 async def handle_shortener_config_settings(client: Client, query: CallbackQuery):
@@ -807,7 +807,7 @@ async def toggle_shortener(client: Client, query: CallbackQuery):
 
     # Refresh the shortener config
     await handle_shortener_config_settings(client, query)
-    await handle_token_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
+    await handle_token_verification_mode_settings(client, query, await get_clone_by_bot_token(client.bot_token))
 
 @Client.on_message(filters.text & filters.private)
 async def handle_clone_admin_input(client: Client, message: Message):
@@ -1018,16 +1018,12 @@ async def handle_force_channels_list(client: Client, query: CallbackQuery, clone
         ])
     )
 
-async def handle_shortener_config_settings(client: Client, query: CallbackQuery):
-    """Handle URL shortener configuration settings"""
+async def handle_url_shortener_settings(client: Client, query: CallbackQuery, clone_data):
+    """Handle URL shortener settings display"""
     user_id = query.from_user.id
 
     if not await is_clone_admin(client, user_id):
         return await query.answer("❌ Unauthorized access!", show_alert=True)
-
-    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
-    if not clone_data:
-        return await query.answer("❌ Clone configuration not found.", show_alert=True)
 
     # Get current config
     config = await get_clone_config(str(clone_data.get('bot_id')))
@@ -1087,3 +1083,99 @@ async def handle_advanced_settings(client: Client, query: CallbackQuery, clone_d
             [InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_back_to_settings")]
         ])
     )
+
+@Client.on_callback_query(filters.regex("^clone_token_verification_mode$"))
+async def clone_token_verification_mode_handler(client: Client, query: CallbackQuery):
+    """Handle token verification mode settings"""
+    user_id = query.from_user.id
+
+    if not await is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    # Get clone data
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    await handle_token_verification_mode_settings(client, query, clone_data)
+
+@Client.on_callback_query(filters.regex("^clone_url_shortener_settings$"))
+async def clone_url_shortener_settings_handler(client: Client, query: CallbackQuery):
+    """Handle URL shortener settings"""
+    user_id = query.from_user.id
+
+    if not await is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    # Get clone data
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    await handle_url_shortener_settings(client, query, clone_data)
+
+@Client.on_callback_query(filters.regex("^clone_set_token_time_based$"))
+async def set_token_time_based(client: Client, query: CallbackQuery):
+    """Set token verification mode to time-based"""
+    user_id = query.from_user.id
+
+    if not await is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    bot_id = str(clone_data.get('bot_id'))
+
+    # Update token verification mode
+    await update_clone_token_verification(bot_id, verification_mode="time_based")
+    await query.answer(f"🔑 Token mode set to Time-Based (24 hours)")
+
+    # Refresh the token mode settings
+    updated_clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    await handle_token_verification_mode_settings(client, query, updated_clone_data)
+
+@Client.on_callback_query(filters.regex("^clone_set_token_command_limit$"))
+async def set_token_command_limit(client: Client, query: CallbackQuery):
+    """Set token verification mode to command limit"""
+    user_id = query.from_user.id
+
+    if not await is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    bot_id = str(clone_data.get('bot_id'))
+
+    # Update token verification mode
+    await update_clone_token_verification(bot_id, verification_mode="command_limit")
+    await query.answer(f"🔑 Token mode set to Command Limit")
+
+    # Refresh the token mode settings
+    updated_clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    await handle_token_verification_mode_settings(client, query, updated_clone_data)
+
+@Client.on_callback_query(filters.regex("^clone_disable_token_verification$"))
+async def disable_token_verification(client: Client, query: CallbackQuery):
+    """Disable token verification completely"""
+    user_id = query.from_user.id
+
+    if not await is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access!", show_alert=True)
+
+    clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found.", show_alert=True)
+
+    bot_id = str(clone_data.get('bot_id'))
+
+    # Disable token verification
+    await update_clone_token_verification(bot_id, enabled=False)
+    await query.answer(f"🔑 Token verification disabled")
+
+    # Refresh the token mode settings
+    updated_clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
+    await handle_token_verification_mode_settings(client, query, updated_clone_data)

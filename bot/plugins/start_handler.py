@@ -30,7 +30,8 @@ def get_user_settings(user_id):
             'recent_files': True,
             'force_join': True,
             'shortener_url': 'https://teraboxlinks.com/',
-            'shortener_api_key': ''
+            'shortener_api_key': '',
+            'token_verification_mode': 'command_limit' # Added default for new setting
         }
     return user_settings[user_id]
 
@@ -292,7 +293,8 @@ async def clone_settings_callback(client: Client, query: CallbackQuery):
     text += f"🆕 Recent Files: {'✅ Enabled' if settings['recent_files'] else '❌ Disabled'}\n"
     text += f"📢 Force Join: {'✅ Enabled' if settings['force_join'] else '❌ Disabled'}\n\n"
     text += f"🔗 Shortener URL: `{settings['shortener_url']}`\n"
-    text += f"🔑 API Key: `{'*' * (len(settings['shortener_api_key']) - 4) + settings['shortener_api_key'][-4:] if len(settings['shortener_api_key']) > 4 else 'Not Set'}`"
+    text += f"🔑 API Key: `{'*' * (len(settings['shortener_api_key']) - 4) + settings['shortener_api_key'][-4:] if len(settings['shortener_api_key']) > 4 else 'Not Set'}`\n\n"
+    text += f"🔒 Token Verification: **{settings['token_verification_mode'].replace('_', ' ').title()}**" # Display current token verification mode
 
     buttons = [
         [
@@ -306,6 +308,10 @@ async def clone_settings_callback(client: Client, query: CallbackQuery):
         [
             InlineKeyboardButton("🔗 Change Shortener URL", callback_data="change_shortener_url"),
             InlineKeyboardButton("🔑 Change API Key", callback_data="change_api_key")
+        ],
+        # New button for token verification mode
+        [
+            InlineKeyboardButton(f"🔒 Token Mode: {settings['token_verification_mode'].replace('_', ' ').title()}", callback_data="toggle_token_mode")
         ],
         [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
     ]
@@ -332,17 +338,24 @@ async def toggle_feature_callback(client: Client, query: CallbackQuery):
         'random': 'random_files',
         'popular': 'popular_files',
         'recent': 'recent_files',
-        'force_join': 'force_join'
+        'force_join': 'force_join',
+        'token_mode': 'token_verification_mode' # Map for the new setting
     }
 
     if feature in feature_map:
         setting_key = feature_map[feature]
-        current_value = settings[setting_key]
-        new_value = not current_value
-        update_user_setting(user_id, setting_key, new_value)
 
-        feature_name = feature.replace('_', ' ').title()
-        await query.answer(f"{feature_name} {'enabled' if new_value else 'disabled'}!", show_alert=True)
+        if setting_key == 'token_verification_mode':
+            current_mode = settings[setting_key]
+            new_mode = 'time_based' if current_mode == 'command_limit' else 'command_limit'
+            update_user_setting(user_id, setting_key, new_mode)
+            await query.answer(f"Token verification mode changed to {new_mode.replace('_', ' ').title()}", show_alert=True)
+        else:
+            current_value = settings[setting_key]
+            new_value = not current_value
+            update_user_setting(user_id, setting_key, new_value)
+            feature_name = feature.replace('_', ' ').title()
+            await query.answer(f"{feature_name} {'enabled' if new_value else 'disabled'}!", show_alert=True)
 
         # Refresh settings panel
         await clone_settings_callback(client, query)
