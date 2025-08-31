@@ -137,11 +137,17 @@ async def start_command(client: Client, message: Message):
 
     # Create main menu buttons based on bot type
     if is_clone_bot:
+        # Clone bot start message
+        text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
+        text += f"📁 **Your Personal File Bot** with secure sharing and search.\n\n"
+        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+        text += f"🎯 Choose an option below:"
+
         # Clone bot menu - check admin vs user
         if is_admin_user:
             # Clone admin gets settings access
             buttons = [
-                [InlineKeyboardButton("🎛️ Clone Settings", callback_data="clone_settings_panel")],
+                [InlineKeyboardButton("🎛️ Clone Settings", callback_data="clone_settings")],
                 [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")]
             ]
         else:
