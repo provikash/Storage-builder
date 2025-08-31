@@ -204,25 +204,37 @@ async def clone_settings_command(client: Client, message):
         else:
             return await message.reply_text(error_msg)
 
-    # Show clone settings panel
+    # Get current settings from database
+    try:
+        # Refresh clone data to get latest values
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data:
+            error_msg = "❌ Clone configuration not found after refresh!"
+            if hasattr(message, 'edit_message_text'):
+                return await message.edit_message_text(error_msg)
+            else:
+                return await message.reply_text(error_msg)
+        
+        show_random = clone_data.get('random_mode', False)
+        show_recent = clone_data.get('recent_mode', False) 
+        show_popular = clone_data.get('popular_mode', False)
+        force_join = clone_data.get('force_join_enabled', False)
+        
+        logger.info(f"Current settings for clone {bot_id}: random={show_random}, recent={show_recent}, popular={show_popular}, force_join={force_join}")
+    except Exception as e:
+        logger.error(f"Error getting current settings: {e}")
+        show_random = show_recent = show_popular = force_join = False
+
+    # Show clone settings panel with current actual values
     text = f"⚙️ **Clone Bot Settings**\n\n"
     text += f"🔧 **Configuration Panel**\n"
     text += f"Manage your clone bot's features and behavior.\n\n"
-    text += f"📋 **Settings Categories:**\n"
-    text += f"• File sharing features (Random, Recent, Popular)\n"
-    text += f"• Force join channels\n"
-    text += f"• Token verification mode\n"
-    text += f"• URL shortener & API keys\n\n"
+    text += f"📋 **Current Settings:**\n"
+    text += f"• 🎲 Random Files: {'✅ Enabled' if show_random else '❌ Disabled'}\n"
+    text += f"• 🆕 Recent Files: {'✅ Enabled' if show_recent else '❌ Disabled'}\n"
+    text += f"• 🔥 Popular Files: {'✅ Enabled' if show_popular else '❌ Disabled'}\n"
+    text += f"• 🔐 Force Join: {'✅ Enabled' if force_join else '❌ Disabled'}\n\n"
     text += f"⚡ **Quick Actions:**"
-
-    # Get current settings
-    try:
-        show_random = clone_data.get('random_mode', True)
-        show_recent = clone_data.get('recent_mode', True) 
-        show_popular = clone_data.get('popular_mode', True)
-        force_join = clone_data.get('force_join_enabled', True)
-    except:
-        show_random = show_recent = show_popular = force_join = True
 
     buttons = InlineKeyboardMarkup([
         [
@@ -241,7 +253,10 @@ async def clone_settings_command(client: Client, message):
             InlineKeyboardButton("📋 Force Channels", callback_data="clone_force_channels_list"),
             InlineKeyboardButton("🔧 Advanced Settings", callback_data="clone_advanced_settings")
         ],
-        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+        [
+            InlineKeyboardButton("🔍 Debug Settings", callback_data="clone_debug_settings"),
+            InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")
+        ]
     ])
 
     if hasattr(message, 'edit_message_text'):
@@ -327,6 +342,15 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             logger.info(f"Verified random_mode state in DB: {actual_state}")
 
             await query.answer(f"🎲 Random mode {'enabled' if new_state else 'disabled'}")
+            
+            # Clear any cached configs to force fresh database reads
+            try:
+                import bot.utils.clone_config_loader as clone_config_loader
+                if hasattr(clone_config_loader, '_config_cache'):
+                    clone_config_loader._config_cache.clear()
+            except:
+                pass
+            
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
             return
@@ -368,6 +392,15 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             logger.info(f"Verified recent_mode state in DB: {actual_state}")
 
             await query.answer(f"📊 Recent mode {'enabled' if new_state else 'disabled'}")
+            
+            # Clear any cached configs to force fresh database reads
+            try:
+                import bot.utils.clone_config_loader as clone_config_loader
+                if hasattr(clone_config_loader, '_config_cache'):
+                    clone_config_loader._config_cache.clear()
+            except:
+                pass
+                
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
             return
@@ -409,6 +442,15 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             logger.info(f"Verified popular_mode state in DB: {actual_state}")
 
             await query.answer(f"🔥 Popular mode {'enabled' if new_state else 'disabled'}")
+            
+            # Clear any cached configs to force fresh database reads
+            try:
+                import bot.utils.clone_config_loader as clone_config_loader
+                if hasattr(clone_config_loader, '_config_cache'):
+                    clone_config_loader._config_cache.clear()
+            except:
+                pass
+                
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
             return
@@ -545,6 +587,27 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         elif callback_data == "clone_back_to_settings":
             # Refresh and show main settings
             await clone_settings_command(client, query.message)
+            return
+            
+        elif callback_data == "clone_debug_settings":
+            # Debug function to show exact database values
+            debug_text = f"🔍 **Debug Settings Info**\n\n"
+            debug_text += f"**Bot ID:** `{bot_id}`\n"
+            debug_text += f"**Bot Token:** `{bot_token[:10]}...`\n\n"
+            debug_text += f"**Database Values:**\n"
+            debug_text += f"• random_mode: `{clone_data.get('random_mode')}`\n"
+            debug_text += f"• recent_mode: `{clone_data.get('recent_mode')}`\n"
+            debug_text += f"• popular_mode: `{clone_data.get('popular_mode')}`\n"
+            debug_text += f"• force_join_enabled: `{clone_data.get('force_join_enabled')}`\n\n"
+            debug_text += f"**All Clone Data Keys:**\n"
+            debug_text += f"`{list(clone_data.keys())}`"
+            
+            await query.edit_message_text(
+                debug_text,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_back_to_settings")]
+                ])
+            )
             return
 
         elif callback_data == "clone_cancel_input":
