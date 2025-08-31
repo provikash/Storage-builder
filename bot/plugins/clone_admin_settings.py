@@ -300,11 +300,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 import bot.utils.clone_config_loader as clone_config_loader
                 if hasattr(clone_config_loader, 'clone_config_cache'):
                     clone_config_loader.clone_config_cache.pop(bot_token, None)
-            except:
-                pass
+                    logger.info(f"Cleared config cache for bot_token: {bot_token}")
+            except Exception as e:
+                logger.error(f"Error clearing config cache: {e}")
 
             # Log the change for debugging
             logger.info(f"Random mode toggled to {new_state} for clone {bot_id}")
+            
+            # Verify the update was applied
+            updated_clone_data = await get_clone_by_bot_token(bot_token)
+            actual_state = updated_clone_data.get('random_mode', None) if updated_clone_data else None
+            logger.info(f"Verified random_mode state in DB: {actual_state}")
 
             await query.answer(f"🎲 Random mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
@@ -321,11 +327,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 import bot.utils.clone_config_loader as clone_config_loader
                 if hasattr(clone_config_loader, 'clone_config_cache'):
                     clone_config_loader.clone_config_cache.pop(bot_token, None)
-            except:
-                pass
+                    logger.info(f"Cleared config cache for bot_token: {bot_token}")
+            except Exception as e:
+                logger.error(f"Error clearing config cache: {e}")
 
             # Log the change for debugging
             logger.info(f"Recent mode toggled to {new_state} for clone {bot_id}")
+            
+            # Verify the update was applied
+            updated_clone_data = await get_clone_by_bot_token(bot_token)
+            actual_state = updated_clone_data.get('recent_mode', None) if updated_clone_data else None
+            logger.info(f"Verified recent_mode state in DB: {actual_state}")
 
             await query.answer(f"📊 Recent mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
@@ -342,11 +354,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 import bot.utils.clone_config_loader as clone_config_loader
                 if hasattr(clone_config_loader, 'clone_config_cache'):
                     clone_config_loader.clone_config_cache.pop(bot_token, None)
-            except:
-                pass
+                    logger.info(f"Cleared config cache for bot_token: {bot_token}")
+            except Exception as e:
+                logger.error(f"Error clearing config cache: {e}")
 
             # Log the change for debugging
             logger.info(f"Popular mode toggled to {new_state} for clone {bot_id}")
+            
+            # Verify the update was applied
+            updated_clone_data = await get_clone_by_bot_token(bot_token)
+            actual_state = updated_clone_data.get('popular_mode', None) if updated_clone_data else None
+            logger.info(f"Verified popular_mode state in DB: {actual_state}")
 
             await query.answer(f"🔥 Popular mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel

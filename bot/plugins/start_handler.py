@@ -157,12 +157,13 @@ async def start_command(client: Client, message: Message):
             # Get current clone data for feature settings
             clone_data = await get_clone_by_bot_token(bot_token)
             
-            # Check each feature based on clone admin settings - default to True if no data
-            show_random = clone_data.get('random_mode', True) if clone_data else True
-            show_recent = clone_data.get('recent_mode', True) if clone_data else True  
-            show_popular = clone_data.get('popular_mode', True) if clone_data else True
+            # Check each feature based on clone admin settings - default to False if no data for security
+            show_random = clone_data.get('random_mode', False) if clone_data else False
+            show_recent = clone_data.get('recent_mode', False) if clone_data else False  
+            show_popular = clone_data.get('popular_mode', False) if clone_data else False
 
             logger.info(f"Feature states for clone {bot_token[:10]}... - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
+            logger.info(f"Clone data keys: {list(clone_data.keys()) if clone_data else 'None'}")
 
             # Create file access buttons only if enabled by admin
             file_buttons_row1 = []
@@ -242,9 +243,9 @@ async def random_files_callback(client: Client, query: CallbackQuery):
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     clone_data = await get_clone_by_bot_token(bot_token)
     
-    # Enhanced feature checking
+    # Enhanced feature checking - default to False for security
     if clone_data:
-        feature_enabled = clone_data.get('random_mode', True)
+        feature_enabled = clone_data.get('random_mode', False)
         logger.info(f"Random files access attempt - Feature enabled: {feature_enabled}")
         
         if not feature_enabled:
@@ -257,6 +258,16 @@ async def random_files_callback(client: Client, query: CallbackQuery):
                 ])
             )
             return
+    else:
+        # No clone data found - feature disabled
+        await query.edit_message_text(
+            "❌ **Feature Not Available**\n\n"
+            "This feature is not available in this bot.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+        return
     
     # Feature is enabled - proceed with random files logic
     await query.edit_message_text("🎲 **Random Files**\n\nShowing random files...")
@@ -270,9 +281,9 @@ async def popular_files_callback(client: Client, query: CallbackQuery):
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     clone_data = await get_clone_by_bot_token(bot_token)
     
-    # Enhanced feature checking
+    # Enhanced feature checking - default to False for security
     if clone_data:
-        feature_enabled = clone_data.get('popular_mode', True)
+        feature_enabled = clone_data.get('popular_mode', False)
         logger.info(f"Popular files access attempt - Feature enabled: {feature_enabled}")
         
         if not feature_enabled:
@@ -285,6 +296,16 @@ async def popular_files_callback(client: Client, query: CallbackQuery):
                 ])
             )
             return
+    else:
+        # No clone data found - feature disabled
+        await query.edit_message_text(
+            "❌ **Feature Not Available**\n\n"
+            "This feature is not available in this bot.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+        return
 
     # Feature is enabled - proceed with popular files logic
     await query.edit_message_text("🔥 **Most Popular Files**\n\nShowing popular files...")
@@ -298,9 +319,9 @@ async def recent_files_callback(client: Client, query: CallbackQuery):
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
     clone_data = await get_clone_by_bot_token(bot_token)
     
-    # Enhanced feature checking
+    # Enhanced feature checking - default to False for security
     if clone_data:
-        feature_enabled = clone_data.get('recent_mode', True)
+        feature_enabled = clone_data.get('recent_mode', False)
         logger.info(f"Recent files access attempt - Feature enabled: {feature_enabled}")
         
         if not feature_enabled:
@@ -313,6 +334,16 @@ async def recent_files_callback(client: Client, query: CallbackQuery):
                 ])
             )
             return
+    else:
+        # No clone data found - feature disabled
+        await query.edit_message_text(
+            "❌ **Feature Not Available**\n\n"
+            "This feature is not available in this bot.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+        return
 
     # Feature is enabled - proceed with recent files logic
     await query.edit_message_text("🆕 **Recent Files**\n\nShowing recent files...")
@@ -512,12 +543,13 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         # Create file access buttons based on clone admin settings
         file_buttons = []
 
-        # Check admin settings for feature availability - default to True if no data
-        show_random = clone_data.get('random_mode', True) if clone_data else True
-        show_recent = clone_data.get('recent_mode', True) if clone_data else True
-        show_popular = clone_data.get('popular_mode', True) if clone_data else True
+        # Check admin settings for feature availability - default to False if no data for security
+        show_random = clone_data.get('random_mode', False) if clone_data else False
+        show_recent = clone_data.get('recent_mode', False) if clone_data else False
+        show_popular = clone_data.get('popular_mode', False) if clone_data else False
 
         logger.info(f"Back to start feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
+        logger.info(f"Clone data for back_to_start: {clone_data}")
 
         # Only show enabled file mode buttons
         mode_row1 = []
