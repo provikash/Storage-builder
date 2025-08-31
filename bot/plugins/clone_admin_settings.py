@@ -323,7 +323,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }}
             )
 
-            # Also update clone configs collection for consistency
+            # Also update clone configs collection for consistency (PRIMARY LOCATION for UI)
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
@@ -333,6 +333,9 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
+            
+            # Force cache clear and immediate verification
+            logger.info(f"Updated random_mode to {new_state} in both collections for bot {bot_id}")
 
             # Clear config cache to force reload
             try:
@@ -382,7 +385,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }}
             )
 
-            # Also update clone configs collection for consistency
+            # Also update clone configs collection for consistency (PRIMARY LOCATION for UI)
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
@@ -392,6 +395,9 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
+            
+            # Force cache clear and immediate verification
+            logger.info(f"Updated recent_mode to {new_state} in both collections for bot {bot_id}")
 
             # Clear config cache to force reload
             try:
@@ -441,7 +447,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }}
             )
 
-            # Also update clone configs collection for consistency
+            # Also update clone configs collection for consistency (PRIMARY LOCATION for UI)
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
@@ -451,6 +457,9 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
+            
+            # Force cache clear and immediate verification
+            logger.info(f"Updated popular_mode to {new_state} in both collections for bot {bot_id}")
 
             # Clear config cache to force reload
             try:

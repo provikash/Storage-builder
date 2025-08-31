@@ -27,80 +27,77 @@ async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
     Returns list of button rows
     """
     buttons = []
-    
+
     if not clone_data:
         logger.warning("No clone data found, returning empty keyboard")
         return buttons
-    
+
     # Get clone ID for proper lookup
     clone_id = clone_data.get('_id') or clone_data.get('bot_id')
-    
+
     # Always get fresh data from database to ensure latest settings
     try:
         from bot.database.clone_db import get_clone_by_bot_token, get_clone_config
-        
+
         # Get the most recent clone data from database using bot_token
         fresh_clone_data = await get_clone_by_bot_token(bot_token) if bot_token else clone_data
         if not fresh_clone_data:
             fresh_clone_data = clone_data
-        
-        # Initialize feature states from fresh database data
-        show_random = fresh_clone_data.get('random_mode', False)
-        show_recent = fresh_clone_data.get('recent_mode', False)  
-        show_popular = fresh_clone_data.get('popular_mode', False)
-        
-        # Also check clone config for additional feature settings
+
+        # First, get settings from clone config (where admin settings are stored)
         clone_config = await get_clone_config(str(clone_id)) if clone_id else None
+
+        # Initialize feature states - check config first, then clone data
         if clone_config:
-            # Check features object and merge with clone_data
+            # Check features object first
             features = clone_config.get('features', {})
-            if features:
-                # Use features if they exist, otherwise keep clone_data values
-                if 'random_files' in features:
-                    show_random = features.get('random_files', show_random)
-                if 'recent_files' in features:
-                    show_recent = features.get('recent_files', show_recent)
-                if 'popular_files' in features:
-                    show_popular = features.get('popular_files', show_popular)
-            
-            # Also check direct config fields as fallback
+            show_random = features.get('random_files', clone_config.get('random_mode', False))
+            show_recent = features.get('recent_files', clone_config.get('recent_mode', False))
+            show_popular = features.get('popular_files', clone_config.get('popular_mode', False))
+
+            # If not found in features, check direct config fields
             if 'random_mode' in clone_config:
-                show_random = clone_config.get('random_mode', show_random)
+                show_random = clone_config.get('random_mode')
             if 'recent_mode' in clone_config:
-                show_recent = clone_config.get('recent_mode', show_recent)
+                show_recent = clone_config.get('recent_mode')
             if 'popular_mode' in clone_config:
-                show_popular = clone_config.get('popular_mode', show_popular)
-            
+                show_popular = clone_config.get('popular_mode')
+        else:
+            # Fallback to clone data if no config found
+            show_random = fresh_clone_data.get('random_mode', False)
+            show_recent = fresh_clone_data.get('recent_mode', False)  
+            show_popular = fresh_clone_data.get('popular_mode', False)
+
     except Exception as e:
         logger.error(f"Error getting fresh clone data for {clone_id}: {e}")
         # Fallback to original clone_data values
         show_random = clone_data.get('random_mode', False)
         show_recent = clone_data.get('recent_mode', False)  
         show_popular = clone_data.get('popular_mode', False)
-    
+
     logger.info(f"Clone {clone_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
     logger.info(f"Clone {clone_id} fresh_clone_data keys: {list(fresh_clone_data.keys()) if fresh_clone_data else 'None'}")
     logger.info(f"Clone {clone_id} clone_config keys: {list(clone_config.keys()) if clone_config else 'None'}")
-    
+
     # Create file access buttons only if enabled by admin
     file_buttons_row1 = []
-    
+
     # Add buttons only if their corresponding features are enabled
     if show_random:
         file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
     if show_recent:
         file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-    
+
     # Add first row if any buttons exist
     if file_buttons_row1:
         buttons.append(file_buttons_row1)
-    
+
     # Add popular files button in its own row if enabled
     if show_popular:
         buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
-    
+
     logger.info(f"Clone {clone_id} final buttons count: {len(buttons)} | Buttons: {[row[0].text for row in buttons if row]}")
-    
+
     return buttons
 
 def get_start_keyboard(settings):
@@ -112,33 +109,33 @@ def get_start_keyboard(settings):
         InlineKeyboardMarkup with enabled features
     """
     buttons = []
-    
+
     # Get feature states from settings
     show_random = settings.get('random_files', False) or settings.get('random_mode', False)
     show_recent = settings.get('recent_files', False) or settings.get('recent_mode', False)
     show_popular = settings.get('popular_files', False) or settings.get('popular_mode', False)
-    
+
     # Create file access buttons only if enabled
     file_buttons_row1 = []
-    
+
     # Add buttons only if their corresponding features are enabled
     if show_random:
         file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
     if show_recent:
         file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-    
+
     # Add first row if any buttons exist
     if file_buttons_row1:
         buttons.append(file_buttons_row1)
-    
+
     # Add popular files button in its own row if enabled
     if show_popular:
         buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
-    
+
     # Always show help and about
     buttons.append([InlineKeyboardButton("❓ Help", callback_data="help")])
     buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about")])
-    
+
     return InlineKeyboardMarkup(buttons)
 
 def get_user_settings(user_id):
