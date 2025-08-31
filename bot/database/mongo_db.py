@@ -6,7 +6,9 @@ from pymongo.errors import DuplicateKeyError
 from info import Config
 from bot.logging import LOGGER
 import motor.motor_asyncio
+from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
+import pymongo
 
 # MongoDB Connection
 mongo_client = motor.motor_asyncio.AsyncIOMotorClient(Config.DATABASE_URL)
@@ -161,7 +163,7 @@ class MongoDB:
             await self.client.admin.command('ping')
             return True
         except Exception as e:
-            raise pymongo.errors.ConnectionFailure(f"MongoDB connection failed: {e}")
+            raise Exception(f"MongoDB connection failed: {e}")
 
     def close(self):
         """Close MongoDB connection"""
