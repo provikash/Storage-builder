@@ -625,7 +625,8 @@ async def handle_token_mode_settings(client: Client, query: CallbackQuery, clone
                 InlineKeyboardButton("🔙 Back", callback_data="clone_back_to_settings")
             ]
         ])
-    )ext += "• **Command Limit** - Token valid for multiple commands\n"
+    )
+    ext += "• **Command Limit** - Token valid for multiple commands\n"
     text += "• **Time Based** - Token valid for specific time period\n\n"
 
     text += "**Current Settings:**\n"
