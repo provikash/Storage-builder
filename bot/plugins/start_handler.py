@@ -21,7 +21,7 @@ logger = LOGGER(__name__)
 # User settings storage (in-memory dictionary)
 user_settings = {}
 
-async def get_start_keyboard_for_clone_user(clone_data):
+async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
     """
     Create start menu keyboard for clone bot users based on admin settings
     Returns list of button rows
@@ -35,16 +35,22 @@ async def get_start_keyboard_for_clone_user(clone_data):
     # Get clone ID for proper lookup
     clone_id = clone_data.get('_id') or clone_data.get('bot_id')
     
-    # Initialize feature states with defaults - directly from clone_data first
-    show_random = clone_data.get('random_mode', False)
-    show_recent = clone_data.get('recent_mode', False)  
-    show_popular = clone_data.get('popular_mode', False)
-    
+    # Always get fresh data from database to ensure latest settings
     try:
-        # Secondary source: Get clone configuration from database for additional features
-        from bot.database.clone_db import get_clone_config
-        clone_config = await get_clone_config(str(clone_id)) if clone_id else None
+        from bot.database.clone_db import get_clone_by_bot_token, get_clone_config
         
+        # Get the most recent clone data from database using bot_token
+        fresh_clone_data = await get_clone_by_bot_token(bot_token) if bot_token else clone_data
+        if not fresh_clone_data:
+            fresh_clone_data = clone_data
+        
+        # Initialize feature states from fresh database data
+        show_random = fresh_clone_data.get('random_mode', False)
+        show_recent = fresh_clone_data.get('recent_mode', False)  
+        show_popular = fresh_clone_data.get('popular_mode', False)
+        
+        # Also check clone config for additional feature settings
+        clone_config = await get_clone_config(str(clone_id)) if clone_id else None
         if clone_config:
             # Check features object and merge with clone_data
             features = clone_config.get('features', {})
@@ -66,9 +72,11 @@ async def get_start_keyboard_for_clone_user(clone_data):
                 show_popular = clone_config.get('popular_mode', show_popular)
             
     except Exception as e:
-        logger.error(f"Error getting clone config for {clone_id}: {e}")
-        # Keep using clone_data values
-        pass
+        logger.error(f"Error getting fresh clone data for {clone_id}: {e}")
+        # Fallback to original clone_data values
+        show_random = clone_data.get('random_mode', False)
+        show_recent = clone_data.get('recent_mode', False)  
+        show_popular = clone_data.get('popular_mode', False)
     
     logger.info(f"Clone {clone_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
     
@@ -261,7 +269,7 @@ async def start_command(client: Client, message: Message):
         else:
             # Normal users get file access based on admin settings
             clone_data = await get_clone_by_bot_token(bot_token)
-            buttons = await get_start_keyboard_for_clone_user(clone_data)
+            buttons = await get_start_keyboard_for_clone_user(clone_data, bot_token)
 
             # Always show help and about for normal users
             buttons.append([InlineKeyboardButton("❓ Help", callback_data="help")])
@@ -512,7 +520,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         clone_data = await get_clone_by_bot_token(bot_token)
 
         # Create file access buttons based on clone admin settings
-        file_buttons = await get_start_keyboard_for_clone_user(clone_data)
+        file_buttons = await get_start_keyboard_for_clone_user(clone_data, bot_token)
 
         # Settings button - only for clone admin
         if is_admin:
