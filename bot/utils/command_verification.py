@@ -4,6 +4,9 @@ from bot.database import get_user_command_count, increment_command_count, is_ver
 from bot.database.premium_db import use_premium_token
 from bot.database.command_usage_db import reset_command_count
 from info import Config
+from telebot.async_telebot import Client
+from loguru import logger
+from bot.utils import clone_config_loader
 
 # User locks to prevent race conditions
 _user_locks = {}
@@ -30,10 +33,10 @@ async def check_command_limit(user_id: int, client=None) -> tuple[bool, int]:
             if await is_premium_user(user_id):
                 from bot.database.premium_db import get_premium_info
                 premium_info = await get_premium_info(user_id)
-                
+
                 if premium_info:
                     tokens_remaining = premium_info.get('tokens_remaining', 0)
-                    
+
                     if tokens_remaining == -1:  # Unlimited plan
                         print(f"DEBUG: Premium user {user_id} has unlimited access")
                         return False, -1
@@ -131,4 +134,52 @@ async def reset_user_commands(user_id):
         return True
     except Exception as e:
         logger.error(f"Error resetting user commands: {e}")
+        return False
+
+async def verify_token_access(client: Client, user_id: int, command_type: str) -> bool:
+    """
+    Verify token access for a specific command type.
+    This is a placeholder and should be implemented based on your token verification logic.
+    """
+    # Dummy implementation: always return True for now
+    # In a real scenario, this would involve checking user's tokens, subscription status, etc.
+    return True
+
+async def check_command_access(client: Client, user_id: int, command_type: str) -> bool:
+    """Check if user has access to a specific command type"""
+    try:
+        # Get bot configuration
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+
+        # Check if this is a clone bot
+        if bot_token == Config.BOT_TOKEN:
+            # Mother bot - these features are disabled
+            return False
+
+        config = await clone_config_loader.get_bot_config(bot_token)
+
+        # Check if command type feature is enabled in clone settings
+        features = config.get('features', {})
+        if not features.get(f"{command_type}_button", True):
+            return False
+
+        # Also check clone data settings
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if clone_data:
+            # Check specific mode settings
+            mode_key = f"{command_type}_mode"
+            if not clone_data.get(mode_key, True):
+                return False
+
+        # If token verification is disabled, allow access
+        token_settings = config.get('token_settings', {})
+        if not token_settings.get('enabled', True):
+            return True
+
+        # Check token verification
+        return await verify_token_access(client, user_id, command_type)
+
+    except Exception as e:
+        logger.error(f"Error checking command access: {e}")
         return False

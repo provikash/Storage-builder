@@ -126,18 +126,29 @@ async def start_command(client: Client, message: Message):
                 logger.info(f"Added settings button for clone admin {user_id}")
 
         # Get clone settings to determine which buttons to show
-        show_random = show_recent = show_popular = True
+        show_random = True
+        show_recent = True  
+        show_popular = True
+        force_join_enabled = False
+
         try:
-            if config and config.get('bot_info', {}).get('is_clone', False):
+            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            if bot_token != Config.BOT_TOKEN:
+                is_clone_bot = True
+                from bot.database.clone_db import get_clone_by_bot_token
                 clone_data = await get_clone_by_bot_token(bot_token)
                 if clone_data:
                     show_random = clone_data.get('random_mode', True)
                     show_recent = clone_data.get('recent_mode', True)
                     show_popular = clone_data.get('popular_mode', True)
-                    logger.info(f"Clone settings loaded - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
+                    force_join_enabled = clone_data.get('force_join_enabled', False)
+            else:
+                # In mother bot, these features are disabled
+                show_random = False
+                show_recent = False
+                show_popular = False
         except Exception as e:
-            logger.error(f"Error fetching clone settings: {e}")
-            show_random = show_recent = show_popular = True
+            logger.error(f"Error checking clone configuration: {e}")
 
         # Create file access buttons based on clone settings
         file_buttons = []
@@ -638,7 +649,9 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
 
         # Get clone settings for back_to_start
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        show_random = show_recent = show_popular = True
+        show_random = True
+        show_recent = True
+        show_popular = True
         try:
             clone_data = await get_clone_by_bot_token(bot_token)
             if clone_data:
@@ -666,7 +679,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
             mode_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
         if show_recent:
             mode_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-        
+
         if mode_row:
             buttons.append(mode_row)
 

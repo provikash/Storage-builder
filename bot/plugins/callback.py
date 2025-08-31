@@ -8,6 +8,11 @@ from bot.database import add_user, present_user, is_verified, validate_token_and
 from bot.utils.command_verification import check_command_limit, use_command
 from bot.database.verify_db import create_verification_token
 import traceback
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 @Client.on_callback_query(filters.regex("^about$"))
 async def about_callback(client, query: CallbackQuery):
@@ -76,7 +81,7 @@ async def my_stats_callback(client, query: CallbackQuery):
         )
 
     except Exception as e:
-        print(f"ERROR in my_stats_callback: {e}")
+        logger.error(f"ERROR in my_stats_callback: {e}")
         await query.answer("❌ Error retrieving stats. Please try again.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^get_token$"))
@@ -113,7 +118,7 @@ async def get_token_callback(client, query):
                 f"https://t.me/{client.username}?start=verify-{user.id}-{token}"
             )
         except Exception as e:
-            print(f"Shortlink error: {e}")
+            logger.warning(f"Shortlink error: {e}")
             await query.answer()
             return await query.edit_message_text("⚠️ Failed to generate shortlink. Please try again later.")
 
@@ -138,7 +143,7 @@ async def get_token_callback(client, query):
         )
 
     except Exception as e:
-        print(f"Token callback error: {e}")
+        logger.error(f"Token callback error: {e}")
         await query.answer()
         await query.edit_message_text("⚠️ An error occurred. Please try again later.")
 
@@ -147,71 +152,68 @@ async def close(client, query):
     await query.message.delete()
     await query.answer("Closed Successfully!")
 
-@Client.on_callback_query(filters.regex("^execute_rand$"))
-async def execute_rand_callback(client, query: CallbackQuery):
-    """Handle Get Random Files button click"""
+# Mock functions for demonstration purposes if they are not defined elsewhere
+async def check_command_access(client, user_id, feature_name):
+    """
+    Mock function to check command access.
+    Replace with actual implementation.
+    """
+    logger.info(f"Checking command access for user {user_id}, feature: {feature_name}")
+    # Placeholder: Assume access is granted if not admin and not limited
+    if user_id in Config.ADMINS or user_id == Config.OWNER_ID:
+        return True
+    
+    needs_verification, remaining = await check_command_limit(user_id, client)
+    if needs_verification:
+        return False
+    return True
+
+async def handle_random_file_request(client, query: CallbackQuery):
+    """
+    Mock function to handle random file requests.
+    Replace with actual implementation.
+    """
+    logger.info(f"Handling random file request for user {query.from_user.id}")
+    await query.answer("Processing random files...", show_alert=False)
     try:
-        print(f"DEBUG: Execute rand callback triggered by user {query.from_user.id}")
-
-        # Check force subscription first
-        if await handle_force_sub(client, query.message):
-            await query.answer()
-            return
-
-        user_id = query.from_user.id
-
-        # First check if verification is needed
-        from bot.utils.command_verification import check_command_limit, use_command
-        needs_verification, remaining = await check_command_limit(user_id, client)
-
-        if needs_verification:
-            # Get verification mode for appropriate message
-            from bot.utils.token_verification import TokenVerificationManager
-            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
-            verification_mode = token_settings.get('verification_mode', 'command_limit')
-
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
-                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
-
-            if verification_mode == 'time_based':
-                duration = token_settings.get('time_duration', 24)
-                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {duration} hours of unlimited access!"
-            else:
-                command_limit = token_settings.get('command_limit', 3)
-                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {command_limit} more commands!"
-
-            await query.answer()
-            return await query.edit_message_text(message_text, reply_markup=buttons)
-
-        # Try to use command
-        if not await use_command(user_id, client):
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
-                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
-            await query.answer()
-            return await query.edit_message_text(
-                "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-
-        # Acknowledge the callback first
-        await query.answer("Getting random files...", show_alert=False)
-
-        # Import and execute the random files function
-        try:
-            from bot.plugins.search import handle_random_files
-            await handle_random_files(client, query.message, is_callback=True, skip_command_check=True)
-        except ImportError as e:
-            print(f"Import error for handle_random_files: {e}")
-            await query.edit_message_text("❌ Random files feature temporarily unavailable.")
-
+        from bot.plugins.search import handle_random_files
+        await handle_random_files(client, query.message, is_callback=True, skip_command_check=True)
+    except ImportError as e:
+        logger.error(f"Import error for handle_random_files: {e}")
+        await query.edit_message_text("❌ Random files feature temporarily unavailable.")
     except Exception as e:
-        print(f"ERROR in execute_rand_callback: {e}")
-        print(f"Traceback: {traceback.format_exc()}")
-        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+        logger.error(f"Error in handle_random_file_request: {e}")
+        await query.answer("❌ An error occurred while fetching random files.", show_alert=True)
+
+
+async def handle_recent_files_request(client, query: CallbackQuery):
+    """
+    Mock function to handle recent files requests.
+    Replace with actual implementation.
+    """
+    logger.info(f"Handling recent files request for user {query.from_user.id}")
+    await query.answer("Processing recent files...", show_alert=False)
+    try:
+        from bot.plugins.search import handle_recent_files_direct
+        await handle_recent_files_direct(client, query.message, is_callback=True)
+    except Exception as e:
+        logger.error(f"Error in handle_recent_files_request: {e}")
+        await query.answer("❌ An error occurred while fetching recent files.", show_alert=True)
+
+async def handle_popular_files_request(client, query: CallbackQuery):
+    """
+    Mock function to handle popular files requests.
+    Replace with actual implementation.
+    """
+    logger.info(f"Handling popular files request for user {query.from_user.id}")
+    await query.answer("Processing popular files...", show_alert=False)
+    try:
+        from bot.plugins.search import handle_popular_files_direct
+        await handle_popular_files_direct(client, query.message, is_callback=True)
+    except Exception as e:
+        logger.error(f"Error in handle_popular_files_request: {e}")
+        await query.answer("❌ An error occurred while fetching popular files.", show_alert=True)
+
 
 @Client.on_callback_query(filters.regex("^random_files$"))
 async def random_files_callback(client, query: CallbackQuery):
@@ -282,152 +284,66 @@ async def random_files_callback(client, query: CallbackQuery):
         await handle_random_files(client, query.message, is_callback=True, skip_command_check=True)
 
     except Exception as e:
-        print(f"ERROR in random_files_callback: {e}")
+        logger.error(f"ERROR in random_files_callback: {e}")
         await query.answer("❌ An error occurred. Please try again.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^recent_files$"))
-async def recent_files_callback(client, query: CallbackQuery):
-    """Handle recent files callback"""
+async def recent_files_callback(client: Client, query: CallbackQuery):
+    """Handle recent files button"""
     try:
-        # Check force subscription first
-        if await handle_force_sub(client, query.message):
-            await query.answer()
-            return
-
-        # Detect if this is mother bot
+        # Check if this is mother bot
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or
-            hasattr(client, 'is_clone') and client.is_clone or
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-
-        # Redirect if mother bot
-        if not is_clone_bot and bot_token == Config.BOT_TOKEN:
-            await query.answer("❌ Recent files feature is only available in clone bots.", show_alert=True)
+        if bot_token == Config.BOT_TOKEN:
+            await query.answer("Recent file features are disabled in the mother bot. This functionality is only available in clone bots.", show_alert=True)
             return
 
-        user_id = query.from_user.id
+        # Check if recent feature is enabled in clone settings
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data or not clone_data.get('recent_mode', True):
+            await query.answer("❌ Recent files feature is disabled by admin.", show_alert=True)
+            return
 
-        # Check command limit
-        from bot.utils.command_verification import check_command_limit, use_command
-        needs_verification, remaining = await check_command_limit(user_id, client)
+        # Check command access and token verification
+        if not await check_command_access(client, query.from_user.id, "recent"):
+            await query.answer("❌ You don't have access or need to verify token.", show_alert=True)
+            return
 
-        if needs_verification:
-            # Get verification mode for appropriate message
-            from bot.utils.token_verification import TokenVerificationManager
-            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
-            verification_mode = token_settings.get('verification_mode', 'command_limit')
-
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
-                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
-
-            if verification_mode == 'time_based':
-                duration = token_settings.get('time_duration', 24)
-                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {duration} hours of unlimited access!"
-            else:
-                command_limit = token_settings.get('command_limit', 3)
-                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {command_limit} more commands!"
-
-            await query.answer()
-            return await query.edit_message_text(message_text, reply_markup=buttons)
-
-        # Use command
-        if not await use_command(user_id, client):
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
-                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
-            await query.answer()
-            return await query.edit_message_text(
-                "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
-                reply_markup=buttons
-            )
-
-        await query.answer("Getting recent files...", show_alert=False)
-
-        # Import and execute recent files
-        from bot.plugins.search import handle_recent_files_direct
-        await handle_recent_files_direct(client, query.message, is_callback=True)
+        # Rest of the recent files logic...
+        await handle_recent_files_request(client, query)
 
     except Exception as e:
-        print(f"ERROR in recent_files_callback: {e}")
-        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+        logger.error(f"Error in recent files callback: {e}")
+        await query.answer("❌ Error processing request.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^popular_files$"))
-async def popular_files_callback(client, query: CallbackQuery):
-    """Handle popular files callback"""
+async def popular_files_callback(client: Client, query: CallbackQuery):
+    """Handle popular files button"""
     try:
-        # Check force subscription first
-        if await handle_force_sub(client, query.message):
-            await query.answer()
-            return
-
-        # Detect if this is mother bot
+        # Check if this is mother bot
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or
-            hasattr(client, 'is_clone') and client.is_clone or
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-
-        # Redirect if mother bot
-        if not is_clone_bot and bot_token == Config.BOT_TOKEN:
-            await query.answer("❌ Popular files feature is only available in clone bots.", show_alert=True)
+        if bot_token == Config.BOT_TOKEN:
+            await query.answer("Popular file features are disabled in the mother bot. This functionality is only available in clone bots.", show_alert=True)
             return
 
-        user_id = query.from_user.id
+        # Check if popular feature is enabled in clone settings
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data or not clone_data.get('popular_mode', True):
+            await query.answer("❌ Popular files feature is disabled by admin.", show_alert=True)
+            return
 
-        # Check command limit
-        from bot.utils.command_verification import check_command_limit, use_command
-        needs_verification, remaining = await check_command_limit(user_id, client)
+        # Check command access and token verification
+        if not await check_command_access(client, query.from_user.id, "popular"):
+            await query.answer("❌ You don't have access or need to verify token.", show_alert=True)
+            return
 
-        if needs_verification:
-            # Get verification mode for appropriate message
-            from bot.utils.token_verification import TokenVerificationManager
-            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
-            verification_mode = token_settings.get('verification_mode', 'command_limit')
-
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
-                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
-
-            if verification_mode == 'time_based':
-                duration = token_settings.get('time_duration', 24)
-                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {duration} hours of unlimited access!"
-            else:
-                command_limit = token_settings.get('command_limit', 3)
-                message_text = f"🔐 **Verification Required!**\n\nGet a verification token for {command_limit} more commands!"
-
-            await query.answer()
-            return await query.edit_message_text(message_text, reply_markup=buttons)
-
-        # Use command
-        if not await use_command(user_id, client):
-            buttons = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
-                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
-            await query.answer()
-            return await query.edit_message_text(
-                "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
-                reply_markup=buttons
-            )
-
-        await query.answer("Getting popular files...", show_alert=False)
-
-        # Import and execute popular files
-        from bot.plugins.search import handle_popular_files_direct
-        await handle_popular_files_direct(client, query.message, is_callback=True)
+        # Rest of the popular files logic...
+        await handle_popular_files_request(client, query)
 
     except Exception as e:
-        print(f"ERROR in popular_files_callback: {e}")
-        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
+        logger.error(f"Error in popular files callback: {e}")
+        await query.answer("❌ Error processing request.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^show_premium_plans$"))
 async def show_premium_callback(client, query: CallbackQuery):
@@ -475,7 +391,7 @@ async def show_premium_callback(client, query: CallbackQuery):
         # Premium purchase buttons
         buttons = []
         for plan_key, plan_info in PREMIUM_PLANS.items():
-            discount_text = f" ({plan_info['discount']} OFF)" if plan_info['discount'] != "0%" else ""
+            discount_text = f" ({plan_info['discount']} OFF)" if plan_info.get('discount', "0%") != "0%" else ""
             buttons.append([
                 InlineKeyboardButton(
                     f"💎 {plan_info['name']} - {plan_info['price']}{discount_text}",
@@ -502,14 +418,14 @@ async def show_premium_callback(client, query: CallbackQuery):
         )
 
     except Exception as e:
-        print(f"Error showing premium plans: {e}")
+        logger.error(f"Error showing premium plans: {e}")
         await query.answer("❌ Error loading premium plans. Please try again.", show_alert=True)
 
 # Removed conflicting handlers - these features are disabled in mother bot
             ])
         )
     except Exception as e:
-        print(f"ERROR in popular_files_callback: {e}")
+        logger.error(f"ERROR in popular_files_callback: {e}")
         await query.answer("❌ Feature unavailable.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^rand_stats$"))
@@ -552,7 +468,7 @@ async def rand_stats_callback(client, query: CallbackQuery):
         )
 
     except Exception as e:
-        print(f"ERROR in rand_stats_callback: {e}")
+        logger.error(f"ERROR in rand_stats_callback: {e}")
         await query.answer("❌ Error retrieving stats. Please try again.", show_alert=True)
 
 
@@ -571,30 +487,30 @@ async def buy_premium_callback(client, query: CallbackQuery):
         PREMIUM_PLANS = {
             "monthly": {
                 "name": "Monthly Plan",
-                "price": "$2.99",
-                "duration": "1 Month", 
+                "price": "2.99",
+                "duration": "1 Month",
                 "per_month": "$2.99",
                 "discount": "0%"
             },
             "quarterly": {
                 "name": "3-Month Plan",
-                "price": "$7.99", 
+                "price": "7.99",
                 "duration": "3 Months",
-                "per_month": "$2.66", 
+                "per_month": "$2.66",
                 "discount": "11%"
             },
             "biannual": {
                 "name": "6-Month Plan",
-                "price": "$14.99",
+                "price": "14.99",
                 "duration": "6 Months",
                 "per_month": "$2.50",
-                "discount": "16%" 
+                "discount": "16%"
             },
             "annual": {
                 "name": "12-Month Plan",
-                "price": "$26.99",
+                "price": "26.99",
                 "duration": "12 Months",
-                "per_month": "$2.25", 
+                "per_month": "$2.25",
                 "discount": "25%"
             }
         }
@@ -628,7 +544,7 @@ async def buy_premium_callback(client, query: CallbackQuery):
         )
 
     except Exception as e:
-        print(f"Error in buy_premium_callback: {e}")
+        logger.error(f"Error in buy_premium_callback: {e}")
         await query.answer("❌ Error processing request. Please try again.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("check_membership"))
@@ -641,7 +557,7 @@ async def check_membership_callback(client: Client, query: CallbackQuery):
         await query.answer("✅ Admin access granted!", show_alert=True)
         await query.message.delete()
         return
-    
+
     # Check token verification status for non-admins
     from bot.utils.token_verification import TokenVerificationManager
     is_verified_user = await TokenVerificationManager.is_user_verified(client, user_id)
@@ -650,7 +566,7 @@ async def check_membership_callback(client: Client, query: CallbackQuery):
         await query.answer("❌ Please verify your account first!", show_alert=True)
         return
 
-    print(f"🔍 DEBUG: Checking membership for user {user_id}")
+    logger.info(f"🔍 DEBUG: Checking membership for user {user_id}")
 
     try:
         from bot.utils.subscription import check_all_subscriptions
@@ -667,7 +583,7 @@ async def check_membership_callback(client: Client, query: CallbackQuery):
         else:
             await query.answer("❌ Please join all required channels first!", show_alert=True)
     except Exception as e:
-        print(f"Error in membership check: {e}")
+        logger.error(f"Error in membership check: {e}")
         await query.answer("❌ Error checking membership. Please try again.", show_alert=True)
 
 # Removed debug callback handler to prevent conflicts with specific handlers

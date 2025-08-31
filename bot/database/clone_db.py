@@ -200,15 +200,21 @@ async def update_clone_shortener(clone_id: str, api_url: str, api_key: str):
         }}
     )
 
-async def update_clone_token_verification(clone_id: str, mode: str, command_limit: int = None, pricing: float = None, enabled: bool = None):
+async def update_clone_token_verification(clone_id: str, verification_mode: str = None, command_limit: int = None, time_duration: int = None, pricing: float = None, enabled: bool = None):
     """Update clone token verification settings"""
-    update_data = {"token_settings.mode": mode, "updated_at": datetime.now()}
+    update_data = {"updated_at": datetime.now()}
+
+    if verification_mode is not None:
+        update_data["token_settings.verification_mode"] = verification_mode
     if command_limit is not None:
         update_data["token_settings.command_limit"] = command_limit
+    if time_duration is not None:
+        update_data["token_settings.time_duration"] = time_duration
     if pricing is not None:
         update_data["token_settings.pricing"] = pricing
     if enabled is not None:
         update_data["token_settings.enabled"] = enabled
+
     await clone_configs_collection.update_one(
         {"_id": clone_id},
         {"$set": update_data}
