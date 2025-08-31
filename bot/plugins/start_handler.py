@@ -79,6 +79,8 @@ async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
         show_popular = clone_data.get('popular_mode', False)
     
     logger.info(f"Clone {clone_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
+    logger.info(f"Clone {clone_id} fresh_clone_data keys: {list(fresh_clone_data.keys()) if fresh_clone_data else 'None'}")
+    logger.info(f"Clone {clone_id} clone_config keys: {list(clone_config.keys()) if clone_config else 'None'}")
     
     # Create file access buttons only if enabled by admin
     file_buttons_row1 = []
@@ -96,6 +98,8 @@ async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
     # Add popular files button in its own row if enabled
     if show_popular:
         buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+    
+    logger.info(f"Clone {clone_id} final buttons count: {len(buttons)} | Buttons: {[row[0].text for row in buttons if row]}")
     
     return buttons
 

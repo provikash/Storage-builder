@@ -220,6 +220,7 @@ async def clone_settings_command(client: Client, message):
         show_popular = clone_data.get('popular_mode', False)
         force_join = clone_data.get('force_join_enabled', False)
         
+        bot_id = clone_data.get('bot_id')
         logger.info(f"Current settings for clone {bot_id}: random={show_random}, recent={show_recent}, popular={show_popular}, force_join={force_join}")
     except Exception as e:
         logger.error(f"Error getting current settings: {e}")
@@ -312,8 +313,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             # Update clone data directly
             await update_clone_setting(bot_id, 'random_mode', new_state)
 
+            # Also update the clones collection directly (where get_clone_by_bot_token reads from)
+            from bot.database.clone_db import clones_collection, clone_configs_collection
+            await clones_collection.update_one(
+                {"bot_id": bot_id},
+                {"$set": {
+                    "random_mode": new_state,
+                    "updated_at": datetime.now()
+                }}
+            )
+
             # Also update clone configs collection for consistency
-            from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
@@ -362,8 +372,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             # Update clone data directly
             await update_clone_setting(bot_id, 'recent_mode', new_state)
 
+            # Also update the clones collection directly (where get_clone_by_bot_token reads from)
+            from bot.database.clone_db import clones_collection, clone_configs_collection
+            await clones_collection.update_one(
+                {"bot_id": bot_id},
+                {"$set": {
+                    "recent_mode": new_state,
+                    "updated_at": datetime.now()
+                }}
+            )
+
             # Also update clone configs collection for consistency
-            from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
@@ -412,8 +431,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             # Update clone data directly
             await update_clone_setting(bot_id, 'popular_mode', new_state)
 
+            # Also update the clones collection directly (where get_clone_by_bot_token reads from)
+            from bot.database.clone_db import clones_collection, clone_configs_collection
+            await clones_collection.update_one(
+                {"bot_id": bot_id},
+                {"$set": {
+                    "popular_mode": new_state,
+                    "updated_at": datetime.now()
+                }}
+            )
+
             # Also update clone configs collection for consistency
-            from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
