@@ -618,26 +618,39 @@ async def get_pending_clone_request(user_id: int):
 async def update_clone_data(clone_id: str, update_data: dict):
     """Update clone data in the database"""
     try:
+        # Ensure we have the correct clone_id format
         if ':' in str(clone_id):
             clone_id = clone_id.split(':')[0]
 
         update_data['updated_at'] = datetime.now()
 
-        # Try both bot_id and _id fields for compatibility
-        result = await clones_collection.update_one(
-            {"$or": [{"bot_id": int(clone_id)}, {"_id": str(clone_id)}]},
-            {"$set": update_data}
-        )
+        # Try multiple query patterns to find the clone
+        queries_to_try = [
+            {"bot_id": int(clone_id)},
+            {"_id": str(clone_id)},
+            {"bot_id": str(clone_id)},
+            {"_id": int(clone_id)}
+        ]
 
-        if result.modified_count == 0:
-            # Try with string bot_id
-            result = await clones_collection.update_one(
-                {"bot_id": str(clone_id)},
-                {"$set": update_data}
-            )
+        result = None
+        for query in queries_to_try:
+            try:
+                result = await clones_collection.update_one(query, {"$set": update_data})
+                if result.modified_count > 0:
+                    logger.info(f"Successfully updated clone {clone_id} with query {query}: {update_data}")
+                    break
+                elif result.matched_count > 0:
+                    logger.info(f"Found clone {clone_id} with query {query} but no changes needed")
+                    break
+            except Exception as query_error:
+                logger.debug(f"Query {query} failed for clone {clone_id}: {query_error}")
+                continue
 
-        logger.info(f"Updated clone {clone_id} data: {update_data}, modified: {result.modified_count}")
-        return result.modified_count > 0
+        if not result or (result.matched_count == 0):
+            logger.warning(f"No clone found with ID {clone_id} for update: {update_data}")
+            return False
+
+        return result.modified_count > 0 or result.matched_count > 0
     except Exception as e:
-        logger.error(f"Error updating clone data: {e}")
+        logger.error(f"Error updating clone data for {clone_id}: {e}")
         return False

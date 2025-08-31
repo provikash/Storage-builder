@@ -21,6 +21,102 @@ logger = LOGGER(__name__)
 # User settings storage (in-memory dictionary)
 user_settings = {}
 
+async def get_start_keyboard_for_clone_user(clone_data):
+    """
+    Create start menu keyboard for clone bot users based on admin settings
+    Returns list of button rows
+    """
+    buttons = []
+    
+    if not clone_data:
+        logger.warning("No clone data found, returning empty keyboard")
+        return buttons
+    
+    # Get bot_id for config lookup
+    bot_id = clone_data.get('bot_id')
+    
+    # Check feature settings from multiple sources for reliability
+    show_random = False
+    show_recent = False  
+    show_popular = False
+    
+    # Primary source: clone data direct fields
+    show_random = clone_data.get('random_mode', False)
+    show_recent = clone_data.get('recent_mode', False)
+    show_popular = clone_data.get('popular_mode', False)
+    
+    # Secondary source: clone config features
+    try:
+        from bot.database.clone_db import get_clone_config
+        clone_config = await get_clone_config(str(bot_id)) if bot_id else None
+        if clone_config and clone_config.get('features'):
+            features = clone_config['features']
+            # Override with config if available
+            show_random = features.get('random_files', show_random)
+            show_recent = features.get('recent_files', show_recent)
+            show_popular = features.get('popular_files', show_popular)
+    except Exception as e:
+        logger.error(f"Error getting clone config: {e}")
+    
+    logger.info(f"Clone {bot_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
+    
+    # Create file access buttons only if enabled by admin
+    file_buttons_row1 = []
+    
+    # Add buttons only if their corresponding features are enabled
+    if show_random:
+        file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+    if show_recent:
+        file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+    
+    # Add first row if any buttons exist
+    if file_buttons_row1:
+        buttons.append(file_buttons_row1)
+    
+    # Add popular files button in its own row if enabled
+    if show_popular:
+        buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+    
+    return buttons
+
+def get_start_keyboard(settings):
+    """
+    Create start menu keyboard based on admin settings
+    Args:
+        settings: dict with feature flags (random_files, recent_files, popular_files)
+    Returns:
+        InlineKeyboardMarkup with enabled features
+    """
+    buttons = []
+    
+    # Get feature states from settings
+    show_random = settings.get('random_files', False) or settings.get('random_mode', False)
+    show_recent = settings.get('recent_files', False) or settings.get('recent_mode', False)
+    show_popular = settings.get('popular_files', False) or settings.get('popular_mode', False)
+    
+    # Create file access buttons only if enabled
+    file_buttons_row1 = []
+    
+    # Add buttons only if their corresponding features are enabled
+    if show_random:
+        file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+    if show_recent:
+        file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+    
+    # Add first row if any buttons exist
+    if file_buttons_row1:
+        buttons.append(file_buttons_row1)
+    
+    # Add popular files button in its own row if enabled
+    if show_popular:
+        buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+    
+    # Always show help and about
+    buttons.append([InlineKeyboardButton("❓ Help", callback_data="help")])
+    buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about")])
+    
+    return InlineKeyboardMarkup(buttons)
+
 def get_user_settings(user_id):
     """Get user settings with defaults"""
     if user_id not in user_settings:
@@ -152,49 +248,8 @@ async def start_command(client: Client, message: Message):
             ]
         else:
             # Normal users get file access based on admin settings
-            buttons = []
-
-            # Get current clone data for feature settings
             clone_data = await get_clone_by_bot_token(bot_token)
-            
-            # Check each feature based on clone admin settings - default to False if no data for security
-            show_random = clone_data.get('random_mode', False) if clone_data else False
-            show_recent = clone_data.get('recent_mode', False) if clone_data else False  
-            show_popular = clone_data.get('popular_mode', False) if clone_data else False
-
-            # Also check clone config for alternative field names
-            from bot.database.clone_db import get_clone_config
-            clone_config = await get_clone_config(str(clone_data.get('bot_id'))) if clone_data else None
-            if clone_config and clone_config.get('features'):
-                features = clone_config['features']
-                # Use config features if main data doesn't have them
-                if not show_random:
-                    show_random = features.get('random_files', False)
-                if not show_recent:
-                    show_recent = features.get('recent_files', False)
-                if not show_popular:
-                    show_popular = features.get('popular_files', False)
-
-            logger.info(f"Feature states for clone {bot_token[:10]}... - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
-            logger.info(f"Clone data keys: {list(clone_data.keys()) if clone_data else 'None'}")
-            logger.info(f"Clone config features: {clone_config.get('features') if clone_config else 'None'}")
-
-            # Create file access buttons only if enabled by admin
-            file_buttons_row1 = []
-            
-            # Add buttons only if their corresponding features are enabled
-            if show_random:
-                file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-            if show_recent:
-                file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-            
-            # Add first row if any buttons exist
-            if file_buttons_row1:
-                buttons.append(file_buttons_row1)
-            
-            # Add popular files button in its own row if enabled
-            if show_popular:
-                buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+            buttons = await get_start_keyboard_for_clone_user(clone_data)
 
             # Always show help and about for normal users
             buttons.append([InlineKeyboardButton("❓ Help", callback_data="help")])
@@ -555,44 +610,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         clone_data = await get_clone_by_bot_token(bot_token)
 
         # Create file access buttons based on clone admin settings
-        file_buttons = []
-
-        # Check admin settings for feature availability - default to False if no data for security
-        show_random = clone_data.get('random_mode', False) if clone_data else False
-        show_recent = clone_data.get('recent_mode', False) if clone_data else False
-        show_popular = clone_data.get('popular_mode', False) if clone_data else False
-
-        # Also check clone config for alternative field names
-        from bot.database.clone_db import get_clone_config
-        clone_config = await get_clone_config(str(clone_data.get('bot_id'))) if clone_data else None
-        if clone_config and clone_config.get('features'):
-            features = clone_config['features']
-            # Use config features if main data doesn't have them
-            if not show_random:
-                show_random = features.get('random_files', False)
-            if not show_recent:
-                show_recent = features.get('recent_files', False)
-            if not show_popular:
-                show_popular = features.get('popular_files', False)
-
-        logger.info(f"Back to start feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
-        logger.info(f"Clone data for back_to_start: {clone_data}")
-        logger.info(f"Back to start config features: {clone_config.get('features') if clone_config else 'None'}")
-
-        # Only show enabled file mode buttons
-        mode_row1 = []
-        if show_random:
-            mode_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-        if show_recent:
-            mode_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-
-        # Add first row if any buttons exist
-        if mode_row1:
-            file_buttons.append(mode_row1)
-
-        # Add popular files button if enabled
-        if show_popular:
-            file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+        file_buttons = await get_start_keyboard_for_clone_user(clone_data)
 
         # Settings button - only for clone admin
         if is_admin:

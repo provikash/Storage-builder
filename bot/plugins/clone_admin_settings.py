@@ -294,7 +294,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('random_mode', False)
             new_state = not current_state
             
-            # Update both in clone data and clone config for consistency
+            # Update clone data directly
             await update_clone_setting(bot_id, 'random_mode', new_state)
             
             # Also update clone configs collection for consistency
@@ -331,7 +331,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('recent_mode', False)
             new_state = not current_state
             
-            # Update both in clone data and clone config for consistency
+            # Update clone data directly
             await update_clone_setting(bot_id, 'recent_mode', new_state)
             
             # Also update clone configs collection for consistency
@@ -368,7 +368,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             current_state = clone_data.get('popular_mode', False)
             new_state = not current_state
             
-            # Update both in clone data and clone config for consistency
+            # Update clone data directly
             await update_clone_setting(bot_id, 'popular_mode', new_state)
             
             # Also update clone configs collection for consistency
