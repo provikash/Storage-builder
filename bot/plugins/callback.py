@@ -484,8 +484,22 @@ async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
         from bot.database.clone_db import get_clone_by_bot_token
         clone_data = await get_clone_by_bot_token(bot_token)
 
-        if not clone_data or clone_data.get('admin_id') != user_id:
-            await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+        if not clone_data:
+            await query.answer("❌ Clone configuration not found.", show_alert=True)
+            return
+            
+        # Convert both to int for proper comparison, handling MongoDB Int64 type
+        stored_admin_id = clone_data.get('admin_id')
+        try:
+            user_id_int = int(user_id)
+            stored_admin_id_int = int(stored_admin_id) if stored_admin_id else 0
+            
+            if user_id_int != stored_admin_id_int:
+                await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+                return
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error converting IDs for comparison: {e}")
+            await query.answer("❌ Error verifying admin access!", show_alert=True)
             return
 
         # Load clone settings
