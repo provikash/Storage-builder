@@ -158,13 +158,18 @@ async def start_mother_bot():
             ]
         }
 
+        # Ensure temp_sessions directory exists
+        import os
+        session_dir = "temp_sessions"
+        os.makedirs(session_dir, exist_ok=True)
+        
         app = Client(
             "mother_bot",
             api_id=Config.API_ID,
             api_hash=Config.API_HASH,
             bot_token=Config.BOT_TOKEN,
             plugins=mother_bot_plugins,
-            workdir="temp_sessions"  # Use separate directory for sessions
+            workdir=session_dir  # Use separate directory for sessions
         )
 
         # Start with retry logic for rate limiting and connection state checking
