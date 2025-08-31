@@ -45,8 +45,15 @@ async def is_feature_enabled_for_user(client: Client, feature_name: str) -> bool
         clone_data = await get_clone_by_bot_token(bot_token)
         
         if clone_data:
-            # Features are enabled for normal users unless explicitly disabled
-            return clone_data.get(feature_name, True)
+            # Features are enabled for normal users by default (True unless explicitly disabled)
+            # Map feature names to database fields
+            feature_map = {
+                'random_mode': clone_data.get('random_mode', True),
+                'recent_mode': clone_data.get('recent_mode', True), 
+                'popular_mode': clone_data.get('popular_mode', True),
+                'force_join_enabled': clone_data.get('force_join_enabled', True)
+            }
+            return feature_map.get(feature_name, True)
         return True
     except Exception as e:
         logger.error(f"Error checking feature availability: {e}")

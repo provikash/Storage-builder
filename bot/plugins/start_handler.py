@@ -16,6 +16,14 @@ from bot.database.clone_db import get_clone_by_bot_token
 from bot.utils import handle_force_sub
 from bot.database import get_command_stats
 
+# Try to import clone admin settings functions
+try:
+    from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
+    CLONE_ADMIN_SETTINGS_AVAILABLE = True
+except ImportError as e:
+    logger.error(f"Could not import clone admin settings: {e}")
+    CLONE_ADMIN_SETTINGS_AVAILABLE = False
+
 logger = LOGGER(__name__)
 
 # User settings storage (in-memory dictionary)
@@ -137,6 +145,12 @@ async def start_command(client: Client, message: Message):
 
     # Create main menu buttons based on bot type
     if is_clone_bot:
+        # Clone bot start message
+        text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
+        text += f"📁 **Your Personal File Bot** with secure sharing and search.\n\n"
+        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+        text += f"🎯 Choose an option below:"
+        
         # Clone bot menu - check admin vs user
         if is_admin_user:
             # Clone admin gets settings access
@@ -150,11 +164,24 @@ async def start_command(client: Client, message: Message):
             buttons = []
 
             # Check each feature for normal user availability
-            if await is_feature_enabled_for_user(client, 'random_mode'):
+            if CLONE_ADMIN_SETTINGS_AVAILABLE:
+                try:
+                    if await is_feature_enabled_for_user(client, 'random_mode'):
+                        buttons.append([InlineKeyboardButton("🎲 Random Files", callback_data="random_files")])
+                    if await is_feature_enabled_for_user(client, 'recent_mode'):
+                        buttons.append([InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")])
+                    if await is_feature_enabled_for_user(client, 'popular_mode'):
+                        buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+                except Exception as e:
+                    logger.error(f"Error checking features: {e}")
+                    # Fallback to showing all features
+                    buttons.append([InlineKeyboardButton("🎲 Random Files", callback_data="random_files")])
+                    buttons.append([InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")])
+                    buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+            else:
+                # Fallback - show all features if admin settings not available
                 buttons.append([InlineKeyboardButton("🎲 Random Files", callback_data="random_files")])
-            if await is_feature_enabled_for_user(client, 'recent_mode'):
                 buttons.append([InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")])
-            if await is_feature_enabled_for_user(client, 'popular_mode'):
                 buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
             # Always show help and about for normal users
