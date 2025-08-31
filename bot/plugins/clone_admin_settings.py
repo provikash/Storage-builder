@@ -301,7 +301,11 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
-                {"$set": {"features.random_files": new_state, "updated_at": datetime.now()}},
+                {"$set": {
+                    "features.random_files": new_state, 
+                    "random_mode": new_state,
+                    "updated_at": datetime.now()
+                }},
                 upsert=True
             )
 
@@ -338,7 +342,11 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
-                {"$set": {"features.recent_files": new_state, "updated_at": datetime.now()}},
+                {"$set": {
+                    "features.recent_files": new_state, 
+                    "recent_mode": new_state,
+                    "updated_at": datetime.now()
+                }},
                 upsert=True
             )
 
@@ -375,7 +383,11 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
-                {"$set": {"features.popular_files": new_state, "updated_at": datetime.now()}},
+                {"$set": {
+                    "features.popular_files": new_state, 
+                    "popular_mode": new_state,
+                    "updated_at": datetime.now()
+                }},
                 upsert=True
             )
 

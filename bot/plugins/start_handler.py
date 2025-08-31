@@ -35,41 +35,40 @@ async def get_start_keyboard_for_clone_user(clone_data):
     # Get clone ID for proper lookup
     clone_id = clone_data.get('_id') or clone_data.get('bot_id')
     
-    # Initialize feature states with defaults
-    show_random = False
-    show_recent = False  
-    show_popular = False
+    # Initialize feature states with defaults - directly from clone_data first
+    show_random = clone_data.get('random_mode', False)
+    show_recent = clone_data.get('recent_mode', False)  
+    show_popular = clone_data.get('popular_mode', False)
     
     try:
-        # Primary source: Get clone configuration from database
+        # Secondary source: Get clone configuration from database for additional features
         from bot.database.clone_db import get_clone_config
         clone_config = await get_clone_config(str(clone_id)) if clone_id else None
         
         if clone_config:
-            # Check features object first
+            # Check features object and merge with clone_data
             features = clone_config.get('features', {})
             if features:
-                show_random = features.get('random_files', False)
-                show_recent = features.get('recent_files', False)
-                show_popular = features.get('popular_files', False)
-            else:
-                # Fallback to direct fields for backward compatibility
-                show_random = clone_config.get('random_mode', False)
-                show_recent = clone_config.get('recent_mode', False)
-                show_popular = clone_config.get('popular_mode', False)
-        
-        # Secondary source: clone data direct fields (backward compatibility)
-        if not any([show_random, show_recent, show_popular]):
-            show_random = clone_data.get('random_mode', False)
-            show_recent = clone_data.get('recent_mode', False)
-            show_popular = clone_data.get('popular_mode', False)
+                # Use features if they exist, otherwise keep clone_data values
+                if 'random_files' in features:
+                    show_random = features.get('random_files', show_random)
+                if 'recent_files' in features:
+                    show_recent = features.get('recent_files', show_recent)
+                if 'popular_files' in features:
+                    show_popular = features.get('popular_files', show_popular)
+            
+            # Also check direct config fields as fallback
+            if 'random_mode' in clone_config:
+                show_random = clone_config.get('random_mode', show_random)
+            if 'recent_mode' in clone_config:
+                show_recent = clone_config.get('recent_mode', show_recent)
+            if 'popular_mode' in clone_config:
+                show_popular = clone_config.get('popular_mode', show_popular)
             
     except Exception as e:
         logger.error(f"Error getting clone config for {clone_id}: {e}")
-        # Fallback to clone_data direct fields
-        show_random = clone_data.get('random_mode', False)
-        show_recent = clone_data.get('recent_mode', False)
-        show_popular = clone_data.get('popular_mode', False)
+        # Keep using clone_data values
+        pass
     
     logger.info(f"Clone {clone_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
     
