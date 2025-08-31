@@ -688,23 +688,23 @@ async def handle_random_files(client: Client, query: CallbackQuery):
     """Handle random files callback"""
     try:
         await query.answer()
-        
+
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
+
         # Check if this is mother bot
         if bot_token == Config.BOT_TOKEN:
             await query.edit_message_text("🎲 **Random Files**\n\nRandom file features are disabled in the mother bot. This functionality is only available in clone bots.")
             return
-            
+
         # Check if feature is enabled for this clone
         from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
         if not await is_feature_enabled_for_user(client, 'random_mode'):
             await query.edit_message_text("🎲 **Random Files**\n\nThis feature has been disabled by the admin.")
             return
-            
+
         # Feature is enabled - show random files
         await query.edit_message_text("🎲 **Random Files**\n\nShowing random files from the database...")
-        
+
     except Exception as e:
         logger.error(f"Error in random files handler: {e}")
         try:
@@ -717,23 +717,134 @@ async def handle_recent_files(client: Client, query: CallbackQuery):
     """Handle recent files callback"""
     try:
         await query.answer()
-        
+
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
+
         # Check if this is mother bot
         if bot_token == Config.BOT_TOKEN:
             await query.edit_message_text("🆕 **Recent Files**\n\nRecent file features are disabled in the mother bot. This functionality is only available in clone bots.")
             return
-            
+
         # Check if feature is enabled for this clone
-        from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
-        if not await is_feature_enabled_for_user(client, 'recent_mode'):
-            await query.edit_message_text("🆕 **Recent Files**\n\nThis feature has been disabled by the admin.")
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+
+        if not clone_data or not clone_data.get('recent_mode', False):
+            await query.edit_message_text(
+                "❌ **Recent Files Disabled**\n\n"
+                "This feature has been disabled by the bot admin.\n\n"
+                "Contact the bot administrator if you need access.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+            )
             return
-            
-        # Feature is enabled - show recent files
-        await query.edit_message_text("🆕 **Recent Files**\n\nShowing recently added files...")
-        
+
+        # Check force subscription first
+        from bot.utils import handle_force_sub
+        if await handle_force_sub(client, query.message):
+            return
+
+        # Check command limit for non-admin users
+        user_id = query.from_user.id
+
+        # Skip command limit check for clone admin
+        if clone_data.get('admin_id') != user_id:
+            from bot.utils.command_verification import check_command_limit, use_command
+            from bot.database.premium_db import is_premium_user
+
+            needs_verification, remaining = await check_command_limit(user_id, client)
+            is_premium = await is_premium_user(user_id)
+
+            if needs_verification and not is_premium:
+                buttons = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                    [InlineKeyboardButton("💎 Buy Premium", callback_data="show_premium_plans")],
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+                await query.edit_message_text(
+                    "🔐 **Command Limit Reached!**\n\n"
+                    "You've used all your free commands. Please verify to get more commands or upgrade to Premium for unlimited access!",
+                    reply_markup=buttons
+                )
+                return
+
+            # Use command if not premium
+            if not is_premium and not await use_command(user_id, client):
+                buttons = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                    [InlineKeyboardButton("💎 Buy Premium", callback_data="show_premium_plans")]
+                ])
+                await query.edit_message_text(
+                    "🔐 **Command Limit Reached!**\n\nPlease verify to get more commands or upgrade to Premium!",
+                    reply_markup=buttons
+                )
+                return
+
+        # Get recent files from database
+        from bot.database import get_recent_files
+
+        try:
+            files = await get_recent_files(limit=10)
+
+            if not files:
+                await query.edit_message_text(
+                    "📁 **No Recent Files**\n\n"
+                    "No recent files are available in the database yet.\n"
+                    "Files will appear here once they are added to the bot.",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                    ])
+                )
+                return
+
+            # Format files for display
+            text = "🆕 **Recent Files**\n\n"
+
+            buttons = []
+            for i, file_data in enumerate(files[:5], 1):  # Show first 5 files
+                file_name = file_data.get('file_name', 'Unknown File')
+                file_id = str(file_data.get('_id', ''))
+
+                # Truncate long file names
+                if len(file_name) > 35:
+                    display_name = file_name[:32] + "..."
+                else:
+                    display_name = file_name
+
+                text += f"{i}. `{display_name}`\n"
+
+                # Add download button
+                buttons.append([InlineKeyboardButton(
+                    f"📥 {display_name}", 
+                    callback_data=f"file_{file_id}"
+                )])
+
+            # Add navigation buttons
+            nav_buttons = []
+            nav_buttons.append(InlineKeyboardButton("🔄 Refresh Recent", callback_data="recent_files"))
+            nav_buttons.append(InlineKeyboardButton("📊 My Stats", callback_data="my_stats"))
+
+            buttons.append(nav_buttons)
+            buttons.append([InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")])
+
+            await query.edit_message_text(
+                text,
+                reply_markup=InlineKeyboardMarkup(buttons)
+            )
+
+        except Exception as db_error:
+            logger.error(f"Database error in recent files: {db_error}")
+            await query.edit_message_text(
+                "❌ **Database Error**\n\n"
+                "Unable to fetch recent files at the moment.\n"
+                "Please try again later.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 Try Again", callback_data="recent_files")],
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+            )
+
     except Exception as e:
         logger.error(f"Error in recent files handler: {e}")
         try:
@@ -746,23 +857,23 @@ async def handle_popular_files(client: Client, query: CallbackQuery):
     """Handle popular files callback"""
     try:
         await query.answer()
-        
+
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
+
         # Check if this is mother bot  
         if bot_token == Config.BOT_TOKEN:
             await query.edit_message_text("🔥 **Most Popular Files**\n\nPopular file features are disabled in the mother bot. This functionality is only available in clone bots.")
             return
-            
+
         # Check if feature is enabled for this clone
         from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
         if not await is_feature_enabled_for_user(client, 'popular_mode'):
             await query.edit_message_text("🔥 **Popular Files**\n\nThis feature has been disabled by the admin.")
             return
-            
+
         # Feature is enabled - show popular files
         await query.edit_message_text("🔥 **Most Popular Files**\n\nShowing most popular files...")
-        
+
     except Exception as e:
         logger.error(f"Error in popular files handler: {e}")
         try:

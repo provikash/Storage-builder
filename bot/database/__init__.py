@@ -39,7 +39,7 @@ from .command_usage_db import (
     reset_command_count,
     get_command_stats
 )
-from .mongo_db import MongoDB
+from .mongo_db import MongoDB, get_random_files, get_recent_files, get_popular_files, get_file_by_id
 from .balance_db import (
     get_user_balance,
     create_user_profile,
