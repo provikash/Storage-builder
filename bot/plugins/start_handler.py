@@ -151,16 +151,30 @@ async def start_command(client: Client, message: Message):
                 [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")]
             ]
         else:
-            # Normal users get file access (features always available unless explicitly disabled)
-            from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
+            # Normal users get file access based on admin settings
             buttons = []
 
-            # Check each feature for normal user availability
-            if await is_feature_enabled_for_user(client, 'random_mode'):
-                buttons.append([InlineKeyboardButton("🎲 Random Files", callback_data="random_files")])
-            if await is_feature_enabled_for_user(client, 'recent_mode'):
-                buttons.append([InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")])
-            if await is_feature_enabled_for_user(client, 'popular_mode'):
+            # Get current clone data for feature settings
+            clone_data = await get_clone_by_bot_token(bot_token)
+            
+            # Check each feature based on clone admin settings
+            show_random = clone_data.get('random_mode', True) if clone_data else True
+            show_recent = clone_data.get('recent_mode', True) if clone_data else True  
+            show_popular = clone_data.get('popular_mode', True) if clone_data else True
+
+            # Create file access buttons only if enabled by admin
+            file_buttons_row1 = []
+            if show_random:
+                file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+            if show_recent:
+                file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+            
+            # Add first row if any buttons exist
+            if file_buttons_row1:
+                buttons.append(file_buttons_row1)
+            
+            # Add popular files button if enabled
+            if show_popular:
                 buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
             # Always show help and about for normal users
@@ -219,11 +233,13 @@ async def start_command(client: Client, message: Message):
 async def random_files_callback(client: Client, query: CallbackQuery):
     """Handle random files callback"""
     await query.answer()
-    user_id = query.from_user.id
-    settings = get_user_settings(user_id)
-
-    if not settings['random_files']:
-        await query.edit_message_text("❌ This feature is disabled.")
+    
+    # Check if feature is enabled by clone admin
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    clone_data = await get_clone_by_bot_token(bot_token)
+    
+    if clone_data and not clone_data.get('random_mode', True):
+        await query.edit_message_text("❌ **Random Files Disabled**\n\nThis feature has been disabled by the bot admin.")
         return
 
     # Your random files logic here
@@ -233,11 +249,13 @@ async def random_files_callback(client: Client, query: CallbackQuery):
 async def popular_files_callback(client: Client, query: CallbackQuery):
     """Handle popular files callback"""
     await query.answer()
-    user_id = query.from_user.id
-    settings = get_user_settings(user_id)
-
-    if not settings['popular_files']:
-        await query.edit_message_text("❌ This feature is disabled.")
+    
+    # Check if feature is enabled by clone admin
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    clone_data = await get_clone_by_bot_token(bot_token)
+    
+    if clone_data and not clone_data.get('popular_mode', True):
+        await query.edit_message_text("❌ **Popular Files Disabled**\n\nThis feature has been disabled by the bot admin.")
         return
 
     # Your popular files logic here
@@ -247,11 +265,13 @@ async def popular_files_callback(client: Client, query: CallbackQuery):
 async def recent_files_callback(client: Client, query: CallbackQuery):
     """Handle recent files callback"""
     await query.answer()
-    user_id = query.from_user.id
-    settings = get_user_settings(user_id)
-
-    if not settings['recent_files']:
-        await query.edit_message_text("❌ This feature is disabled.")
+    
+    # Check if feature is enabled by clone admin
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    clone_data = await get_clone_by_bot_token(bot_token)
+    
+    if clone_data and not clone_data.get('recent_mode', True):
+        await query.edit_message_text("❌ **Recent Files Disabled**\n\nThis feature has been disabled by the bot admin.")
         return
 
     # Your recent files logic here
@@ -445,17 +465,22 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         # Check if user is clone admin
         is_admin = await is_clone_admin(client, user_id)
 
-        # Get user settings
-        settings = get_user_settings(user_id)
+        # Get clone data for feature settings
+        clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token', Config.BOT_TOKEN))
 
-        # Create file access buttons based on user settings
+        # Create file access buttons based on clone admin settings
         file_buttons = []
+
+        # Check admin settings for feature availability
+        show_random = clone_data.get('random_mode', True) if clone_data else True
+        show_recent = clone_data.get('recent_mode', True) if clone_data else True
+        show_popular = clone_data.get('popular_mode', True) if clone_data else True
 
         # Only show enabled file mode buttons
         mode_row1 = []
-        if settings['random_files']:
+        if show_random:
             mode_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-        if settings['recent_files']:
+        if show_recent:
             mode_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
 
         # Add first row if any buttons exist
@@ -463,8 +488,8 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
             file_buttons.append(mode_row1)
 
         # Add popular files button if enabled
-        if settings['popular_files']:
-            file_buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
+        if show_popular:
+            file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
         # Settings button - only for clone admin
         if is_admin:

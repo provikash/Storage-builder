@@ -32,7 +32,7 @@ async def is_clone_admin(client: Client, user_id: int) -> bool:
         return False
 
 async def is_feature_enabled_for_user(client: Client, feature_name: str) -> bool:
-    """Check if feature is enabled for normal users (not admin settings)"""
+    """Check if feature is enabled for normal users based on clone admin settings"""
     try:
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         
@@ -45,7 +45,7 @@ async def is_feature_enabled_for_user(client: Client, feature_name: str) -> bool
         clone_data = await get_clone_by_bot_token(bot_token)
         
         if clone_data:
-            # Features are enabled for normal users unless explicitly disabled
+            # Check the actual feature setting from clone admin
             return clone_data.get(feature_name, True)
         return True
     except Exception as e:
