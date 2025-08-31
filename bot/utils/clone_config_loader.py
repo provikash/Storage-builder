@@ -1,119 +1,14 @@
 import asyncio
 from datetime import datetime, timedelta
-from bot.database.clone_db import get_clone_config, get_global_force_channels, get_clone
+from bot.database.clone_db import get_clone_config, get_global_force_channels, get_clone, get_clone_by_bot_token
 from bot.database.subscription_db import get_subscription
 from info import Config
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
-class CloneConfigLoader:
-    """Loads configuration for clone bots"""
-
-    def __init__(self):
-        self.cache = {}
-        self.cache_timeout = 300  # 5 minutes
-
-    async def get_bot_config(self, bot_token: str):
-        """Get configuration for a specific clone bot"""
-        try:
-            bot_id = bot_token.split(":")[0]
-
-            # Check cache first
-            if bot_id in self.cache:
-                cached_time = self.cache[bot_id].get('cached_at', datetime.min)
-                if datetime.now() - cached_time < timedelta(seconds=self.cache_timeout):
-                    return self.cache[bot_id]['config']
-
-            # Get clone info
-            clone = await get_clone(bot_id)
-            if not clone:
-                return self.get_default_config()
-
-            # Get clone-specific config
-            clone_config = await get_clone_config(bot_id)
-            if not clone_config:
-                clone_config = await self.create_default_config(bot_id)
-
-            # Get global settings
-            global_force_channels = await get_global_force_channels()
-
-            # Merge configurations
-            config = {
-                'bot_id': bot_id,
-                'admin_id': clone['admin_id'],
-                'db_url': clone['db_url'],
-                'features': clone_config.get('features', self.get_default_features()),
-                'token_settings': clone_config.get('token_settings', self.get_default_token_settings()),
-                'channels': {
-                    'global_force_channels': global_force_channels,
-                    'local_force_channels': clone_config.get('channels', {}).get('force_channels', []),
-                    'request_channels': clone_config.get('channels', {}).get('request_channels', [])
-                },
-                'custom_messages': clone_config.get('custom_messages', {}),
-                'subscription': await get_subscription(bot_id)
-            }
-
-            # Cache the config
-            self.cache[bot_id] = {
-                'config': config,
-                'cached_at': datetime.now()
-            }
-
-            return config
-
-        except Exception as e:
-            logger.error(f"❌ Error loading config for bot {bot_token[:10]}: {e}")
-            return self.get_default_config()
-
-    def get_default_config(self):
-        """Get default configuration for new clones"""
-        return {
-            'features': self.get_default_features(),
-            'token_settings': self.get_default_token_settings(),
-            'channels': {
-                'global_force_channels': [],
-                'local_force_channels': [],
-                'request_channels': []
-            },
-            'custom_messages': {}
-        }
-
-    def get_default_features(self):
-        """Get default feature settings"""
-        return {
-            "search": True,
-            "upload": True,
-            "token_verification": True,
-            "premium": True,
-            "auto_delete": True,
-            "batch_links": True
-        }
-
-    def get_default_token_settings(self):
-        """Get default token settings"""
-        return {
-            "mode": "one_time",
-            "command_limit": 100,
-            "pricing": 1.0,
-            "enabled": True
-        }
-
-    async def create_default_config(self, clone_id: str):
-        """Create default configuration for a new clone"""
-        from bot.database.clone_db import create_clone_config
-        await create_clone_config(clone_id)
-        return await get_clone_config(clone_id)
-
-    def clear_cache(self, bot_id: str = None):
-        """Clear configuration cache"""
-        if bot_id:
-            self.cache.pop(bot_id, None)
-        else:
-            self.cache.clear()
-
-# Global config loader instance
-# clone_config_loader = CloneConfigLoader() # This line is a duplicate, will be removed in the next class definition
+# Global cache for clone configurations
+clone_config_cache = {}
 
 class CloneConfigLoader:
     """Advanced configuration loader for dynamic bot behavior"""
@@ -381,6 +276,39 @@ class CloneConfigLoader:
         """Force reload configuration for a bot"""
         self.clear_cache(bot_token)
         return await self.get_bot_config(bot_token)
+
+async def load_clone_config(bot_token: str):
+    """Load configuration for a clone bot"""
+    try:
+        clone_data = await get_clone_by_bot_token(bot_token)
+
+        if clone_data:
+            config = {
+                'bot_id': clone_data.get('bot_id'),
+                'admin_id': clone_data.get('admin_id'),
+                'bot_name': clone_data.get('bot_name'),
+                'random_mode': clone_data.get('random_mode', True),
+                'recent_mode': clone_data.get('recent_mode', True),
+                'popular_mode': clone_data.get('popular_mode', True),
+                'force_channels': clone_data.get('force_channels', []),
+                'token_verification': clone_data.get('token_verification', False),
+                'shortener_api': clone_data.get('shortener_api'),
+                'command_limit': clone_data.get('command_limit'),
+                'time_base_hours': clone_data.get('time_base_hours', 24)
+            }
+
+            # Cache the config
+            clone_config_cache[bot_token] = config
+            return config
+
+        return None
+    except Exception as e:
+        logger.error(f"Error loading clone config: {e}")
+        return None
+
+async def get_bot_config(bot_token: str):
+    """Get bot configuration - alias for load_clone_config"""
+    return await load_clone_config(bot_token)
 
 # Global instance
 clone_config_loader = CloneConfigLoader()

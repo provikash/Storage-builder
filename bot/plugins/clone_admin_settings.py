@@ -228,12 +228,19 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             hasattr(client, 'clone_data')
         )
 
-    if not is_clone_bot:
+    if not is_clone_bot or bot_token == Config.BOT_TOKEN:
         await query.answer("❌ Not available in this bot.", show_alert=True)
         return
 
-    if not await is_clone_admin(client, user_id):
-        await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+    # Verify user is clone admin
+    try:
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data or clone_data.get('admin_id') != user_id:
+            await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+            return
+    except Exception as e:
+        logger.error(f"Error verifying clone admin: {e}")
+        await query.answer("❌ Error verifying admin access.", show_alert=True)
         return
 
     try:
@@ -312,6 +319,10 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             return
 
         elif callback_data == "clone_token_mode":
+            await handle_token_mode_settings(client, query, clone_data)
+            return
+
+        elif callback_data == "clone_token_verification_mode":
             await handle_token_mode_settings(client, query, clone_data)
             return
 

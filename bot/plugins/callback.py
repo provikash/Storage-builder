@@ -147,6 +147,31 @@ async def get_token_callback(client, query):
         await query.answer()
         await query.edit_message_text("⚠️ An error occurred. Please try again later.")
 
+@Client.on_callback_query(filters.regex("^back_to_start$"))
+async def back_to_start_callback(client: Client, query: CallbackQuery):
+    """Handle back to start callback"""
+    try:
+        # Import start handler
+        from bot.plugins.start_handler import start_handler
+        
+        # Create a fake message object for start handler
+        class FakeMessage:
+            def __init__(self, query):
+                self.from_user = query.from_user
+                self.chat = query.message.chat
+                self.command = ["start"]
+                self.text = "/start"
+            
+            async def reply_text(self, text, reply_markup=None, **kwargs):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+        
+        fake_message = FakeMessage(query)
+        await start_handler(client, fake_message)
+        
+    except Exception as e:
+        logger.error(f"Error in back_to_start callback: {e}")
+        await query.answer("❌ Error going back to start. Please send /start", show_alert=True)
+
 @Client.on_callback_query(filters.regex("^close$"))
 async def close(client, query):
     await query.message.delete()
@@ -345,6 +370,56 @@ async def popular_files_callback(client: Client, query: CallbackQuery):
         logger.error(f"Error in popular files callback: {e}")
         await query.answer("❌ Error processing request.", show_alert=True)
 
+@Client.on_callback_query(filters.regex("^settings$"))
+async def settings_callback(client: Client, query: CallbackQuery):
+    """Handle settings button callback"""
+    try:
+        user_id = query.from_user.id
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Check if this is a clone bot
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or
+            hasattr(client, 'is_clone') and client.is_clone or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+        
+        if is_clone_bot and bot_token != Config.BOT_TOKEN:
+            # Check if user is clone admin
+            from bot.database.clone_db import get_clone_by_bot_token
+            clone_data = await get_clone_by_bot_token(bot_token)
+            
+            if clone_data and clone_data.get('admin_id') == user_id:
+                # Redirect to clone settings
+                from bot.plugins.clone_admin_settings import clone_settings_command
+                await clone_settings_command(client, query.message)
+                return
+            else:
+                await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+                return
+        else:
+            # Mother bot settings - only for admins
+            if user_id not in Config.ADMINS and user_id != Config.OWNER_ID:
+                await query.answer("❌ Only admins can access settings.", show_alert=True)
+                return
+            
+            # Show mother bot settings
+            text = "⚙️ **Mother Bot Settings**\n\n"
+            text += "🔧 **Admin Panel Access Only**\n"
+            text += "Settings are managed through admin commands."
+            
+            await query.edit_message_text(
+                text,
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+            )
+            
+    except Exception as e:
+        logger.error(f"Error in settings callback: {e}")
+        await query.answer("❌ Error loading settings. Please try again.", show_alert=True)
+
 @Client.on_callback_query(filters.regex("^show_premium_plans$"))
 async def show_premium_callback(client, query: CallbackQuery):
     # Check force subscription first
@@ -372,6 +447,43 @@ async def show_premium_callback(client, query: CallbackQuery):
                 "name": "Standard Token Pack",
                 "price": "79",
                 "tokens": 150,
+
+
+@Client.on_callback_query(filters.regex("^clone_settings_panel$"))
+async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
+    """Handle clone settings panel callback"""
+    try:
+        user_id = query.from_user.id
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Check if this is a clone bot
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or
+            hasattr(client, 'is_clone') and client.is_clone or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
+        
+        if not is_clone_bot or bot_token == Config.BOT_TOKEN:
+            await query.answer("❌ Settings panel is only available in clone bots.", show_alert=True)
+            return
+        
+        # Verify user is clone admin
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+        
+        if not clone_data or clone_data.get('admin_id') != user_id:
+            await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+            return
+        
+        # Load clone settings
+        from bot.plugins.clone_admin_settings import clone_settings_command
+        await clone_settings_command(client, query.message)
+        
+    except Exception as e:
+        logger.error(f"Error in clone settings panel callback: {e}")
+        await query.answer("❌ Error loading settings panel. Please try again.", show_alert=True)
+
                 "description": "150 Command Tokens"
             },
             "premium": {
