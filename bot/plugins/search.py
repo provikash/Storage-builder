@@ -1,3 +1,4 @@
+# Updated random files retrieval to use clone-specific database and handle clone IDs.
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, ReplyKeyboardMarkup, KeyboardButton
 from bot.database import get_random_files, get_popular_files, get_recent_files, get_index_stats, increment_access_count, is_premium_user
@@ -503,27 +504,43 @@ async def handle_random_files(client: Client, message, is_callback: bool = False
     loading_msg = None
 
     try:
+        # Determine clone ID to use the correct database
+        clone_id = getattr(client, 'clone_id', None)
+        if clone_id is None:
+            # If not a clone bot or clone_id not set, try to get from token
+            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            if bot_token != Config.BOT_TOKEN:
+                from bot.database.clone_db import get_clone_by_bot_token
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    clone_id = clone_data.get('id')
+
+        if clone_id is None:
+            await message.reply_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
+            return
+
         # Initialize loading message
         if is_callback:
             loading_msg = await message.edit_text("🎲 Getting random files...")
         else:
             loading_msg = await message.reply_text("🎲 Getting random files...")
 
-        print("DEBUG: Starting random files retrieval process...")
+        print(f"DEBUG: Starting random files retrieval for clone ID: {clone_id}")
 
         # Step 1: Query MongoDB for file metadata
         try:
-            results = await get_random_files(limit=15)  # Get more to account for invalid files
-            print(f"DEBUG: Retrieved {len(results)} files from database")
+            # Updated to use clone_id for database selection
+            results = await get_random_files(limit=15, clone_id=clone_id)  # Get more to account for invalid files
+            print(f"DEBUG: Retrieved {len(results)} files from database for clone {clone_id}")
         except Exception as db_error:
             error_msg = f"❌ Database query failed: {str(db_error)}"
-            print(f"ERROR: MongoDB query failed: {db_error}")
+            print(f"ERROR: MongoDB query failed for clone {clone_id}: {db_error}")
             await loading_msg.edit_text(error_msg)
             return
 
         if not results:
             text = "❌ No files found in database."
-            print("DEBUG: No files found in database")
+            print(f"DEBUG: No files found in database for clone {clone_id}")
             await loading_msg.edit_text(text)
             return
 
@@ -778,7 +795,22 @@ async def handle_random_files(client: Client, message, is_callback: bool = False
 async def show_popular_files(client: Client, callback_query: CallbackQuery):
     """Show popular files"""
     try:
-        files = await get_popular_files(limit=10)
+        # Determine clone ID to use the correct database
+        clone_id = getattr(client, 'clone_id', None)
+        if clone_id is None:
+            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            if bot_token != Config.BOT_TOKEN:
+                from bot.database.clone_db import get_clone_by_bot_token
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    clone_id = clone_data.get('id')
+
+        if clone_id is None:
+            await callback_query.message.edit_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
+            return
+
+        # Updated to use clone_id for database selection
+        files = await get_popular_files(limit=10, clone_id=clone_id)
 
         if not files:
             await callback_query.message.edit_text("📊 No popular files found.")
@@ -819,7 +851,22 @@ async def show_popular_files(client: Client, callback_query: CallbackQuery):
 async def show_recent_files(client: Client, callback_query: CallbackQuery):
     """Show recent files"""
     try:
-        files = await get_recent_files(limit=10)
+        # Determine clone ID to use the correct database
+        clone_id = getattr(client, 'clone_id', None)
+        if clone_id is None:
+            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            if bot_token != Config.BOT_TOKEN:
+                from bot.database.clone_db import get_clone_by_bot_token
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    clone_id = clone_data.get('id')
+
+        if clone_id is None:
+            await callback_query.message.edit_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
+            return
+
+        # Updated to use clone_id for database selection
+        files = await get_recent_files(limit=10, clone_id=clone_id)
 
         if not files:
             await callback_query.message.edit_text("📊 No recent files found.")
@@ -859,7 +906,22 @@ async def show_recent_files(client: Client, callback_query: CallbackQuery):
 async def show_index_stats(client: Client, callback_query: CallbackQuery):
     """Show indexing statistics"""
     try:
-        stats = await get_index_stats()
+        # Determine clone ID to use the correct database
+        clone_id = getattr(client, 'clone_id', None)
+        if clone_id is None:
+            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            if bot_token != Config.BOT_TOKEN:
+                from bot.database.clone_db import get_clone_by_bot_token
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    clone_id = clone_data.get('id')
+
+        if clone_id is None:
+            await callback_query.message.edit_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
+            return
+
+        # Updated to use clone_id for database selection
+        stats = await get_index_stats(clone_id=clone_id)
 
         text = "📊 **Database Statistics**\n\n"
         text += f"**Total Files:** {stats['total_files']}\n\n"
@@ -896,13 +958,27 @@ async def handle_recent_files_direct(client: Client, message, is_callback: bool 
     try:
         user_id = message.from_user.id if hasattr(message, 'from_user') and message.from_user else message.chat.id
 
+        # Determine clone ID to use the correct database
+        clone_id = getattr(client, 'clone_id', None)
+        if clone_id is None:
+            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            if bot_token != Config.BOT_TOKEN:
+                from bot.database.clone_db import get_clone_by_bot_token
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    clone_id = clone_data.get('id')
+
+        if clone_id is None:
+            await message.reply_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
+            return
+
         # Initialize loading message
         if is_callback:
             loading_msg = await message.edit_text("🆕 Getting recent files...")
         else:
             loading_msg = await message.reply_text("🆕 Getting recent files...")
 
-        print(f"DEBUG: Starting recent files retrieval for user {user_id}")
+        print(f"DEBUG: Starting recent files retrieval for user {user_id} on clone {clone_id}")
 
         # Get current offset for this user (defaults to 0)
         current_offset = user_recent_offsets.get(user_id, 0)
@@ -910,11 +986,12 @@ async def handle_recent_files_direct(client: Client, message, is_callback: bool 
 
         # Step 1: Query MongoDB for recent file metadata with offset
         try:
-            results = await get_recent_files(limit=10, offset=current_offset)  # Get more to account for invalid files
-            print(f"DEBUG: Retrieved {len(results)} recent files from database with offset {current_offset}")
+            # Updated to use clone_id for database selection
+            results = await get_recent_files(limit=10, offset=current_offset, clone_id=clone_id)  # Get more to account for invalid files
+            print(f"DEBUG: Retrieved {len(results)} recent files from database for clone {clone_id} with offset {current_offset}")
         except Exception as db_error:
             error_msg = f"❌ Database query failed: {str(db_error)}"
-            print(f"ERROR: MongoDB query failed: {db_error}")
+            print(f"ERROR: MongoDB query failed for clone {clone_id}: {db_error}")
             await loading_msg.edit_text(error_msg)
             return
 
@@ -922,8 +999,8 @@ async def handle_recent_files_direct(client: Client, message, is_callback: bool 
             # Reset offset if no more files and try again
             if current_offset > 0:
                 user_recent_offsets[user_id] = 0
-                results = await get_recent_files(limit=10, offset=0)
-                print(f"DEBUG: Reset offset, retrieved {len(results)} files")
+                results = await get_recent_files(limit=10, offset=0, clone_id=clone_id)
+                print(f"DEBUG: Reset offset, retrieved {len(results)} files for clone {clone_id}")
 
             if not results:
                 await loading_msg.edit_text("❌ No recent files found in database.")
@@ -1162,13 +1239,27 @@ async def handle_popular_files_direct(client: Client, message: Message, is_callb
     try:
         user_id = message.from_user.id if message.from_user else message.chat.id
 
+        # Determine clone ID to use the correct database
+        clone_id = getattr(client, 'clone_id', None)
+        if clone_id is None:
+            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            if bot_token != Config.BOT_TOKEN:
+                from bot.database.clone_db import get_clone_by_bot_token
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    clone_id = clone_data.get('id')
+
+        if clone_id is None:
+            await message.reply_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
+            return
+
         # Initialize loading message
         if is_callback:
             loading_msg = await message.edit_text("🔥 Getting popular files...")
         else:
             loading_msg = await message.reply_text("🔥 Getting popular files...")
 
-        print(f"DEBUG: Starting popular files retrieval for user {user_id}")
+        print(f"DEBUG: Starting popular files retrieval for user {user_id} on clone {clone_id}")
 
         # Get current offset for this user (defaults to 0)
         current_offset = user_popular_offsets.get(user_id, 0)
@@ -1176,11 +1267,12 @@ async def handle_popular_files_direct(client: Client, message: Message, is_callb
 
         # Step 1: Query MongoDB for popular file metadata with offset
         try:
-            results = await get_popular_files(limit=10, offset=current_offset)  # Get more to account for invalid files
-            print(f"DEBUG: Retrieved {len(results)} popular files from database with offset {current_offset}")
+            # Updated to use clone_id for database selection
+            results = await get_popular_files(limit=10, offset=current_offset, clone_id=clone_id)  # Get more to account for invalid files
+            print(f"DEBUG: Retrieved {len(results)} popular files from database for clone {clone_id} with offset {current_offset}")
         except Exception as db_error:
             error_msg = f"❌ Database query failed: {str(db_error)}"
-            print(f"ERROR: MongoDB query failed: {db_error}")
+            print(f"ERROR: MongoDB query failed for clone {clone_id}: {db_error}")
             await loading_msg.edit_text(error_msg)
             return
 
@@ -1188,8 +1280,8 @@ async def handle_popular_files_direct(client: Client, message: Message, is_callb
             # Reset offset if no more files and try again
             if current_offset > 0:
                 user_popular_offsets[user_id] = 0
-                results = await get_popular_files(limit=10, offset=0)
-                print(f"DEBUG: Reset offset, retrieved {len(results)} files")
+                results = await get_popular_files(limit=10, offset=0, clone_id=clone_id)
+                print(f"DEBUG: Reset offset, retrieved {len(results)} files for clone {clone_id}")
 
             if not results:
                 await loading_msg.edit_text("❌ No popular files found in database.")

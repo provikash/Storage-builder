@@ -215,6 +215,11 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                 caption = message.caption or ''
                 
                 try:
+                    # Check if this is being indexed for a clone
+                    clone_id = None
+                    if hasattr(bot, 'bot_token') and bot.bot_token != Config.BOT_TOKEN:
+                        clone_id = bot.bot_token.split(':')[0]
+                    
                     # Add to our index database
                     await add_to_index(
                         file_id=str(message.id),
@@ -222,7 +227,8 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot):
                         file_type=file_type,
                         file_size=file_size,
                         caption=caption,
-                        user_id=message.from_user.id if message.from_user else 0
+                        user_id=message.from_user.id if message.from_user else 0,
+                        clone_id=clone_id
                     )
                     total_files += 1
                 except Exception as e:

@@ -697,13 +697,30 @@ async def handle_random_files(client: Client, query: CallbackQuery):
             return
 
         # Check if feature is enabled for this clone
-        from bot.plugins.clone_admin_settings import is_feature_enabled_for_user
-        if not await is_feature_enabled_for_user(client, 'random_mode'):
+        from bot.plugins.clone_random_files import check_clone_feature_enabled
+        if not await check_clone_feature_enabled(client, 'random_button'):
             await query.edit_message_text("🎲 **Random Files**\n\nThis feature has been disabled by the admin.")
             return
 
-        # Feature is enabled - show random files
-        await query.edit_message_text("🎲 **Random Files**\n\nShowing random files from the database...")
+        # Get clone ID and show random files
+        clone_id = bot_token.split(':')[0]
+        
+        from bot.database.mongo_db import get_random_files
+        files = await get_random_files(limit=10, clone_id=clone_id)
+        
+        if not files:
+            await query.edit_message_text("🎲 **Random Files**\n\n❌ No files found in database. Index some files first.")
+            return
+        
+        text = "🎲 **Random Files**\n\n"
+        text += f"Found {len(files)} random files:\n\n"
+        
+        from bot.plugins.clone_random_files import format_file_text, create_file_buttons
+        if files:
+            text += format_file_text(files[0])
+        
+        buttons = create_file_buttons(files)
+        await query.edit_message_text(text, reply_markup=buttons)
 
     except Exception as e:
         logger.error(f"Error in random files handler: {e}")

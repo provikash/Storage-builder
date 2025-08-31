@@ -4,6 +4,7 @@ from bot.database.clone_db import get_clone_config, get_global_force_channels, g
 from bot.database.subscription_db import get_subscription
 from info import Config
 from bot.logging import LOGGER
+from telegram.ext import InlineKeyboardButton
 
 logger = LOGGER(__name__)
 
@@ -57,8 +58,8 @@ class CloneConfigLoader:
 
         # Check subscription status
         subscription_active = (
-            subscription and 
-            subscription['status'] == 'active' and 
+            subscription and
+            subscription['status'] == 'active' and
             subscription['expiry_date'] > datetime.now()
         )
 
@@ -179,7 +180,7 @@ class CloneConfigLoader:
         return {
             "search": False,  # Search disabled
             "random_files": True,   # Only available in clones
-            "recent_files": True,   # Only available in clones  
+            "recent_files": True,   # Only available in clones
             "popular_files": True,  # Only available in clones
             "upload": True,
             "token_verification": True,
