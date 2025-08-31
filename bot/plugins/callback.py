@@ -461,54 +461,7 @@ async def show_premium_callback(client, query: CallbackQuery):
         logger.error(f"Error showing premium plans: {e}")
         await query.answer("❌ Error loading premium plans. Please try again.", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^clone_settings_panel$"))
-async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
-    """Handle clone settings panel callback"""
-    try:
-        user_id = query.from_user.id
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-
-        # Check if this is a clone bot
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or
-            hasattr(client, 'is_clone') and client.is_clone or
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-
-        if not is_clone_bot or bot_token == Config.BOT_TOKEN:
-            await query.answer("❌ Settings panel is only available in clone bots.", show_alert=True)
-            return
-
-        # Verify user is clone admin
-        from bot.database.clone_db import get_clone_by_bot_token
-        clone_data = await get_clone_by_bot_token(bot_token)
-
-        if not clone_data:
-            await query.answer("❌ Clone configuration not found.", show_alert=True)
-            return
-            
-        # Convert both to int for proper comparison, handling MongoDB Int64 type
-        stored_admin_id = clone_data.get('admin_id')
-        try:
-            user_id_int = int(user_id)
-            stored_admin_id_int = int(stored_admin_id) if stored_admin_id else 0
-            
-            if user_id_int != stored_admin_id_int:
-                await query.answer("❌ Only clone admin can access settings.", show_alert=True)
-                return
-        except (ValueError, TypeError) as e:
-            logger.error(f"Error converting IDs for comparison: {e}")
-            await query.answer("❌ Error verifying admin access!", show_alert=True)
-            return
-
-        # Load clone settings
-        from bot.plugins.clone_admin_settings import clone_settings_command
-        await clone_settings_command(client, query.message)
-
-    except Exception as e:
-        logger.error(f"Error in clone settings panel callback: {e}")
-        await query.answer("❌ Error loading settings panel. Please try again.", show_alert=True)
+# REMOVED: Duplicate clone_settings_panel handler - using the one in callback_handlers.py instead
 
 @Client.on_callback_query(filters.regex("^change_token_mode$"))
 async def change_token_mode_callback(client: Client, query: CallbackQuery):

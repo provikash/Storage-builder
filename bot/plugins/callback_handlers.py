@@ -909,7 +909,8 @@ async def handle_search_files(client: Client, query: CallbackQuery):
 async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
     """Handle clone settings panel callback specifically"""
     user_id = query.from_user.id
-    logger.info(f"DEBUG: Clone settings panel callback from user {user_id}")
+    logger.info(f"🎛️ SETTINGS CALLBACK: Clone settings panel clicked by user {user_id}")
+    print(f"🎛️ SETTINGS CALLBACK: Clone settings panel clicked by user {user_id}")  # Extra debug
 
     # Check if this is a clone bot
     is_clone, bot_token = await is_clone_bot_instance_async(client)
