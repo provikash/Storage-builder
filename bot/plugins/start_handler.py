@@ -32,33 +32,46 @@ async def get_start_keyboard_for_clone_user(clone_data):
         logger.warning("No clone data found, returning empty keyboard")
         return buttons
     
-    # Get bot_id for config lookup
-    bot_id = clone_data.get('bot_id')
+    # Get clone ID for proper lookup
+    clone_id = clone_data.get('_id') or clone_data.get('bot_id')
     
-    # Check feature settings from multiple sources for reliability
+    # Initialize feature states with defaults
     show_random = False
     show_recent = False  
     show_popular = False
     
-    # Primary source: clone data direct fields
-    show_random = clone_data.get('random_mode', False)
-    show_recent = clone_data.get('recent_mode', False)
-    show_popular = clone_data.get('popular_mode', False)
-    
-    # Secondary source: clone config features
     try:
+        # Primary source: Get clone configuration from database
         from bot.database.clone_db import get_clone_config
-        clone_config = await get_clone_config(str(bot_id)) if bot_id else None
-        if clone_config and clone_config.get('features'):
-            features = clone_config['features']
-            # Override with config if available
-            show_random = features.get('random_files', show_random)
-            show_recent = features.get('recent_files', show_recent)
-            show_popular = features.get('popular_files', show_popular)
+        clone_config = await get_clone_config(str(clone_id)) if clone_id else None
+        
+        if clone_config:
+            # Check features object first
+            features = clone_config.get('features', {})
+            if features:
+                show_random = features.get('random_files', False)
+                show_recent = features.get('recent_files', False)
+                show_popular = features.get('popular_files', False)
+            else:
+                # Fallback to direct fields for backward compatibility
+                show_random = clone_config.get('random_mode', False)
+                show_recent = clone_config.get('recent_mode', False)
+                show_popular = clone_config.get('popular_mode', False)
+        
+        # Secondary source: clone data direct fields (backward compatibility)
+        if not any([show_random, show_recent, show_popular]):
+            show_random = clone_data.get('random_mode', False)
+            show_recent = clone_data.get('recent_mode', False)
+            show_popular = clone_data.get('popular_mode', False)
+            
     except Exception as e:
-        logger.error(f"Error getting clone config: {e}")
+        logger.error(f"Error getting clone config for {clone_id}: {e}")
+        # Fallback to clone_data direct fields
+        show_random = clone_data.get('random_mode', False)
+        show_recent = clone_data.get('recent_mode', False)
+        show_popular = clone_data.get('popular_mode', False)
     
-    logger.info(f"Clone {bot_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
+    logger.info(f"Clone {clone_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
     
     # Create file access buttons only if enabled by admin
     file_buttons_row1 = []

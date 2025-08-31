@@ -156,6 +156,21 @@ async def safe_remove_handler(client, handler, group=0):
     except Exception as e:
         logger.error(f"Error removing handler: {e}")
 
+async def safe_remove_handler(client, handler, group: int = 0):
+    """Safely remove handler to prevent ValueError"""
+    try:
+        if hasattr(client, 'dispatcher') and hasattr(client.dispatcher, 'groups'):
+            if group in client.dispatcher.groups and handler in client.dispatcher.groups[group]:
+                client.remove_handler(handler, group)
+                return True
+        return False
+    except (ValueError, KeyError, AttributeError) as e:
+        logger.debug(f"Handler removal failed (expected): {e}")
+        return False
+    except Exception as e:
+        logger.error(f"Unexpected error removing handler: {e}")
+        return False
+
 def handle_database_lock():
     """Handle SQLite database lock by using in-memory storage"""
     try:

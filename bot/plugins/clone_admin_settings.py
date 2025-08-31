@@ -35,15 +35,15 @@ async def is_feature_enabled_for_user(client: Client, feature_name: str) -> bool
     """Check if feature is enabled for normal users based on clone admin settings"""
     try:
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
+
         # Mother bot - features available by default
         if bot_token == Config.BOT_TOKEN:
             return True
-            
+
         # Clone bot - check configuration
         from bot.database.clone_db import get_clone_by_bot_token
         clone_data = await get_clone_by_bot_token(bot_token)
-        
+
         if clone_data:
             # Check the actual feature setting from clone admin
             return clone_data.get(feature_name, True)
@@ -293,10 +293,10 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         if callback_data == "clone_toggle_random":
             current_state = clone_data.get('random_mode', False)
             new_state = not current_state
-            
+
             # Update clone data directly
             await update_clone_setting(bot_id, 'random_mode', new_state)
-            
+
             # Also update clone configs collection for consistency
             from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
@@ -316,7 +316,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
             # Log the change for debugging
             logger.info(f"Random mode toggled to {new_state} for clone {bot_id}")
-            
+
             # Verify the update was applied
             updated_clone_data = await get_clone_by_bot_token(bot_token)
             actual_state = updated_clone_data.get('random_mode', None) if updated_clone_data else None
@@ -330,10 +330,10 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         elif callback_data == "clone_toggle_recent":
             current_state = clone_data.get('recent_mode', False)
             new_state = not current_state
-            
+
             # Update clone data directly
             await update_clone_setting(bot_id, 'recent_mode', new_state)
-            
+
             # Also update clone configs collection for consistency
             from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
@@ -353,7 +353,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
             # Log the change for debugging
             logger.info(f"Recent mode toggled to {new_state} for clone {bot_id}")
-            
+
             # Verify the update was applied
             updated_clone_data = await get_clone_by_bot_token(bot_token)
             actual_state = updated_clone_data.get('recent_mode', None) if updated_clone_data else None
@@ -367,10 +367,10 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         elif callback_data == "clone_toggle_popular":
             current_state = clone_data.get('popular_mode', False)
             new_state = not current_state
-            
+
             # Update clone data directly
             await update_clone_setting(bot_id, 'popular_mode', new_state)
-            
+
             # Also update clone configs collection for consistency
             from bot.database.clone_db import clone_configs_collection
             await clone_configs_collection.update_one(
@@ -390,7 +390,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
             # Log the change for debugging
             logger.info(f"Popular mode toggled to {new_state} for clone {bot_id}")
-            
+
             # Verify the update was applied
             updated_clone_data = await get_clone_by_bot_token(bot_token)
             actual_state = updated_clone_data.get('popular_mode', None) if updated_clone_data else None

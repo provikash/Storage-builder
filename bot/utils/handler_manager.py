@@ -68,24 +68,45 @@ class HandlerManager:
             logger.error(f"❌ Error adding handler: {e}")
     
     async def safe_remove_handler(self, client: Client, handler, group: int = 0):
-        """Safely remove handler"""
+        """Safely remove handler with enhanced error handling"""
         try:
             client_id = str(id(client))
             handler_id = f"{type(handler).__name__}_{group}_{hash(str(handler.callback))}"
             
+            # Check if handler exists in our tracking
             if (client_id in self.registered_handlers and 
                 handler_id in self.registered_handlers[client_id]):
                 
-                client.remove_handler(handler, group)
-                self.registered_handlers[client_id].discard(handler_id)
-                logger.debug(f"✅ Removed handler: {handler_id}")
-            else:
-                logger.debug(f"⚠️ Handler not found for removal: {handler_id}")
+                # Try to remove from client with additional safety check
+                try:
+                    # Check if handler actually exists in client before removal
+                    if hasattr(client, 'dispatcher') and hasattr(client.dispatcher, 'groups'):
+                        if group in client.dispatcher.groups and handler in client.dispatcher.groups[group]:
+                            client.remove_handler(handler, group)
+                            logger.debug(f"✅ Removed handler: {handler_id}")
+                        else:
+                            logger.debug(f"⚠️ Handler not in client groups: {handler_id}")
+                    else:
+                        # Fallback: try direct removal with error catching
+                        client.remove_handler(handler, group)
+                        logger.debug(f"✅ Removed handler (fallback): {handler_id}")
+                except ValueError as ve:
+                    logger.debug(f"⚠️ Handler already removed: {handler_id} - {ve}")
+                except Exception as e:
+                    logger.warning(f"⚠️ Error removing handler from client: {e}")
                 
-        except ValueError as e:
-            logger.warning(f"⚠️ Handler removal error (expected): {e}")
+                # Always remove from our tracking
+                self.registered_handlers[client_id].discard(handler_id)
+            else:
+                logger.debug(f"⚠️ Handler not tracked for removal: {handler_id}")
+                
         except Exception as e:
-            logger.error(f"❌ Unexpected error removing handler: {e}")
+            logger.error(f"❌ Unexpected error in safe_remove_handler: {e}")
+            # Try to continue anyway
+            try:
+                client.remove_handler(handler, group)
+            except:
+                pass  # Ignore any additional errors
     
     def clear_client_handlers(self, client: Client):
         """Clear all tracked handlers for a client"""

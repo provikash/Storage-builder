@@ -216,6 +216,36 @@ async def update_clone_shortener_settings(clone_id: str, api_url: str = None, ap
         {"$set": update_data}
     )
 
+async def get_clone_config(clone_id: str):
+    """Get clone configuration by clone ID"""
+    try:
+        # First try to get from clone_configs_collection
+        config = await clone_configs_collection.find_one({"_id": clone_id})
+        if config:
+            return config
+            
+        # Fallback: try to get from clones_collection
+        clone_data = await clones_collection.find_one({"_id": clone_id})
+        if clone_data:
+            # Convert clone data to config format
+            return {
+                "_id": clone_id,
+                "features": {
+                    "random_files": clone_data.get('random_mode', False),
+                    "recent_files": clone_data.get('recent_mode', False),
+                    "popular_files": clone_data.get('popular_mode', False)
+                },
+                "random_mode": clone_data.get('random_mode', False),
+                "recent_mode": clone_data.get('recent_mode', False),
+                "popular_mode": clone_data.get('popular_mode', False)
+            }
+            
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error getting clone config for {clone_id}: {e}")
+        return None
+
 async def update_clone_token_verification(clone_id: str, verification_mode: str = None, command_limit: int = None, time_duration: int = None, pricing: float = None, enabled: bool = None):
     """Update clone token verification settings"""
     update_data = {"updated_at": datetime.now()}
