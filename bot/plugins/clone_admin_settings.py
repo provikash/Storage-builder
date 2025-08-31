@@ -303,6 +303,9 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             except:
                 pass
 
+            # Log the change for debugging
+            logger.info(f"Random mode toggled to {new_state} for clone {bot_id}")
+
             await query.answer(f"🎲 Random mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
@@ -321,6 +324,9 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             except:
                 pass
 
+            # Log the change for debugging
+            logger.info(f"Recent mode toggled to {new_state} for clone {bot_id}")
+
             await query.answer(f"📊 Recent mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
@@ -338,6 +344,9 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     clone_config_loader.clone_config_cache.pop(bot_token, None)
             except:
                 pass
+
+            # Log the change for debugging
+            logger.info(f"Popular mode toggled to {new_state} for clone {bot_id}")
 
             await query.answer(f"🔥 Popular mode {'enabled' if new_state else 'disabled'}")
             # Refresh the settings panel
