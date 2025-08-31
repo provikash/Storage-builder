@@ -160,19 +160,19 @@ async def clone_settings_command(client: Client, message):
 
     # Strict clone bot detection  
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+    is_clone_bot = bot_token != Config.BOT_TOKEN
 
     # Additional checks for clone bot detection
     if not is_clone_bot:
         is_clone_bot = (
-            bot_token != Config.BOT_TOKEN and 
-            (hasattr(client, 'clone_config') and client.clone_config or
-             hasattr(client, 'clone_data'))
+            hasattr(client, 'is_clone') and client.is_clone or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
         )
 
     logger.info(f"Clone settings: user_id={user_id}, bot_token={bot_token}, is_clone_bot={is_clone_bot}")
 
-    if not is_clone_bot or bot_token == Config.BOT_TOKEN:
+    if not is_clone_bot:
         error_msg = "❌ Settings panel is only available in clone bots!"
         if hasattr(message, 'edit_message_text'):
             return await message.edit_message_text(error_msg)
@@ -334,9 +334,20 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }}
             )
 
-            # Update clone configs collection for consistency
+            # Update clone configs collection for consistency - this is where buttons read from
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
+                {"$set": {
+                    "features.random_files": new_state, 
+                    "random_mode": new_state,
+                    "updated_at": datetime.now()
+                }},
+                upsert=True
+            )
+            
+            # Also update using string bot_id format
+            await clone_configs_collection.update_one(
+                {"_id": bot_id},
                 {"$set": {
                     "features.random_files": new_state, 
                     "random_mode": new_state,
@@ -407,9 +418,20 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }}
             )
 
-            # Update clone configs collection for consistency
+            # Update clone configs collection for consistency - this is where buttons read from
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
+                {"$set": {
+                    "features.recent_files": new_state, 
+                    "recent_mode": new_state,
+                    "updated_at": datetime.now()
+                }},
+                upsert=True
+            )
+            
+            # Also update using string bot_id format
+            await clone_configs_collection.update_one(
+                {"_id": bot_id},
                 {"$set": {
                     "features.recent_files": new_state, 
                     "recent_mode": new_state,
@@ -480,9 +502,20 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }}
             )
 
-            # Update clone configs collection for consistency
+            # Update clone configs collection for consistency - this is where buttons read from
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
+                {"$set": {
+                    "features.popular_files": new_state, 
+                    "popular_mode": new_state,
+                    "updated_at": datetime.now()
+                }},
+                upsert=True
+            )
+            
+            # Also update using string bot_id format
+            await clone_configs_collection.update_one(
+                {"_id": bot_id},
                 {"$set": {
                     "features.popular_files": new_state, 
                     "popular_mode": new_state,

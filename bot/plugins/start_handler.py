@@ -47,29 +47,23 @@ async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
         # Get settings from clone config (where admin settings are stored)
         clone_config = await get_clone_config(str(clone_id)) if clone_id else None
 
-        # Initialize feature states - priority: fresh_clone_data > clone_config > defaults
+        # Initialize feature states - Use the values that are actually being set in admin panel
         show_random = fresh_clone_data.get('random_mode', False)
         show_recent = fresh_clone_data.get('recent_mode', False)
         show_popular = fresh_clone_data.get('popular_mode', False)
 
-        # If still False, check clone_config as fallback
-        if not show_random and clone_config:
+        # Check clone_config as priority source since that's where toggles update
+        if clone_config:
             features = clone_config.get('features', {})
-            show_random = features.get('random_files', clone_config.get('random_mode', False))
-        
-        if not show_recent and clone_config:
-            features = clone_config.get('features', {})
-            show_recent = features.get('recent_files', clone_config.get('recent_mode', False))
-            
-        if not show_popular and clone_config:
-            features = clone_config.get('features', {})
-            show_popular = features.get('popular_files', clone_config.get('popular_mode', False))
+            show_random = features.get('random_files', show_random)
+            show_recent = features.get('recent_files', show_recent)
+            show_popular = features.get('popular_files', show_popular)
 
     except Exception as e:
         logger.error(f"Error getting fresh clone data for {clone_id}: {e}")
         # Fallback to original clone_data values
         show_random = clone_data.get('random_mode', False)
-        show_recent = clone_data.get('recent_mode', False)  
+        show_recent = clone_data.get('recent_mode', False)
         show_popular = clone_data.get('popular_mode', False)
 
     logger.info(f"Clone {clone_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
@@ -468,7 +462,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
 
     # Recreate the start message by calling start_command logic
     user = query.from_user
-    user_id = user.id
+    user_id = query.from_user.id
     user_premium = await is_premium_user(user_id)
     balance = await get_user_balance(user_id)
     is_clone_bot, _ = await is_clone_bot_instance_async(client)
