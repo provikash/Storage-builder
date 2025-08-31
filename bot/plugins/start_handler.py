@@ -162,8 +162,22 @@ async def start_command(client: Client, message: Message):
             show_recent = clone_data.get('recent_mode', False) if clone_data else False  
             show_popular = clone_data.get('popular_mode', False) if clone_data else False
 
+            # Also check clone config for alternative field names
+            from bot.database.clone_db import get_clone_config
+            clone_config = await get_clone_config(str(clone_data.get('bot_id'))) if clone_data else None
+            if clone_config and clone_config.get('features'):
+                features = clone_config['features']
+                # Use config features if main data doesn't have them
+                if not show_random:
+                    show_random = features.get('random_files', False)
+                if not show_recent:
+                    show_recent = features.get('recent_files', False)
+                if not show_popular:
+                    show_popular = features.get('popular_files', False)
+
             logger.info(f"Feature states for clone {bot_token[:10]}... - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
             logger.info(f"Clone data keys: {list(clone_data.keys()) if clone_data else 'None'}")
+            logger.info(f"Clone config features: {clone_config.get('features') if clone_config else 'None'}")
 
             # Create file access buttons only if enabled by admin
             file_buttons_row1 = []
@@ -548,8 +562,22 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         show_recent = clone_data.get('recent_mode', False) if clone_data else False
         show_popular = clone_data.get('popular_mode', False) if clone_data else False
 
+        # Also check clone config for alternative field names
+        from bot.database.clone_db import get_clone_config
+        clone_config = await get_clone_config(str(clone_data.get('bot_id'))) if clone_data else None
+        if clone_config and clone_config.get('features'):
+            features = clone_config['features']
+            # Use config features if main data doesn't have them
+            if not show_random:
+                show_random = features.get('random_files', False)
+            if not show_recent:
+                show_recent = features.get('recent_files', False)
+            if not show_popular:
+                show_popular = features.get('popular_files', False)
+
         logger.info(f"Back to start feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
         logger.info(f"Clone data for back_to_start: {clone_data}")
+        logger.info(f"Back to start config features: {clone_config.get('features') if clone_config else 'None'}")
 
         # Only show enabled file mode buttons
         mode_row1 = []

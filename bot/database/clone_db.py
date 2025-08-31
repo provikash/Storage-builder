@@ -623,12 +623,20 @@ async def update_clone_data(clone_id: str, update_data: dict):
 
         update_data['updated_at'] = datetime.now()
 
+        # Try both bot_id and _id fields for compatibility
         result = await clones_collection.update_one(
-            {"bot_id": int(clone_id)},
+            {"$or": [{"bot_id": int(clone_id)}, {"_id": str(clone_id)}]},
             {"$set": update_data}
         )
 
-        logger.info(f"Updated clone {clone_id} data: {update_data}")
+        if result.modified_count == 0:
+            # Try with string bot_id
+            result = await clones_collection.update_one(
+                {"bot_id": str(clone_id)},
+                {"$set": update_data}
+            )
+
+        logger.info(f"Updated clone {clone_id} data: {update_data}, modified: {result.modified_count}")
         return result.modified_count > 0
     except Exception as e:
         logger.error(f"Error updating clone data: {e}")

@@ -291,9 +291,19 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
         bot_id = clone_data.get('bot_id')
 
         if callback_data == "clone_toggle_random":
-            current_state = clone_data.get('random_mode', True)
+            current_state = clone_data.get('random_mode', False)
             new_state = not current_state
+            
+            # Update both in clone data and clone config for consistency
             await update_clone_setting(bot_id, 'random_mode', new_state)
+            
+            # Also update clone configs collection for consistency
+            from bot.database.clone_db import clone_configs_collection
+            await clone_configs_collection.update_one(
+                {"_id": str(bot_id)},
+                {"$set": {"features.random_files": new_state, "updated_at": datetime.now()}},
+                upsert=True
+            )
 
             # Clear config cache to force reload
             try:
@@ -318,9 +328,19 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             return
 
         elif callback_data == "clone_toggle_recent":
-            current_state = clone_data.get('recent_mode', True)
+            current_state = clone_data.get('recent_mode', False)
             new_state = not current_state
+            
+            # Update both in clone data and clone config for consistency
             await update_clone_setting(bot_id, 'recent_mode', new_state)
+            
+            # Also update clone configs collection for consistency
+            from bot.database.clone_db import clone_configs_collection
+            await clone_configs_collection.update_one(
+                {"_id": str(bot_id)},
+                {"$set": {"features.recent_files": new_state, "updated_at": datetime.now()}},
+                upsert=True
+            )
 
             # Clear config cache to force reload
             try:
@@ -345,9 +365,19 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             return
 
         elif callback_data == "clone_toggle_popular":
-            current_state = clone_data.get('popular_mode', True)
+            current_state = clone_data.get('popular_mode', False)
             new_state = not current_state
+            
+            # Update both in clone data and clone config for consistency
             await update_clone_setting(bot_id, 'popular_mode', new_state)
+            
+            # Also update clone configs collection for consistency
+            from bot.database.clone_db import clone_configs_collection
+            await clone_configs_collection.update_one(
+                {"_id": str(bot_id)},
+                {"$set": {"features.popular_files": new_state, "updated_at": datetime.now()}},
+                upsert=True
+            )
 
             # Clear config cache to force reload
             try:
