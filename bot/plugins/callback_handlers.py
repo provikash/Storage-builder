@@ -926,8 +926,14 @@ async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
             await query.answer("❌ Clone configuration not found.", show_alert=True)
             return
 
-        if clone_data.get('admin_id') != user_id:
-            await query.answer("❌ Only clone admin can access settings.", show_alert=True)
+        # Debug logging for admin verification
+        stored_admin_id = clone_data.get('admin_id')
+        logger.info(f"Clone admin verification: user_id={user_id} (type: {type(user_id)}), stored_admin_id={stored_admin_id} (type: {type(stored_admin_id)})")
+        
+        # Check both int and string comparison for compatibility
+        if stored_admin_id != user_id and stored_admin_id != str(user_id) and int(stored_admin_id) != user_id:
+            await query.answer(f"❌ Only clone admin can access settings! (Debug: user_id={user_id}, admin_id={stored_admin_id})", show_alert=True)
+            logger.warning(f"Access denied - user {user_id} tried to access clone admin panel, but admin_id is {stored_admin_id}")
             return
 
         # Load clone settings

@@ -42,26 +42,31 @@ async def start_command(client: Client, message: Message):
         buttons = []
 
         # Get clone configuration for random/recent buttons
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        config = await clone_config_loader.get_bot_config(bot_token) if 'clone_config_loader' in globals() else {}
-        features = config.get('features', {})
+        try:
+            from bot.utils.clone_config_loader import clone_config_loader
+            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            config = await clone_config_loader.get_bot_config(bot_token)
+            features = config.get('features', {})
+        except:
+            features = {}
 
-        if user_id in [Config.OWNER_ID] + list(Config.ADMINS): # Assuming user_data check is not needed for clone bot admin
-            buttons.append([InlineKeyboardButton("🔍 Search Files", callback_data="search_files")])
+        # Show Search Files button to all users
+        buttons.append([InlineKeyboardButton("🔍 Search Files", callback_data="search_files")])
 
-            # Add random and recent buttons if enabled
-            random_recent_row = []
-            if features.get('random_button', True):
-                random_recent_row.append(InlineKeyboardButton("🎲 Random", callback_data="random_files"))
-            if features.get('recent_button', True):
-                random_recent_row.append(InlineKeyboardButton("⏰ Recent", callback_data="recent_files"))
-
-            if random_recent_row:
-                buttons.append(random_recent_row)
-        else:
-            # Placeholder for non-admin users in clone bot, or if user_data is not available here
-            # You might want to fetch user_data and check tokens like in the mother bot example
-            buttons.append([InlineKeyboardButton("🔍 Search Files", callback_data="search_files")]) # Default for now
+        # Add random, recent and popular buttons if enabled - show to ALL users
+        # Token verification will handle access control when clicked
+        random_recent_row = []
+        if features.get('random_button', True):
+            random_recent_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+        if features.get('recent_button', True):
+            random_recent_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+        
+        if random_recent_row:
+            buttons.append(random_recent_row)
+            
+        # Add popular files button if enabled
+        if features.get('popular_button', True):
+            buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
 
         buttons.extend([
             [InlineKeyboardButton("❓ Help", callback_data="help_info")]

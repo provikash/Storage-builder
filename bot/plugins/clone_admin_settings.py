@@ -189,8 +189,14 @@ async def clone_settings_command(client: Client, message):
             else:
                 return await message.reply_text(error_msg)
 
-        if clone_data.get('admin_id') != user_id:
-            error_msg = "❌ Only clone admin can access settings!"
+        # Debug logging for admin verification
+        stored_admin_id = clone_data.get('admin_id')
+        logger.info(f"Clone admin verification: user_id={user_id} (type: {type(user_id)}), stored_admin_id={stored_admin_id} (type: {type(stored_admin_id)})")
+        
+        # Check both int and string comparison for compatibility
+        if stored_admin_id != user_id and stored_admin_id != str(user_id) and int(stored_admin_id) != user_id:
+            error_msg = f"❌ Only clone admin can access settings! (Debug: user_id={user_id}, admin_id={stored_admin_id})"
+            logger.warning(f"Access denied - user {user_id} tried to access clone admin panel, but admin_id is {stored_admin_id}")
             if hasattr(message, 'edit_message_text'):
                 return await message.edit_message_text(error_msg)
             else:
