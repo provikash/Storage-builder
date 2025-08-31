@@ -4,7 +4,7 @@ from bot.database.clone_db import get_clone_config, get_global_force_channels, g
 from bot.database.subscription_db import get_subscription
 from info import Config
 from bot.logging import LOGGER
-from telegram.ext import InlineKeyboardButton
+from telegram import InlineKeyboardButton
 
 logger = LOGGER(__name__)
 
