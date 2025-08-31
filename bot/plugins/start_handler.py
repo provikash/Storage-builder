@@ -44,29 +44,26 @@ async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
         if not fresh_clone_data:
             fresh_clone_data = clone_data
 
-        # First, get settings from clone config (where admin settings are stored)
+        # Get settings from clone config (where admin settings are stored)
         clone_config = await get_clone_config(str(clone_id)) if clone_id else None
 
-        # Initialize feature states - check config first, then clone data
-        if clone_config:
-            # Check features object first
+        # Initialize feature states - priority: fresh_clone_data > clone_config > defaults
+        show_random = fresh_clone_data.get('random_mode', False)
+        show_recent = fresh_clone_data.get('recent_mode', False)
+        show_popular = fresh_clone_data.get('popular_mode', False)
+
+        # If still False, check clone_config as fallback
+        if not show_random and clone_config:
             features = clone_config.get('features', {})
             show_random = features.get('random_files', clone_config.get('random_mode', False))
+        
+        if not show_recent and clone_config:
+            features = clone_config.get('features', {})
             show_recent = features.get('recent_files', clone_config.get('recent_mode', False))
+            
+        if not show_popular and clone_config:
+            features = clone_config.get('features', {})
             show_popular = features.get('popular_files', clone_config.get('popular_mode', False))
-
-            # If not found in features, check direct config fields
-            if 'random_mode' in clone_config:
-                show_random = clone_config.get('random_mode')
-            if 'recent_mode' in clone_config:
-                show_recent = clone_config.get('recent_mode')
-            if 'popular_mode' in clone_config:
-                show_popular = clone_config.get('popular_mode')
-        else:
-            # Fallback to clone data if no config found
-            show_random = fresh_clone_data.get('random_mode', False)
-            show_recent = fresh_clone_data.get('recent_mode', False)  
-            show_popular = fresh_clone_data.get('popular_mode', False)
 
     except Exception as e:
         logger.error(f"Error getting fresh clone data for {clone_id}: {e}")
@@ -76,8 +73,8 @@ async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
         show_popular = clone_data.get('popular_mode', False)
 
     logger.info(f"Clone {clone_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
-    logger.info(f"Clone {clone_id} fresh_clone_data keys: {list(fresh_clone_data.keys()) if fresh_clone_data else 'None'}")
-    logger.info(f"Clone {clone_id} clone_config keys: {list(clone_config.keys()) if clone_config else 'None'}")
+    logger.info(f"Clone {clone_id} fresh_clone_data: {fresh_clone_data}")
+    logger.info(f"Clone {clone_id} clone_config: {clone_config}")
 
     # Create file access buttons only if enabled by admin
     file_buttons_row1 = []
@@ -96,7 +93,7 @@ async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
     if show_popular:
         buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
-    logger.info(f"Clone {clone_id} final buttons count: {len(buttons)} | Buttons: {[row[0].text for row in buttons if row]}")
+    logger.info(f"Clone {clone_id} final buttons count: {len(buttons)} | Buttons: {[[btn.text for btn in row] for row in buttons]}")
 
     return buttons
 
@@ -331,7 +328,7 @@ async def start_command(client: Client, message: Message):
 # Settings handlers
 @Client.on_callback_query(filters.regex("^clone_settings$"))
 async def clone_settings_callback(client: Client, query: CallbackQuery):
-    """Handle clone settings callback"""
+    """Handle clone settings callback - redirect to clone admin settings"""
     await query.answer()
     user_id = query.from_user.id
 
@@ -340,39 +337,9 @@ async def clone_settings_callback(client: Client, query: CallbackQuery):
         await query.edit_message_text("❌ Only clone admin can access settings.")
         return
 
-    settings = get_user_settings(user_id)
-
-    text = f"⚙️ **Settings Panel**\n\n"
-    text += f"Configure your bot features:\n\n"
-    text += f"🎲 Random Files: {'✅ Enabled' if settings['random_files'] else '❌ Disabled'}\n"
-    text += f"🔥 Most Popular: {'✅ Enabled' if settings['popular_files'] else '❌ Disabled'}\n"
-    text += f"🆕 Recent Files: {'✅ Enabled' if settings['recent_files'] else '❌ Disabled'}\n"
-    text += f"📢 Force Join: {'✅ Enabled' if settings['force_join'] else '❌ Disabled'}\n\n"
-    text += f"🔗 Shortener URL: `{settings['shortener_url']}`\n"
-    text += f"🔑 API Key: `{'*' * (len(settings['shortener_api_key']) - 4) + settings['shortener_api_key'][-4:] if len(settings['shortener_api_key']) > 4 else 'Not Set'}`\n\n"
-    text += f"🔒 Token Verification: **{settings['token_verification_mode'].replace('_', ' ').title()}**" # Display current token verification mode
-
-    buttons = [
-        [
-            InlineKeyboardButton(f"🎲 Random: {'✅' if settings['random_files'] else '❌'}", callback_data="toggle_random"),
-            InlineKeyboardButton(f"🔥 Popular: {'✅' if settings['popular_files'] else '❌'}", callback_data="toggle_popular")
-        ],
-        [
-            InlineKeyboardButton(f"🆕 Recent: {'✅' if settings['recent_files'] else '❌'}", callback_data="toggle_recent"),
-            InlineKeyboardButton(f"📢 Force Join: {'✅' if settings['force_join'] else '❌'}", callback_data="toggle_force_join")
-        ],
-        [
-            InlineKeyboardButton("🔗 Change Shortener URL", callback_data="change_shortener_url"),
-            InlineKeyboardButton("🔑 Change API Key", callback_data="change_api_key")
-        ],
-        # New button for token verification mode
-        [
-            InlineKeyboardButton(f"🔒 Token Mode: {settings['token_verification_mode'].replace('_', ' ').title()}", callback_data="toggle_token_mode")
-        ],
-        [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
-    ]
-
-    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+    # Import the clone admin settings function and call it
+    from bot.plugins.clone_admin_settings import clone_settings_command
+    await clone_settings_command(client, query.message)
 
 # Toggle handlers
 @Client.on_callback_query(filters.regex("^toggle_"))

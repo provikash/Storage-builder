@@ -313,8 +313,10 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             # Update clone data directly
             await update_clone_setting(bot_id, 'random_mode', new_state)
 
-            # Also update the clones collection directly (where get_clone_by_bot_token reads from)
+            # Update both collections to ensure synchronization
             from bot.database.clone_db import clones_collection, clone_configs_collection
+            
+            # Update clones collection (PRIMARY - where get_clone_by_bot_token reads from)
             await clones_collection.update_one(
                 {"bot_id": bot_id},
                 {"$set": {
@@ -322,8 +324,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     "updated_at": datetime.now()
                 }}
             )
+            
+            # Also try updating by _id field in case bot_id doesn't match
+            await clones_collection.update_one(
+                {"_id": str(bot_id)},
+                {"$set": {
+                    "random_mode": new_state,
+                    "updated_at": datetime.now()
+                }}
+            )
 
-            # Also update clone configs collection for consistency (PRIMARY LOCATION for UI)
+            # Update clone configs collection for consistency
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
@@ -375,8 +386,10 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             # Update clone data directly
             await update_clone_setting(bot_id, 'recent_mode', new_state)
 
-            # Also update the clones collection directly (where get_clone_by_bot_token reads from)
+            # Update both collections to ensure synchronization
             from bot.database.clone_db import clones_collection, clone_configs_collection
+            
+            # Update clones collection (PRIMARY - where get_clone_by_bot_token reads from)
             await clones_collection.update_one(
                 {"bot_id": bot_id},
                 {"$set": {
@@ -384,8 +397,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     "updated_at": datetime.now()
                 }}
             )
+            
+            # Also try updating by _id field in case bot_id doesn't match
+            await clones_collection.update_one(
+                {"_id": str(bot_id)},
+                {"$set": {
+                    "recent_mode": new_state,
+                    "updated_at": datetime.now()
+                }}
+            )
 
-            # Also update clone configs collection for consistency (PRIMARY LOCATION for UI)
+            # Update clone configs collection for consistency
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
@@ -437,8 +459,10 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             # Update clone data directly
             await update_clone_setting(bot_id, 'popular_mode', new_state)
 
-            # Also update the clones collection directly (where get_clone_by_bot_token reads from)
+            # Update both collections to ensure synchronization
             from bot.database.clone_db import clones_collection, clone_configs_collection
+            
+            # Update clones collection (PRIMARY - where get_clone_by_bot_token reads from)
             await clones_collection.update_one(
                 {"bot_id": bot_id},
                 {"$set": {
@@ -446,8 +470,17 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     "updated_at": datetime.now()
                 }}
             )
+            
+            # Also try updating by _id field in case bot_id doesn't match
+            await clones_collection.update_one(
+                {"_id": str(bot_id)},
+                {"$set": {
+                    "popular_mode": new_state,
+                    "updated_at": datetime.now()
+                }}
+            )
 
-            # Also update clone configs collection for consistency (PRIMARY LOCATION for UI)
+            # Update clone configs collection for consistency
             await clone_configs_collection.update_one(
                 {"_id": str(bot_id)},
                 {"$set": {
