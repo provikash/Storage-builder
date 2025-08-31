@@ -193,10 +193,21 @@ async def clone_settings_command(client: Client, message):
         stored_admin_id = clone_data.get('admin_id')
         logger.info(f"Clone admin verification: user_id={user_id} (type: {type(user_id)}), stored_admin_id={stored_admin_id} (type: {type(stored_admin_id)})")
         
-        # Check both int and string comparison for compatibility
-        if stored_admin_id != user_id and stored_admin_id != str(user_id) and int(stored_admin_id) != user_id:
-            error_msg = f"❌ Only clone admin can access settings! (Debug: user_id={user_id}, admin_id={stored_admin_id})"
-            logger.warning(f"Access denied - user {user_id} tried to access clone admin panel, but admin_id is {stored_admin_id}")
+        # Convert both to int for proper comparison, handling MongoDB Int64 type
+        try:
+            user_id_int = int(user_id)
+            stored_admin_id_int = int(stored_admin_id) if stored_admin_id else 0
+            
+            if user_id_int != stored_admin_id_int:
+                error_msg = f"❌ Only clone admin can access settings! (Debug: user_id={user_id_int}, admin_id={stored_admin_id_int})"
+                logger.warning(f"Access denied - user {user_id_int} tried to access clone admin panel, but admin_id is {stored_admin_id_int}")
+                if hasattr(message, 'edit_message_text'):
+                    return await message.edit_message_text(error_msg)
+                else:
+                    return await message.reply_text(error_msg)
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error converting IDs for comparison: {e}")
+            error_msg = "❌ Error verifying admin access!"
             if hasattr(message, 'edit_message_text'):
                 return await message.edit_message_text(error_msg)
             else:

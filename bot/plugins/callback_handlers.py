@@ -930,10 +930,18 @@ async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
         stored_admin_id = clone_data.get('admin_id')
         logger.info(f"Clone admin verification: user_id={user_id} (type: {type(user_id)}), stored_admin_id={stored_admin_id} (type: {type(stored_admin_id)})")
         
-        # Check both int and string comparison for compatibility
-        if stored_admin_id != user_id and stored_admin_id != str(user_id) and int(stored_admin_id) != user_id:
-            await query.answer(f"❌ Only clone admin can access settings! (Debug: user_id={user_id}, admin_id={stored_admin_id})", show_alert=True)
-            logger.warning(f"Access denied - user {user_id} tried to access clone admin panel, but admin_id is {stored_admin_id}")
+        # Convert both to int for proper comparison, handling MongoDB Int64 type
+        try:
+            user_id_int = int(user_id)
+            stored_admin_id_int = int(stored_admin_id) if stored_admin_id else 0
+            
+            if user_id_int != stored_admin_id_int:
+                await query.answer(f"❌ Only clone admin can access settings! (Debug: user_id={user_id_int}, admin_id={stored_admin_id_int})", show_alert=True)
+                logger.warning(f"Access denied - user {user_id_int} tried to access clone admin panel, but admin_id is {stored_admin_id_int}")
+                return
+        except (ValueError, TypeError) as e:
+            logger.error(f"Error converting IDs for comparison: {e}")
+            await query.answer("❌ Error verifying admin access!", show_alert=True)
             return
 
         # Load clone settings

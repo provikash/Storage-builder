@@ -255,7 +255,7 @@ async def start_command(client: Client, message: Message):
         if is_admin_user:
             # Clone admin gets settings access
             buttons = [
-                [InlineKeyboardButton("🎛️ Clone Settings", callback_data="clone_settings")],
+                [InlineKeyboardButton("🎛️ Clone Settings", callback_data="clone_settings_panel")],
                 [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")]
             ]
         else:
@@ -486,7 +486,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
 
         # Settings button - only for clone admin
         if is_admin:
-            file_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings")])
+            file_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
 
         # User action buttons
         file_buttons.append([
