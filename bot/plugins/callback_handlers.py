@@ -517,8 +517,6 @@ async def premium_callback_handler(client: Client, query: CallbackQuery):
 
     # Import from existing callback handler
     if query.data == "show_premium_plans":
-        frtry:
-        if query.data == "show_premium_plans":
             from bot.plugins.callback import show_premium_callback
             await show_premium_callback(client, query)
         elif query.data.startswith("buy_premium"):
