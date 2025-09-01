@@ -9,7 +9,8 @@ from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
-@Client.on_message(filters.command("start") & filters.private)
+# DISABLED: Using start_handler.py instead to avoid conflicts
+# @Client.on_message(filters.command("start") & filters.private)
 async def start_command(client: Client, message: Message):
     """Start command for clone bots - simple file sharing welcome"""
     user_id = message.from_user.id
@@ -53,20 +54,16 @@ async def start_command(client: Client, message: Message):
         # Show Search Files button to all users
         buttons.append([InlineKeyboardButton("🔍 Search Files", callback_data="search_files")])
 
-        # Add random, recent and popular buttons if enabled - show to ALL users
+        # Show random, recent and popular buttons to ALL users
         # Token verification will handle access control when clicked
         random_recent_row = []
-        if features.get('random_button', True):
-            random_recent_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-        if features.get('recent_button', True):
-            random_recent_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+        random_recent_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+        random_recent_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
         
-        if random_recent_row:
-            buttons.append(random_recent_row)
-            
-        # Add popular files button if enabled
-        if features.get('popular_button', True):
-            buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
+        buttons.append(random_recent_row)
+        
+        # Add popular files button - always show to all users
+        buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
 
         buttons.extend([
             [InlineKeyboardButton("❓ Help", callback_data="help_info")]
