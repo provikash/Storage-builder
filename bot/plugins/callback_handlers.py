@@ -516,7 +516,8 @@ async def premium_callback_handler(client: Client, query: CallbackQuery):
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
     # Import from existing callback handler
-    if query.data == "show_premium_plans":
+    try:
+        if query.data == "show_premium_plans":
             from bot.plugins.callback import show_premium_callback
             await show_premium_callback(client, query)
         elif query.data.startswith("buy_premium"):
@@ -530,7 +531,7 @@ async def premium_callback_handler(client: Client, query: CallbackQuery):
 @Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history|back_to_start|add_balance|manage_my_clone|show_referral_main)$"), group=CALLBACK_PRIORITIES["general"])
 async def general_callback_handler(client: Client, query: CallbackQuery):
     """Handle general purpose callbacks"""
-    user_id = query.from_user.idm_user.id
+    user_id = query.from_user.id
     print(f"🔄 DEBUG CALLBACK: General callback - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 
@@ -707,21 +708,21 @@ async def handle_random_files(client: Client, query: CallbackQuery):
 
         # Get clone ID and show random files
         clone_id = bot_token.split(':')[0]
-        
+
         from bot.database.mongo_db import get_random_files
         files = await get_random_files(limit=10, clone_id=clone_id)
-        
+
         if not files:
             await query.edit_message_text("🎲 **Random Files**\n\n❌ No files found in database. Index some files first.")
             return
-        
+
         text = "🎲 **Random Files**\n\n"
         text += f"Found {len(files)} random files:\n\n"
-        
+
         from bot.plugins.clone_random_files import format_file_text, create_file_buttons
         if files:
             text += format_file_text(files[0])
-        
+
         buttons = create_file_buttons(files)
         await query.edit_message_text(text, reply_markup=buttons)
 
@@ -836,7 +837,7 @@ async def handle_recent_files(client: Client, query: CallbackQuery):
 
                 # Add download button
                 buttons.append([InlineKeyboardButton(
-                    f"📥 {display_name}", 
+                    f"📥 {display_name}",
                     callback_data=f"file_{file_id}"
                 )])
 
@@ -880,7 +881,7 @@ async def handle_popular_files(client: Client, query: CallbackQuery):
 
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
 
-        # Check if this is mother bot  
+        # Check if this is mother bot
         if bot_token == Config.BOT_TOKEN:
             await query.edit_message_text("🔥 **Most Popular Files**\n\nPopular file features are disabled in the mother bot. This functionality is only available in clone bots.")
             return
@@ -933,12 +934,12 @@ async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
         # Debug logging for admin verification
         stored_admin_id = clone_data.get('admin_id')
         logger.info(f"Clone admin verification: user_id={user_id} (type: {type(user_id)}), stored_admin_id={stored_admin_id} (type: {type(stored_admin_id)})")
-        
+
         # Convert both to int for proper comparison, handling MongoDB Int64 type
         try:
             user_id_int = int(user_id)
             stored_admin_id_int = int(stored_admin_id) if stored_admin_id else 0
-            
+
             if user_id_int != stored_admin_id_int:
                 await query.answer(f"❌ Only clone admin can access settings! (Debug: user_id={user_id_int}, admin_id={stored_admin_id_int})", show_alert=True)
                 logger.warning(f"Access denied - user {user_id_int} tried to access clone admin panel, but admin_id is {stored_admin_id_int}")
