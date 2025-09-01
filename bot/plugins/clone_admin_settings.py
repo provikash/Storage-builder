@@ -283,6 +283,15 @@ async def clone_settings_command(client: Client, message):
         await message.reply_text(text, reply_markup=buttons)
 
 
+@Client.on_callback_query(filters.regex("^(clone_settings_panel)$"), group=0)
+async def handle_clone_settings_panel_direct(client: Client, query: CallbackQuery):
+    """Handle clone settings panel callback directly"""
+    user_id = query.from_user.id
+    logger.info(f"🎛️ DIRECT SETTINGS: Clone settings panel accessed by user {user_id}")
+    
+    # Call the main settings command
+    await clone_settings_command(client, query.message)
+
 @Client.on_callback_query(filters.regex("^clone_"))
 async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
     """Handle clone settings callbacks"""
