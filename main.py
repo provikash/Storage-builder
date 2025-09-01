@@ -13,6 +13,9 @@ from info import Config
 # Setup logging first
 from bot.logging import LOGGER
 
+# Import callback safety to suppress handler errors
+from bot.utils.callback_safety import suppress_handler_removal_errors
+
 logger = LOGGER(__name__)
 
 uvloop.install()

@@ -78,8 +78,12 @@ async def is_clone_bot_instance_async(client: Client):
     """Async version of clone bot detection"""
     return is_clone_bot_instance(client)
 
+# Import safety wrapper
+from bot.utils.callback_safety import safe_callback_handler
+
 # Emergency callback handlers with highest priority to catch button issues
 @Client.on_callback_query(filters.regex("^(clone_settings_panel|settings|back_to_start)$"), group=CALLBACK_PRIORITIES["emergency"])
+@safe_callback_handler
 async def emergency_callback_handler(client: Client, query: CallbackQuery):
     """Emergency handler for critical non-responsive buttons"""
     user_id = query.from_user.id
@@ -588,6 +592,7 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
 
 # Catch-all handler for unhandled callbacks
 @Client.on_callback_query(group=CALLBACK_PRIORITIES["catchall"])
+@safe_callback_handler
 async def catchall_callback_handler(client: Client, query: CallbackQuery):
     """Handle any unhandled callbacks"""
     user_id = query.from_user.id
