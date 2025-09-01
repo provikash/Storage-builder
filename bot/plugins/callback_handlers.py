@@ -517,17 +517,22 @@ async def premium_callback_handler(client: Client, query: CallbackQuery):
 
     # Import from existing callback handler
     if query.data == "show_premium_plans":
-        from bot.plugins.callback import show_premium_callback
-        await show_premium_callback(client, query)
-    elif query.data.startswith("buy_premium"):
-        from bot.plugins.callback import buy_premium_callback
-        await buy_premium_callback(client, query)
+        frtry:
+        if query.data == "show_premium_plans":
+            from bot.plugins.callback import show_premium_callback
+            await show_premium_callback(client, query)
+        elif query.data.startswith("buy_premium"):
+            from bot.plugins.callback import buy_premium_callback
+            await buy_premium_callback(client, query)
+    except Exception as e:
+        logger.error(f"Error in premium callback: {e}")
+        await query.answer("❌ Error processing request", show_alert=True)
 
 # General Callbacks (Priority 5)
 @Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history|back_to_start|add_balance|manage_my_clone|show_referral_main)$"), group=CALLBACK_PRIORITIES["general"])
 async def general_callback_handler(client: Client, query: CallbackQuery):
     """Handle general purpose callbacks"""
-    user_id = query.from_user.id
+    user_id = query.from_user.idm_user.id
     print(f"🔄 DEBUG CALLBACK: General callback - '{query.data}' from user {user_id}")
     print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
 

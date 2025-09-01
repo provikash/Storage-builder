@@ -130,13 +130,27 @@ class CloneManager:
 
             try:
                 # Clean up handlers safely before stopping
-                from bot.utils.handler_manager import handler_manager
-                await handler_manager.cleanup_all_handlers(clone_bot)
+                try:
+                    from bot.utils.handler_manager import handler_manager
+                    await handler_manager.cleanup_all_handlers(clone_bot)
+                    logger.debug(f"✅ Handlers cleaned up for clone {bot_id}")
+                except ImportError:
+                    logger.warning(f"⚠️ Handler manager not available for cleanup")
+                except Exception as cleanup_error:
+                    logger.error(f"❌ Error cleaning handlers: {cleanup_error}")
 
-                # Stop the clone client
+                # Stop the clone client with timeout
                 if clone_bot.is_connected:
-                    await clone_bot.stop()
-                    logger.info(f"✅ Clone {bot_id} stopped")
+                    try:
+                        await asyncio.wait_for(clone_bot.stop(), timeout=10.0)
+                        logger.info(f"✅ Clone {bot_id} stopped gracefully")
+                    except asyncio.TimeoutError:
+                        logger.warning(f"⚠️ Clone {bot_id} stop timeout, forcing disconnect")
+                        # Force disconnect if graceful stop fails
+                        if hasattr(clone_bot, 'disconnect'):
+                            await clone_bot.disconnect()
+                else:
+                    logger.info(f"✅ Clone {bot_id} was already disconnected")
             except Exception as e:
                 logger.error(f"❌ Error stopping clone {bot_id}: {e}")
             finally:

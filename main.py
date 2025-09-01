@@ -92,32 +92,7 @@ async def initialize_databases():
         logger.error(f"❌ Database initialization failed: {e}")
         return False
 
-async def cleanup_session_files():
-    """Clean up locked session files"""
-    try:
-        import os
-        import glob
-        
-        # Remove journal files that cause locks
-        journal_files = glob.glob("*.session-journal")
-        for journal_file in journal_files:
-            try:
-                os.remove(journal_file)
-                logger.info(f"✅ Removed journal file: {journal_file}")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not remove {journal_file}: {e}")
-        
-        # Remove WAL files
-        wal_files = glob.glob("*.session-wal")
-        for wal_file in wal_files:
-            try:
-                os.remove(wal_file)
-                logger.info(f"✅ Removed WAL file: {wal_file}")
-            except Exception as e:
-                logger.warning(f"⚠️ Could not remove {wal_file}: {e}")
-                
-    except Exception as e:
-        logger.error(f"❌ Error cleaning session files: {e}")
+
 
 async def start_mother_bot():
     """Start the mother bot"""
@@ -126,10 +101,8 @@ async def start_mother_bot():
         print("📡 DEBUG BOT: Initializing Mother Bot...")
 
         # Clean up session files first
-        await cleanup_session_files()
-        
-        # Wait a moment for file system to sync
-        await asyncio.sleep(1)
+        from bot.utils.session_cleanup import session_cleanup
+        await session_cleanup.cleanup_on_start()
 
         # Initialize and start Mother Bot with full plugin access
         mother_bot_plugins = {
@@ -385,22 +358,46 @@ async def main():
                 except asyncio.CancelledError:
                     pass
 
-        # Stop all clones
+        # Stop all clones with timeout
         try:
-            for bot_id in list(clone_manager.instances.keys()):
-                await clone_manager.stop_clone(bot_id)
-            logger.info("✅ All clones stopped")
+            clone_ids = list(clone_manager.active_clones.keys())
+            if clone_ids:
+                logger.info(f"🛑 Stopping {len(clone_ids)} clones...")
+                stop_tasks = []
+                for bot_id in clone_ids:
+                    task = asyncio.create_task(clone_manager.stop_clone(bot_id))
+                    stop_tasks.append(task)
+                
+                # Wait for all clones to stop with timeout
+                try:
+                    await asyncio.wait_for(asyncio.gather(*stop_tasks, return_exceptions=True), timeout=30.0)
+                    logger.info("✅ All clones stopped")
+                except asyncio.TimeoutError:
+                    logger.warning("⚠️ Clone shutdown timeout, some may still be running")
+            else:
+                logger.info("✅ No clones to stop")
         except Exception as e:
             logger.error(f"❌ Error stopping clones: {e}")
 
-        # Stop mother bot
+        # Stop mother bot with timeout
         if app:
             try:
                 if app.is_connected:
-                    await app.stop()
+                    # Clean up handlers first
+                    try:
+                        from bot.utils.handler_manager import handler_manager
+                        await handler_manager.cleanup_all_handlers(app)
+                        logger.debug("✅ Mother Bot handlers cleaned up")
+                    except Exception as cleanup_error:
+                        logger.error(f"❌ Error cleaning Mother Bot handlers: {cleanup_error}")
+                    
+                    # Stop with timeout
+                    await asyncio.wait_for(app.stop(), timeout=15.0)
                     logger.info("✅ Mother Bot stopped")
                 else:
                     logger.info("✅ Mother Bot already disconnected")
+            except asyncio.TimeoutError:
+                logger.warning("⚠️ Mother Bot stop timeout")
             except Exception as e:
                 logger.error(f"❌ Error stopping Mother Bot: {e}")
 

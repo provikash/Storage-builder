@@ -141,35 +141,26 @@ async def safe_answer_callback(query, text="", show_alert=False):
     except Exception as e:
         logger.error(f"Error answering callback: {e}")
 
-async def safe_remove_handler(client, handler, group=0):
-    """Safely remove handler without errors"""
-    try:
-        if hasattr(client, 'dispatcher') and hasattr(client.dispatcher, 'groups'):
-            if group in client.dispatcher.groups:
-                if handler in client.dispatcher.groups[group]:
-                    client.dispatcher.groups[group].remove(handler)
-                    logger.debug(f"Successfully removed handler from group {group}")
-                else:
-                    logger.debug(f"Handler not found in group {group}")
-            else:
-                logger.debug(f"Group {group} not found in dispatcher")
-    except Exception as e:
-        logger.error(f"Error removing handler: {e}")
-
 async def safe_remove_handler(client, handler, group: int = 0):
     """Safely remove handler to prevent ValueError"""
     try:
-        if hasattr(client, 'dispatcher') and hasattr(client.dispatcher, 'groups'):
-            if group in client.dispatcher.groups and handler in client.dispatcher.groups[group]:
-                client.remove_handler(handler, group)
-                return True
-        return False
-    except (ValueError, KeyError, AttributeError) as e:
-        logger.debug(f"Handler removal failed (expected): {e}")
-        return False
-    except Exception as e:
-        logger.error(f"Unexpected error removing handler: {e}")
-        return False
+        # Import handler manager to use centralized removal
+        from bot.utils.handler_manager import handler_manager
+        return await handler_manager.safe_remove_handler(client, handler, group)
+    except ImportError:
+        # Fallback to direct removal
+        try:
+            if hasattr(client, 'dispatcher') and hasattr(client.dispatcher, 'groups'):
+                if group in client.dispatcher.groups and handler in client.dispatcher.groups[group]:
+                    client.remove_handler(handler, group)
+                    return True
+            return False
+        except (ValueError, KeyError, AttributeError) as e:
+            logger.debug(f"Handler removal failed (expected): {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error removing handler: {e}")
+            return False
 
 def handle_database_lock():
     """Handle SQLite database lock by using in-memory storage"""

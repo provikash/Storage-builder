@@ -1,119 +1,129 @@
 
-<file_path>bot/utils/handler_manager.py</file_path>
-<line_number>1</line_number>
 import asyncio
-from typing import Dict, Set
+from typing import Dict, Set, Optional, Any
 from pyrogram import Client
 from pyrogram.handlers import MessageHandler, CallbackQueryHandler
 from bot.logging import LOGGER
-from bot.utils.error_handler import safe_remove_handler
 
 logger = LOGGER(__name__)
 
 class HandlerManager:
-    """Manage handler registration and removal safely"""
+    """Centralized handler management to prevent removal errors"""
     
     def __init__(self):
-        self.registered_handlers = {}
+        self.registered_handlers: Dict[str, Set[Any]] = {}
+        self.client_handlers: Dict[str, Dict[int, list]] = {}
     
-    async def add_handler(self, client: Client, handler, group: int = 0):
-        """Safely add handler"""
+    def register_handler(self, client: Client, handler: Any, group: int = 0):
+        """Register a handler for tracking"""
+        client_id = str(id(client))
+        
+        if client_id not in self.registered_handlers:
+            self.registered_handlers[client_id] = set()
+        
+        if client_id not in self.client_handlers:
+            self.client_handlers[client_id] = {}
+        
+        if group not in self.client_handlers[client_id]:
+            self.client_handlers[client_id][group] = []
+        
+        self.registered_handlers[client_id].add(handler)
+        self.client_handlers[client_id][group].append(handler)
+        
+        # Add to client
         try:
             client.add_handler(handler, group)
-            handler_id = id(handler)
-            self.registered_handlers[handler_id] = (handler, group)
-            logger.debug(f"Added handler {handler_id} to group {group}")
+            logger.debug(f"✅ Handler registered in group {group}")
         except Exception as e:
-            logger.error(f"Error adding handler: {e}")
+            logger.error(f"❌ Error registering handler: {e}")
     
-    async def remove_handler(self, client: Client, handler, group: int = 0):
-        """Safely remove handler"""
-        await safe_remove_handler(client, handler, group)
-        handler_id = id(handler)
-        if handler_id in self.registered_handlers:
-            del self.registered_handlers[handler_id]
+    async def safe_remove_handler(self, client: Client, handler: Any, group: int = 0) -> bool:
+        """Safely remove handler without errors"""
+        try:
+            client_id = str(id(client))
+            
+            # Check if we're tracking this handler
+            if client_id not in self.registered_handlers:
+                logger.debug(f"No handlers tracked for client {client_id}")
+                return False
+            
+            if handler not in self.registered_handlers[client_id]:
+                logger.debug(f"Handler not tracked, skipping removal")
+                return False
+            
+            # Check if handler exists in dispatcher groups
+            if not hasattr(client, 'dispatcher') or not hasattr(client.dispatcher, 'groups'):
+                logger.debug(f"Client dispatcher not available")
+                return False
+            
+            if group not in client.dispatcher.groups:
+                logger.debug(f"Group {group} not found in dispatcher")
+                return False
+            
+            if handler not in client.dispatcher.groups[group]:
+                logger.debug(f"Handler not found in group {group}")
+                # Remove from our tracking anyway
+                self.registered_handlers[client_id].discard(handler)
+                if client_id in self.client_handlers and group in self.client_handlers[client_id]:
+                    if handler in self.client_handlers[client_id][group]:
+                        self.client_handlers[client_id][group].remove(handler)
+                return False
+            
+            # Safe removal
+            client.remove_handler(handler, group)
+            
+            # Update tracking
+            self.registered_handlers[client_id].discard(handler)
+            if client_id in self.client_handlers and group in self.client_handlers[client_id]:
+                if handler in self.client_handlers[client_id][group]:
+                    self.client_handlers[client_id][group].remove(handler)
+            
+            logger.debug(f"✅ Handler removed safely from group {group}")
+            return True
+            
+        except (ValueError, KeyError, AttributeError) as e:
+            logger.debug(f"Handler removal failed (expected): {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Unexpected error removing handler: {e}")
+            return False
     
     async def cleanup_all_handlers(self, client: Client):
-        """Remove all registered handlers safely"""
-        for handler_id, (handler, group) in list(self.registered_handlers.items()):
-            await self.remove_handler(client, handler, group)
-        self.registered_handlers.clear()
-
-# Global handler manager instance
-handler_manager = HandlerManager()
-
-class HandlerManager:
-    """Manage handlers to prevent duplicate registration/removal errors"""
-    
-    def __init__(self):
-        self.registered_handlers: Dict[str, Set] = {}
-    
-    async def safe_add_handler(self, client: Client, handler, group: int = 0):
-        """Safely add handler without duplicates"""
+        """Cleanup all handlers for a client"""
         try:
             client_id = str(id(client))
+            
             if client_id not in self.registered_handlers:
-                self.registered_handlers[client_id] = set()
+                logger.debug(f"No handlers to cleanup for client {client_id}")
+                return
             
-            handler_id = f"{type(handler).__name__}_{group}_{hash(str(handler.callback))}"
+            handlers_to_remove = list(self.registered_handlers[client_id])
+            removed_count = 0
             
-            if handler_id not in self.registered_handlers[client_id]:
-                client.add_handler(handler, group)
-                self.registered_handlers[client_id].add(handler_id)
-                logger.debug(f"✅ Added handler: {handler_id}")
-            else:
-                logger.debug(f"⚠️ Handler already exists: {handler_id}")
-                
+            for handler in handlers_to_remove:
+                # Try to find which group this handler is in
+                for group in range(10):  # Check groups 0-9
+                    if await self.safe_remove_handler(client, handler, group):
+                        removed_count += 1
+                        break
+            
+            # Clear tracking
+            if client_id in self.registered_handlers:
+                self.registered_handlers[client_id].clear()
+            if client_id in self.client_handlers:
+                self.client_handlers[client_id].clear()
+            
+            logger.info(f"✅ Cleaned up {removed_count} handlers for client")
+            
         except Exception as e:
-            logger.error(f"❌ Error adding handler: {e}")
+            logger.error(f"❌ Error cleaning up handlers: {e}")
     
-    async def safe_remove_handler(self, client: Client, handler, group: int = 0):
-        """Safely remove handler with enhanced error handling"""
-        try:
-            client_id = str(id(client))
-            handler_id = f"{type(handler).__name__}_{group}_{hash(str(handler.callback))}"
-            
-            # Check if handler exists in our tracking
-            if (client_id in self.registered_handlers and 
-                handler_id in self.registered_handlers[client_id]):
-                
-                # Try to remove from client with additional safety check
-                try:
-                    # Check if handler actually exists in client before removal
-                    if hasattr(client, 'dispatcher') and hasattr(client.dispatcher, 'groups'):
-                        if group in client.dispatcher.groups and handler in client.dispatcher.groups[group]:
-                            client.remove_handler(handler, group)
-                            logger.debug(f"✅ Removed handler: {handler_id}")
-                        else:
-                            logger.debug(f"⚠️ Handler not in client groups: {handler_id}")
-                    else:
-                        # Fallback: try direct removal with error catching
-                        client.remove_handler(handler, group)
-                        logger.debug(f"✅ Removed handler (fallback): {handler_id}")
-                except ValueError as ve:
-                    logger.debug(f"⚠️ Handler already removed: {handler_id} - {ve}")
-                except Exception as e:
-                    logger.warning(f"⚠️ Error removing handler from client: {e}")
-                
-                # Always remove from our tracking
-                self.registered_handlers[client_id].discard(handler_id)
-            else:
-                logger.debug(f"⚠️ Handler not tracked for removal: {handler_id}")
-                
-        except Exception as e:
-            logger.error(f"❌ Unexpected error in safe_remove_handler: {e}")
-            # Try to continue anyway
-            try:
-                client.remove_handler(handler, group)
-            except:
-                pass  # Ignore any additional errors
-    
-    def clear_client_handlers(self, client: Client):
-        """Clear all tracked handlers for a client"""
+    def get_handler_count(self, client: Client) -> int:
+        """Get number of registered handlers for a client"""
         client_id = str(id(client))
         if client_id in self.registered_handlers:
-            del self.registered_handlers[client_id]
-            logger.debug(f"✅ Cleared handlers for client {client_id}")
+            return len(self.registered_handlers[client_id])
+        return 0
 
 # Global instance
 handler_manager = HandlerManager()
