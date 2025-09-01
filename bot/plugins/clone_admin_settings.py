@@ -283,14 +283,51 @@ async def clone_settings_command(client: Client, message):
         await message.reply_text(text, reply_markup=buttons)
 
 
-@Client.on_callback_query(filters.regex("^(clone_settings_panel)$"), group=0)
+@Client.on_callback_query(filters.regex("^clone_settings_panel$"), group=-2)
 async def handle_clone_settings_panel_direct(client: Client, query: CallbackQuery):
-    """Handle clone settings panel callback directly"""
+    """Handle clone settings panel callback with highest priority"""
     user_id = query.from_user.id
     logger.info(f"🎛️ DIRECT SETTINGS: Clone settings panel accessed by user {user_id}")
+    print(f"🎛️ DIRECT SETTINGS: Clone settings panel accessed by user {user_id}")
     
-    # Call the main settings command
-    await clone_settings_command(client, query.message)
+    try:
+        await query.answer()
+        
+        # Verify this is a clone bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        if bot_token == Config.BOT_TOKEN:
+            await query.edit_message_text("❌ Settings panel is only available in clone bots!")
+            return
+
+        # Get clone data and verify admin
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data:
+            await query.edit_message_text("❌ Clone configuration not found!")
+            return
+
+        if int(user_id) != int(clone_data.get('admin_id', 0)):
+            await query.edit_message_text("❌ Only clone admin can access settings!")
+            return
+        
+        # Create message proxy and call settings command
+        class MessageProxy:
+            def __init__(self, query):
+                self.from_user = query.from_user
+                self.chat = query.message.chat if query.message else None
+                self.message_id = query.message.id if query.message else None
+                
+            async def reply_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+                
+            async def edit_message_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+
+        proxy_message = MessageProxy(query)
+        await clone_settings_command(client, proxy_message)
+        
+    except Exception as e:
+        logger.error(f"Error in direct settings handler: {e}")
+        await query.edit_message_text("❌ Error loading settings. Please try again.")
 
 @Client.on_callback_query(filters.regex("^clone_"))
 async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):

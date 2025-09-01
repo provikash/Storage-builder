@@ -912,60 +912,46 @@ async def handle_search_files(client: Client, query: CallbackQuery):
     await query.answer()
     await query.edit_message_text("🔍 **Search Files**\n\nSearch functionality has been removed from clone bots. Use the available file browsing options instead.")
 
-# Handle clone settings panel specifically with higher priority
-@Client.on_callback_query(filters.regex("^(clone_settings_panel|settings)$"), group=0)
-async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
-    """Handle clone settings panel callback specifically"""
+# Handle clone settings panel specifically with highest priority
+@Client.on_callback_query(filters.regex("^clone_settings_panel$"), group=-1)
+async def handle_clone_settings_panel_callback(client: Client, query: CallbackQuery):
+    """Handle clone settings panel callback with highest priority"""
     user_id = query.from_user.id
-    logger.info(f"🎛️ SETTINGS CALLBACK: Clone settings panel clicked by user {user_id}")
-    print(f"🎛️ SETTINGS CALLBACK: Clone settings panel clicked by user {user_id}")
+    logger.info(f"🎛️ PRIORITY SETTINGS: Clone settings panel clicked by user {user_id}")
+    print(f"🎛️ PRIORITY SETTINGS: Clone settings panel clicked by user {user_id}")
 
     try:
         await query.answer()
         
-        # Check if this is a clone bot
+        # Get bot token and verify this is a clone bot
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN and
-            (hasattr(client, 'is_clone') and client.is_clone or
-             hasattr(client, 'clone_config') and client.clone_config or
-             hasattr(client, 'clone_data'))
-        )
-
-        if not is_clone_bot:
+        logger.info(f"🔍 Bot token check: {bot_token[:10]}... (Mother: {Config.BOT_TOKEN[:10]}...)")
+        
+        if bot_token == Config.BOT_TOKEN:
             await query.edit_message_text("❌ Settings panel is only available in clone bots!")
             return
 
-        # Verify user is clone admin
+        # Get clone data and verify admin
         from bot.database.clone_db import get_clone_by_bot_token
         clone_data = await get_clone_by_bot_token(bot_token)
-
+        
         if not clone_data:
             await query.edit_message_text("❌ Clone configuration not found!")
             return
 
-        # Debug logging for admin verification
+        # Verify admin access
         stored_admin_id = clone_data.get('admin_id')
-        logger.info(f"Clone admin verification: user_id={user_id} (type: {type(user_id)}), stored_admin_id={stored_admin_id} (type: {type(stored_admin_id)})")
-
-        # Convert both to int for proper comparison
-        try:
-            user_id_int = int(user_id)
-            stored_admin_id_int = int(stored_admin_id) if stored_admin_id else 0
-
-            if user_id_int != stored_admin_id_int:
-                await query.edit_message_text(f"❌ Only clone admin can access settings!\n\nDebug: user_id={user_id_int}, admin_id={stored_admin_id_int}")
-                return
-        except (ValueError, TypeError) as e:
-            logger.error(f"Error converting IDs for comparison: {e}")
-            await query.edit_message_text("❌ Error verifying admin access!")
+        logger.info(f"🔐 Admin verification: user={user_id}, stored_admin={stored_admin_id}")
+        
+        if int(user_id) != int(stored_admin_id):
+            await query.edit_message_text("❌ Only clone admin can access settings!")
             return
 
-        # Load clone settings directly
+        # Successfully verified - redirect to clone admin settings
         from bot.plugins.clone_admin_settings import clone_settings_command
-
-        # Convert query to message-like object
-        class FakeMessage:
+        
+        # Create message-like object for the settings command
+        class MessageProxy:
             def __init__(self, query):
                 self.from_user = query.from_user
                 self.chat = query.message.chat
@@ -977,14 +963,22 @@ async def handle_clone_settings_panel(client: Client, query: CallbackQuery):
             async def edit_message_text(self, text, reply_markup=None):
                 await query.edit_message_text(text, reply_markup=reply_markup)
 
-        fake_message = FakeMessage(query)
-        await clone_settings_command(client, fake_message)
+        proxy_message = MessageProxy(query)
+        await clone_settings_command(client, proxy_message)
+        
+        logger.info(f"✅ Successfully loaded clone settings for user {user_id}")
 
     except Exception as e:
-        logger.error(f"Error handling clone settings: {e}")
+        logger.error(f"❌ Error in clone settings panel: {e}")
         traceback.print_exc()
         try:
-            await query.edit_message_text("❌ Error loading settings panel. Please try again.")
+            await query.edit_message_text(
+                "❌ Error loading settings panel.\n\nPlease try again or contact support if the issue persists.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 Try Again", callback_data="clone_settings_panel")],
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+            )
         except:
             pass
 

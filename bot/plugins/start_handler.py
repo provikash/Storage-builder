@@ -209,8 +209,11 @@ async def start_command(client: Client, message: Message):
             logger.info(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
             print(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
             buttons = [
-                [InlineKeyboardButton("🎛️ Clone Settings", callback_data="clone_settings_panel")],
-                [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")]
+                [InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")],
+                [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")],
+                [InlineKeyboardButton("👤 My Profile", callback_data="user_profile")],
+                [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
+                [InlineKeyboardButton("ℹ️ About", callback_data="about_bot")]
             ]
         else:
             # Normal users get file access based on admin settings
@@ -440,18 +443,24 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
 
         # Settings button - only for clone admin
         if is_admin:
-            file_buttons.append([InlineKeyboardButton("⚙️ Settings", callback_data="clone_settings_panel")])
+            file_buttons = [
+                [InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")],
+                [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")],
+                [InlineKeyboardButton("👤 My Profile", callback_data="user_profile")],
+                [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
+                [InlineKeyboardButton("ℹ️ About", callback_data="about_bot")]
+            ]
+        else:
+            # User action buttons for non-admin users
+            file_buttons.append([
+                InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+                InlineKeyboardButton("📊 My Stats", callback_data="my_stats")
+            ])
 
-        # User action buttons
-        file_buttons.append([
-            InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
-            InlineKeyboardButton("📊 My Stats", callback_data="my_stats")
-        ])
-
-        file_buttons.append([
-            InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
-            InlineKeyboardButton("❓ Help", callback_data="help_menu")
-        ])
+            file_buttons.append([
+                InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
+                InlineKeyboardButton("❓ Help", callback_data="help_menu")
+            ])
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(file_buttons))
     else:
