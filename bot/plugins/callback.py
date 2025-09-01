@@ -240,37 +240,8 @@ async def handle_popular_files_request(client, query: CallbackQuery):
         await query.answer("❌ An error occurred while fetching popular files.", show_alert=True)
 
 
-@Client.on_callback_query(filters.regex("^random_files$"))
-async def random_files_callback(client: Client, query: CallbackQuery):
-    """Handle random files button"""
-    user_id = query.from_user.id
-    logger.info(f"Random files callback from user {user_id}")
-
-    # Check if feature is enabled
-    from bot.utils.clone_config_loader import clone_config_loader
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    config = await clone_config_loader.get_bot_config(bot_token)
-
-    if not config.get('features', {}).get('random_files', True):
-        await query.answer("❌ This feature is disabled by the admin.", show_alert=True)
-        return
-
-    # Check force subscription first
-    if await handle_force_sub(client, query.message):
-        return
-
-    # Placeholder for random files functionality
-    await query.edit_message_text("🎲 **Random Files**\n\nShowing random files...")
-
-@Client.on_callback_query(filters.regex("^recent_files$"))
-async def recent_files_callback(client: Client, query: CallbackQuery):
-    """Handle recent files button"""
-    user_id = query.from_user.id
-    logger.info(f"Recent files callback from user {user_id}")
-
-    # Check if feature is enabled
-    from bot.utils.clone_config_loader import clone_config_loader
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+# These handlers are now in callback_handlers.py to avoid conflicts
+# Removed duplicate random_files and recent_files handlersattr(client, 'bot_token', Config.BOT_TOKEN)
     config = await clone_config_loader.get_bot_config(bot_token)
 
     if not config.get('features', {}).get('recent_files', True):
