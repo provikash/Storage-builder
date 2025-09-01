@@ -674,26 +674,53 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
 # Clone creation callbacks are now handled directly in step_clone_creation.py
 # This handler is removed to prevent conflicts
 
-# Debug callback for settings-related issues
-@Client.on_callback_query(filters.regex("^(settings|clone_settings)"), group=CALLBACK_PRIORITIES["catchall"])
-async def debug_settings_callbacks(client: Client, query: CallbackQuery):
-    """Debug handler for settings callbacks"""
+# Catch-all handler for unhandled callbacks
+@Client.on_callback_query(group=CALLBACK_PRIORITIES["catchall"])
+async def catchall_callback_handler(client: Client, query: CallbackQuery):
+    """Handle any unhandled callbacks"""
     user_id = query.from_user.id
-    print(f"🔧 SETTINGS DEBUG: {query.data} from user {user_id}")
-    print(f"🔍 DEBUG CALLBACK: User details - ID: {user_id}, Username: @{query.from_user.username}, First: {query.from_user.first_name}")
+    callback_data = query.data
     
-    # If it gets here, something went wrong with the main handlers
-    if query.data in ["settings", "clone_settings_panel"]:
-        await query.answer("🔧 Settings handler triggered in debug mode", show_alert=True)
+    logger.warning(f"🚨 UNHANDLED CALLBACK: {callback_data} from user {user_id}")
+    print(f"🚨 UNHANDLED CALLBACK: {callback_data} from user {user_id}")
+    
+    # Handle common unmatched callbacks
+    if callback_data in ["clone_settings_panel", "settings"]:
+        await query.answer("🔧 Settings access - redirecting...", show_alert=False)
+        # Force redirect to settings handler
+        from bot.plugins.clone_admin_settings import clone_settings_command
         
-    # Let other handlers process it
-    pass
+        class MessageProxy:
+            def __init__(self, query):
+                self.from_user = query.from_user
+                self.chat = query.message.chat if query.message else None
+                self.message_id = query.message.id if query.message else None
+                
+            async def reply_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+                
+            async def edit_message_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+
+        proxy_message = MessageProxy(query)
+        await clone_settings_command(client, proxy_message)
+        return
+    
+    # For other unhandled callbacks, provide generic error
+    await query.answer("❌ Button not responding. Please try again or contact support.", show_alert=True)
 
 # Random, Recent, Popular file features are disabled in mother bot - only available in clone bots
 
-@Client.on_callback_query(filters.regex("^random_files$"))
-async def handle_random_files(client: Client, query: CallbackQuery):
-    """Handle random files callback"""
+# File callback handlers with unified approach
+@Client.on_callback_query(filters.regex("^(random_files|recent_files|popular_files)$"), group=CALLBACK_PRIORITIES["search"])
+async def handle_file_callbacks(client: Client, query: CallbackQuery):
+    """Handle file-related callbacks with unified error handling"""
+    user_id = query.from_user.id
+    callback_data = query.data
+    
+    logger.info(f"🔄 FILE CALLBACK: {callback_data} from user {user_id}")
+    print(f"🔄 FILE CALLBACK: {callback_data} from user {user_id}")
+
     try:
         await query.answer()
 
@@ -701,7 +728,8 @@ async def handle_random_files(client: Client, query: CallbackQuery):
 
         # Check if this is mother bot
         if bot_token == Config.BOT_TOKEN:
-            await query.edit_message_text("🎲 **Random Files**\n\nRandom file features are disabled in the mother bot. This functionality is only available in clone bots.")
+            feature_name = callback_data.replace('_files', '').replace('_', ' ').title()
+            await query.edit_message_text(f"{feature_name} **Files**\n\n{feature_name} file features are disabled in the mother bot. This functionality is only available in clone bots.")
             return
 
         # Get clone data to check feature status
@@ -712,10 +740,23 @@ async def handle_random_files(client: Client, query: CallbackQuery):
             await query.edit_message_text("❌ Clone configuration not found!")
             return
 
-        # Check if random mode is enabled (default to True if not set)
-        if not clone_data.get('random_mode', True):
+        # Check feature enablement based on callback type
+        feature_enabled = True
+        feature_name = ""
+        
+        if callback_data == "random_files":
+            feature_enabled = clone_data.get('random_mode', True)
+            feature_name = "Random Files"
+        elif callback_data == "recent_files":
+            feature_enabled = clone_data.get('recent_mode', True)
+            feature_name = "Recent Files"
+        elif callback_data == "popular_files":
+            feature_enabled = clone_data.get('popular_mode', True)
+            feature_name = "Popular Files"
+
+        if not feature_enabled:
             await query.edit_message_text(
-                "❌ **Random Files Disabled**\n\n"
+                f"❌ **{feature_name} Disabled**\n\n"
                 "This feature has been disabled by the bot admin.\n\n"
                 "Contact the bot administrator if you need access.",
                 reply_markup=InlineKeyboardMarkup([
@@ -729,112 +770,21 @@ async def handle_random_files(client: Client, query: CallbackQuery):
         if await handle_force_sub(client, query.message):
             return
 
-        # Use the search.py random files handler
-        from bot.plugins.search import handle_random_files as search_random_handler
-        await search_random_handler(client, query.message, is_callback=True)
+        # Route to appropriate handler in search.py
+        from bot.plugins.search import handle_random_files, handle_recent_files_direct, show_popular_files
+        
+        if callback_data == "random_files":
+            await handle_random_files(client, query.message, is_callback=True)
+        elif callback_data == "recent_files":
+            await handle_recent_files_direct(client, query.message, is_callback=True)
+        elif callback_data == "popular_files":
+            await show_popular_files(client, query)
 
     except Exception as e:
-        logger.error(f"Error in random files handler: {e}")
+        logger.error(f"Error in {callback_data} handler: {e}")
+        traceback.print_exc()
         try:
-            await query.answer("❌ Error loading random files.", show_alert=True)
-        except:
-            pass
-
-@Client.on_callback_query(filters.regex("^recent_files$"))
-async def handle_recent_files(client: Client, query: CallbackQuery):
-    """Handle recent files callback"""
-    try:
-        await query.answer()
-
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-
-        # Check if this is mother bot
-        if bot_token == Config.BOT_TOKEN:
-            await query.edit_message_text("🆕 **Recent Files**\n\nRecent file features are disabled in the mother bot. This functionality is only available in clone bots.")
-            return
-
-        # Get clone data to check feature status
-        from bot.database.clone_db import get_clone_by_bot_token
-        clone_data = await get_clone_by_bot_token(bot_token)
-
-        if not clone_data:
-            await query.edit_message_text("❌ Clone configuration not found!")
-            return
-
-        # Check if recent mode is enabled (default to True if not set)
-        if not clone_data.get('recent_mode', True):
-            await query.edit_message_text(
-                "❌ **Recent Files Disabled**\n\n"
-                "This feature has been disabled by the bot admin.\n\n"
-                "Contact the bot administrator if you need access.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
-            return
-
-        # Check force subscription
-        from bot.utils import handle_force_sub
-        if await handle_force_sub(client, query.message):
-            return
-
-        # Use the search.py recent files handler
-        from bot.plugins.search import handle_recent_files_direct
-        await handle_recent_files_direct(client, query.message, is_callback=True)
-
-    except Exception as e:
-        logger.error(f"Error in recent files handler: {e}")
-        try:
-            await query.answer("❌ Error loading recent files.", show_alert=True)
-        except:
-            pass
-
-@Client.on_callback_query(filters.regex("^popular_files$"))
-async def handle_popular_files(client: Client, query: CallbackQuery):
-    """Handle popular files callback"""
-    try:
-        await query.answer()
-
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-
-        # Check if this is mother bot
-        if bot_token == Config.BOT_TOKEN:
-            await query.edit_message_text("🔥 **Most Popular Files**\n\nPopular file features are disabled in the mother bot. This functionality is only available in clone bots.")
-            return
-
-        # Get clone data to check feature status
-        from bot.database.clone_db import get_clone_by_bot_token
-        clone_data = await get_clone_by_bot_token(bot_token)
-
-        if not clone_data:
-            await query.edit_message_text("❌ Clone configuration not found!")
-            return
-
-        # Check if popular mode is enabled (default to True if not set)
-        if not clone_data.get('popular_mode', True):
-            await query.edit_message_text(
-                "❌ **Popular Files Disabled**\n\n"
-                "This feature has been disabled by the bot admin.\n\n"
-                "Contact the bot administrator if you need access.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
-            return
-
-        # Check force subscription
-        from bot.utils import handle_force_sub
-        if await handle_force_sub(client, query.message):
-            return
-
-        # Use the search.py popular files handler
-        from bot.plugins.search import show_popular_files
-        await show_popular_files(client, query)
-
-    except Exception as e:
-        logger.error(f"Error in popular files handler: {e}")
-        try:
-            await query.answer("❌ Error loading popular files.", show_alert=True)
+            await query.answer(f"❌ Error loading {callback_data.replace('_', ' ')}.", show_alert=True)
         except:
             pass
 
@@ -844,13 +794,13 @@ async def handle_search_files(client: Client, query: CallbackQuery):
     await query.answer()
     await query.edit_message_text("🔍 **Search Files**\n\nSearch functionality has been removed from clone bots. Use the available file browsing options instead.")
 
-# Handle clone settings panel specifically with highest priority
-@Client.on_callback_query(filters.regex("^clone_settings_panel$"), group=-1)
+# Handle clone settings panel with error handling
+@Client.on_callback_query(filters.regex("^clone_settings_panel$"))
 async def handle_clone_settings_panel_callback(client: Client, query: CallbackQuery):
-    """Handle clone settings panel callback with highest priority"""
+    """Handle clone settings panel callback"""
     user_id = query.from_user.id
-    logger.info(f"🎛️ PRIORITY SETTINGS: Clone settings panel clicked by user {user_id}")
-    print(f"🎛️ PRIORITY SETTINGS: Clone settings panel clicked by user {user_id}")
+    logger.info(f"🎛️ SETTINGS: Clone settings panel clicked by user {user_id}")
+    print(f"🎛️ SETTINGS: Clone settings panel clicked by user {user_id}")
 
     try:
         await query.answer()
@@ -886,8 +836,8 @@ async def handle_clone_settings_panel_callback(client: Client, query: CallbackQu
         class MessageProxy:
             def __init__(self, query):
                 self.from_user = query.from_user
-                self.chat = query.message.chat
-                self.message_id = query.message.id
+                self.chat = query.message.chat if query.message else None
+                self.message_id = query.message.id if query.message else None
                 
             async def reply_text(self, text, reply_markup=None):
                 await query.edit_message_text(text, reply_markup=reply_markup)

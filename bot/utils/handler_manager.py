@@ -126,3 +126,40 @@ class HandlerManager:
 
 # Global instance
 handler_manager = HandlerManager()
+
+async def register_handlers(app):
+    """Register all handlers with the app"""
+    try:
+        logger.info("🔄 Starting handler registration...")
+
+        # Don't clear handlers - let Pyrogram manage them
+        # Just import plugins to register their handlers
+
+        # Import core handlers first
+        from bot.plugins import callback_fix  # Emergency handlers first
+        from bot.plugins import start_handler
+        from bot.plugins import callback_handlers
+        from bot.plugins import search
+        from bot.plugins import clone_admin_settings
+
+        # Import other plugin handlers
+        from bot.plugins import (
+            admin_commands,
+            mother_admin,
+            step_clone_creation,
+            premium,
+            balance_management,
+            referral_program,
+            token,
+            index,
+            genlink,
+            stats,
+            broadcast,
+            callback
+        )
+
+        logger.info("✅ All handlers registered successfully")
+
+    except Exception as e:
+        logger.error(f"❌ Error registering handlers: {e}")
+        raise

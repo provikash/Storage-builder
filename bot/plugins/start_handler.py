@@ -205,24 +205,56 @@ async def start_command(client: Client, message: Message):
 
         # Clone bot menu - check admin vs user
         if is_admin_user:
-            # Clone admin gets settings access
+            # Clone admin gets settings access AND file access
             logger.info(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
             print(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
-            buttons = [
-                [InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")],
-                [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")],
-                [InlineKeyboardButton("👤 My Profile", callback_data="user_profile")],
-                [InlineKeyboardButton("❓ Help", callback_data="help_menu")],
-                [InlineKeyboardButton("ℹ️ About", callback_data="about_bot")]
-            ]
+            
+            # Get clone data for admin menu with file buttons
+            clone_data = await get_clone_by_bot_token(bot_token)
+            
+            buttons = []
+            
+            # Settings button for admin
+            buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")])
+            
+            # File access buttons based on settings (ALWAYS show for admin)
+            file_buttons = []
+            
+            # Show all file buttons for admin regardless of settings
+            file_buttons.append([
+                InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+            ])
+            file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+            
+            # Add file buttons to main buttons
+            buttons.extend(file_buttons)
+            
+            # Admin info buttons
+            buttons.append([
+                InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats"),
+                InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+            ])
+            buttons.append([
+                InlineKeyboardButton("❓ Help", callback_data="help_menu"),
+                InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+            ])
         else:
             # Normal users get file access based on admin settings
             clone_data = await get_clone_by_bot_token(bot_token)
             buttons = await get_start_keyboard_for_clone_user(clone_data, bot_token)
 
+            # User action buttons
+            buttons.append([
+                InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+                InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")
+            ])
+
             # Always show help and about for normal users
-            buttons.append([InlineKeyboardButton("❓ Help", callback_data="help")])
-            buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about")])
+            buttons.append([
+                InlineKeyboardButton("❓ Help", callback_data="help_menu"),
+                InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+            ])
     else:
         # Mother bot start message
         text = f"🚀 **Welcome {message.from_user.first_name}!**\n\n"
