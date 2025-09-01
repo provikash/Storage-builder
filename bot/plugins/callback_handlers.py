@@ -79,7 +79,7 @@ async def is_clone_bot_instance_async(client: Client):
     return is_clone_bot_instance(client)
 
 # Emergency callback handlers with highest priority to catch button issues
-@Client.on_callback_query(filters.regex("^(clone_settings_panel|random_files|recent_files|popular_files|settings|back_to_start)$"), group=CALLBACK_PRIORITIES["emergency"])
+@Client.on_callback_query(filters.regex("^(clone_settings_panel|settings|back_to_start)$"), group=CALLBACK_PRIORITIES["emergency"])
 async def emergency_callback_handler(client: Client, query: CallbackQuery):
     """Emergency handler for critical non-responsive buttons"""
     user_id = query.from_user.id
@@ -169,7 +169,7 @@ async def emergency_callback_handler(client: Client, query: CallbackQuery):
                 await query.edit_message_text("❌ Clone configuration not found!")
                 return
 
-            # Check feature enablement
+            # Check feature enablement with proper defaults
             feature_enabled = True
             feature_display_name = ""
 
@@ -194,17 +194,17 @@ async def emergency_callback_handler(client: Client, query: CallbackQuery):
                 )
                 return
 
-            # Route to search handlers
+            # Route to clone random files handlers
             try:
                 if callback_data == "random_files":
-                    from bot.plugins.search import handle_random_files
-                    await handle_random_files(client, query.message, is_callback=True)
+                    from bot.plugins.clone_random_files import handle_clone_random_files
+                    await handle_clone_random_files(client, query)
                 elif callback_data == "recent_files":
-                    from bot.plugins.search import handle_recent_files_direct
-                    await handle_recent_files_direct(client, query.message, is_callback=True)
+                    from bot.plugins.clone_random_files import handle_clone_recent_files
+                    await handle_clone_recent_files(client, query)
                 elif callback_data == "popular_files":
-                    from bot.plugins.search import show_popular_files
-                    await show_popular_files(client, query)
+                    from bot.plugins.clone_random_files import handle_clone_popular_files
+                    await handle_clone_popular_files(client, query)
             except Exception as handler_error:
                 logger.error(f"Error in {callback_data} handler: {handler_error}")
                 await query.edit_message_text(f"❌ Error loading {feature_display_name.lower()}. Please try again.")
