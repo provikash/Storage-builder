@@ -23,71 +23,23 @@ user_settings = {}
 
 async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
     """
-    Create start menu keyboard for clone bot users based on admin settings
+    Create start menu keyboard for clone bot users - ALWAYS show file browsing buttons
     Returns list of button rows
     """
     buttons = []
 
-    if not clone_data:
-        logger.warning("No clone data found, returning empty keyboard")
-        return buttons
-
-    # Get clone ID for proper lookup
-    clone_id = clone_data.get('_id') or clone_data.get('bot_id')
-
-    # Always get fresh data from database to ensure latest settings
-    try:
-        from bot.database.clone_db import get_clone_by_bot_token, get_clone_config
-
-        # Get the most recent clone data from database using bot_token
-        fresh_clone_data = await get_clone_by_bot_token(bot_token) if bot_token else clone_data
-        if not fresh_clone_data:
-            fresh_clone_data = clone_data
-
-        # Get settings from clone config (where admin settings are stored)
-        clone_config = await get_clone_config(str(clone_id)) if clone_id else None
-
-        # Initialize feature states - Use the values that are actually being set in admin panel
-        show_random = fresh_clone_data.get('random_mode', False)
-        show_recent = fresh_clone_data.get('recent_mode', False)
-        show_popular = fresh_clone_data.get('popular_mode', False)
-
-        # Check clone_config as priority source since that's where toggles update
-        if clone_config:
-            features = clone_config.get('features', {})
-            show_random = features.get('random_files', show_random)
-            show_recent = features.get('recent_files', show_recent)
-            show_popular = features.get('popular_files', show_popular)
-
-    except Exception as e:
-        logger.error(f"Error getting fresh clone data for {clone_id}: {e}")
-        # Fallback to original clone_data values
-        show_random = clone_data.get('random_mode', False)
-        show_recent = clone_data.get('recent_mode', False)
-        show_popular = clone_data.get('popular_mode', False)
-
-    logger.info(f"Clone {clone_id} feature states - Random: {show_random}, Recent: {show_recent}, Popular: {show_popular}")
-    logger.info(f"Clone {clone_id} fresh_clone_data: {fresh_clone_data}")
-    logger.info(f"Clone {clone_id} clone_config: {clone_config}")
-
-    # Create file access buttons only if enabled by admin
+    # ALWAYS show file browsing buttons to all users - token verification handles access control
     file_buttons_row1 = []
+    file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+    file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
 
-    # Add buttons only if their corresponding features are enabled
-    if show_random:
-        file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-    if show_recent:
-        file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+    # Add first row
+    buttons.append(file_buttons_row1)
 
-    # Add first row if any buttons exist
-    if file_buttons_row1:
-        buttons.append(file_buttons_row1)
+    # Add popular files button in its own row
+    buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
 
-    # Add popular files button in its own row if enabled
-    if show_popular:
-        buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
-
-    logger.info(f"Clone {clone_id} final buttons count: {len(buttons)} | Buttons: {[[btn.text for btn in row] for row in buttons]}")
+    logger.info(f"Clone user buttons: ALWAYS showing all file browsing buttons to user")
 
     return buttons
 
@@ -254,6 +206,8 @@ async def start_command(client: Client, message: Message):
         # Clone bot menu - check admin vs user
         if is_admin_user:
             # Clone admin gets settings access
+            logger.info(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
+            print(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
             buttons = [
                 [InlineKeyboardButton("🎛️ Clone Settings", callback_data="clone_settings_panel")],
                 [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")]
