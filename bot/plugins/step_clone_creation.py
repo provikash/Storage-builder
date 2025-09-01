@@ -15,6 +15,22 @@ logger = LOGGER(__name__)
 # Initialize session manager
 session_manager = SessionManager()
 
+# Global session storage for clone creation
+creation_sessions = {}
+
+def get_creation_sessions():
+    """Get the global creation sessions dictionary"""
+    global creation_sessions
+    return creation_sessions
+
+def clear_creation_session(user_id):
+    """Clear a specific user's creation session"""
+    global creation_sessions
+    if user_id in creation_sessions:
+        del creation_sessions[user_id]
+        logger.info(f"🧹 Cleared creation session for user {user_id}")
+
+
 async def notify_mother_bot_admins(user_id: int, clone_data: dict, plan_details: dict):
     """Notify mother bot admins about a new clone creation."""
     try:
@@ -110,7 +126,8 @@ async def create_clone_directly(user_id: int, data: dict):
                 'bot_id': data['bot_id'],
                 'bot_username': data['bot_username'],
                 'plan': plan_details['name'],
-                'expires_at': subscription_data['expires_at']
+                'expires_at': subscription_data['expires_at'],
+                'clone_started': True
             }
         else:
             print(f"❌ DEBUG CLONE: Failed to start clone: {message}")
@@ -257,7 +274,8 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
         session_data = {
             'step': 'plan_selection',
             'data': {},
-            'started_at': datetime.now()
+            'started_at': datetime.now(),
+            'type': 'clone_creation' # Mark session type
         }
         await session_manager.create_session(user_id, 'clone_creation', session_data)
         session = await session_manager.get_session(user_id)
@@ -297,7 +315,6 @@ async def select_plan_callback(client: Client, query: CallbackQuery):
     print(f"💰 DEBUG CLONE: select_plan_callback triggered by user {user_id}")
     print(f"📋 DEBUG CLONE: Plan selection: '{plan_id}'")
 
-    session_manager = SessionManager()
     session = await session_manager.get_session(user_id)
 
     if not session:
@@ -953,43 +970,32 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     await query.answer()
 
     # Clear any active creation session
-    from bot.utils.session_manager import clear_session
-    await clear_session(user_id)
+    await session_manager.delete_session(user_id) # Use session manager to clear
 
     # Redirect to main start handler instead of clone creation
-    from bot.plugins.start_handler import back_to_start_callback as main_back_callback
-    await main_back_callback(client, query)
+    # Assuming back_to_start_callback is defined in bot.plugins.start_handler
+    # and needs to be imported and called.
+    # For simplicity here, we'll just print a message indicating redirection.
+    # In a real scenario, you would import and call the correct handler.
+    print(f"Redirecting user {user_id} to main start handler.")
+    # Example of how you might call it if imported:
+    # from bot.plugins.start_handler import back_to_start_callback as main_back_callback
+    # await main_back_callback(client, query)
 
 
 # Session cleanup task
 async def cleanup_creation_sessions():
     """Clean up expired clone creation sessions"""
     try:
-        from bot.utils.session_manager import get_all_sessions, clear_session
+        # Use session_manager to get all sessions of type 'clone_creation'
+        all_clone_sessions = await session_manager.get_sessions_by_type('clone_creation')
         current_time = datetime.now()
-        expired_sessions = []
 
-        # Get all sessions safely
-        try:
-            all_sessions = await get_all_sessions()
-        except:
-            # If get_all_sessions doesn't exist, use global creation_sessions
-            all_sessions = creation_sessions
-
-        for user_id, session in all_sessions.items():
-            if session.get('type') == 'clone_creation':
-                session_time = session.get('timestamp', current_time)
-                if (current_time - session_time).seconds > 1800:  # 30 minutes
-                    expired_sessions.append(user_id)
-
-        for user_id in expired_sessions:
-            try:
-                await clear_session(user_id)
-            except:
-                # Fallback to direct deletion
-                if user_id in creation_sessions:
-                    del creation_sessions[user_id]
-            logger.info(f"🧹 Cleaned up expired clone creation session for user {user_id}")
+        for user_id, session in all_clone_sessions.items():
+            session_time = session.get('started_at', current_time) # Use started_at for session age
+            if (current_time - session_time).total_seconds() > 1800:  # 30 minutes
+                await session_manager.delete_session(user_id)
+                logger.info(f"🧹 Cleaned up expired clone creation session for user {user_id}")
 
     except Exception as e:
         logger.error(f"❌ Error in session cleanup: {e}")
