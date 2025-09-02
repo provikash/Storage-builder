@@ -104,24 +104,7 @@ def suppress_handler_removal_errors():
     except ImportError:
         logger.debug("Dispatcher patching skipped - not available")
     
-    # Patch list.remove to catch the core issue
-    original_list_remove = list.remove
-    
-    def safe_list_remove(self, item):
-        try:
-            return original_list_remove(self, item)
-        except ValueError as e:
-            # Only suppress if it's from handler removal context
-            import traceback
-            stack = traceback.format_stack()
-            if any('pyrogram' in frame and ('remove_handler' in frame or 'dispatcher' in frame) for frame in stack):
-                logger.debug(f"List.remove suppressed in Pyrogram context: {e}")
-                return
-            raise  # Re-raise if not from Pyrogram
-    
-    list.remove = safe_list_remove
-    
-    logger.info("✅ Comprehensive handler removal error suppression enabled")
+    logger.info("✅ Handler removal error suppression enabled")
 
 # Initialize suppression when module is imported
 suppress_handler_removal_errors()
