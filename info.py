@@ -1,3 +1,4 @@
+
 import re
 import os
 from dotenv import load_dotenv
@@ -59,42 +60,7 @@ class Config(object):
     DETAILED_ERRORS = os.environ.get("DETAILED_ERRORS", "false").lower() == "true"
     ERROR_LOGS_ENABLED = os.environ.get("ERROR_LOGS_ENABLED", "true").lower() == "true"
 
-    # Validate critical configuration
-    @classmethod
-    def validate(cls):
-        """Validate critical configuration"""
-        errors = []
-
-        if not cls.API_ID or cls.API_ID == 0:
-            errors.append("API_ID is required")
-
-        if not cls.API_HASH:
-            errors.append("API_HASH is required")
-
-        if not cls.BOT_TOKEN:
-            errors.append("BOT_TOKEN is required")
-
-        if not cls.DATABASE_URI:
-            errors.append("DATABASE_URI is required")
-
-        if not cls.ADMINS:
-            errors.append("At least one ADMIN is required")
-
-        if errors:
-            raise ValueError(f"Configuration errors: {', '.join(errors)}")
-
-        return True
-
-# Validate configuration on import
-if __name__ != "__main__":
-    try:
-        Config.validate()
-    except ValueError as e:
-        print(f"❌ Configuration Error: {e}")
-        print("Please check your environment variables!")
-
-
-    # Additional Configuration from second class
+    # Additional Configuration - moved inside Config class
     WEB_MODE = os.environ.get("WEB_MODE", "False").lower() in ("true", "1", "yes")
     PORT = int(os.environ.get("PORT", "5000"))
     HOST = os.environ.get("HOST", "0.0.0.0")
@@ -164,3 +130,37 @@ if __name__ != "__main__":
     ETHEREUM_ADDRESS = os.environ.get("ETHEREUM_ADDRESS", "")
     USDT_TRC20_ADDRESS = os.environ.get("USDT_TRC20_ADDRESS", "")
     USDT_ERC20_ADDRESS = os.environ.get("USDT_ERC20_ADDRESS", "")
+
+    # Validate critical configuration
+    @classmethod
+    def validate(cls):
+        """Validate critical configuration"""
+        errors = []
+
+        if not cls.API_ID or cls.API_ID == 0:
+            errors.append("API_ID is required")
+
+        if not cls.API_HASH:
+            errors.append("API_HASH is required")
+
+        if not cls.BOT_TOKEN:
+            errors.append("BOT_TOKEN is required")
+
+        if not cls.DATABASE_URI:
+            errors.append("DATABASE_URI is required")
+
+        if not cls.ADMINS:
+            errors.append("At least one ADMIN is required")
+
+        if errors:
+            raise ValueError(f"Configuration errors: {', '.join(errors)}")
+
+        return True
+
+# Validate configuration on import
+if __name__ != "__main__":
+    try:
+        Config.validate()
+    except ValueError as e:
+        print(f"❌ Configuration Error: {e}")
+        print("Please check your environment variables!")
