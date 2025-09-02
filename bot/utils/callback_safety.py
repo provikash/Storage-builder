@@ -46,11 +46,20 @@ def safe_callback_handler(func):
     return wrapper
 
 def suppress_handler_removal_errors():
-    """Suppress handler removal errors by patching the remove_handler method"""
+    """Comprehensive handler removal error suppression"""
+    
+    # Patch Client.remove_handler
     original_remove_handler = Client.remove_handler
     
     def safe_remove_handler(self, handler, group: int = 0):
         try:
+            # Check if handler exists before removing
+            if hasattr(self, 'dispatcher') and hasattr(self.dispatcher, 'groups'):
+                if group in self.dispatcher.groups:
+                    if handler not in self.dispatcher.groups[group]:
+                        logger.debug(f"Handler not in group {group}, skipping removal")
+                        return
+            
             return original_remove_handler(self, handler, group)
         except ValueError as e:
             if "list.remove(x): x not in list" in str(e):
@@ -58,12 +67,61 @@ def suppress_handler_removal_errors():
                 return  # Silently ignore
             raise  # Re-raise other ValueErrors
         except Exception as e:
-            logger.error(f"Unexpected error in remove_handler: {e}")
-            raise
+            logger.debug(f"Unexpected error in remove_handler: {e}")
+            return  # Ignore all removal errors
     
-    # Monkey patch the method
     Client.remove_handler = safe_remove_handler
-    logger.info("✅ Handler removal error suppression enabled")
+    
+    # Patch dispatcher's remove_handler method if it exists
+    try:
+        from pyrogram.dispatcher import Dispatcher
+        if hasattr(Dispatcher, 'remove_handler'):
+            original_dispatcher_remove = Dispatcher.remove_handler
+            
+            def safe_dispatcher_remove(self, handler, group: int = 0):
+                try:
+                    # Check if group and handler exist
+                    if group not in self.groups:
+                        logger.debug(f"Group {group} not found in dispatcher")
+                        return
+                    
+                    if handler not in self.groups[group]:
+                        logger.debug(f"Handler not found in group {group}")
+                        return
+                    
+                    return original_dispatcher_remove(self, handler, group)
+                except ValueError as e:
+                    if "list.remove(x): x not in list" in str(e):
+                        logger.debug(f"Dispatcher handler removal suppressed: {e}")
+                        return
+                    raise
+                except Exception as e:
+                    logger.debug(f"Dispatcher removal error suppressed: {e}")
+                    return
+            
+            Dispatcher.remove_handler = safe_dispatcher_remove
+            logger.debug("✅ Dispatcher remove_handler patched")
+    except ImportError:
+        logger.debug("Dispatcher patching skipped - not available")
+    
+    # Patch list.remove to catch the core issue
+    original_list_remove = list.remove
+    
+    def safe_list_remove(self, item):
+        try:
+            return original_list_remove(self, item)
+        except ValueError as e:
+            # Only suppress if it's from handler removal context
+            import traceback
+            stack = traceback.format_stack()
+            if any('pyrogram' in frame and ('remove_handler' in frame or 'dispatcher' in frame) for frame in stack):
+                logger.debug(f"List.remove suppressed in Pyrogram context: {e}")
+                return
+            raise  # Re-raise if not from Pyrogram
+    
+    list.remove = safe_list_remove
+    
+    logger.info("✅ Comprehensive handler removal error suppression enabled")
 
 # Initialize suppression when module is imported
 suppress_handler_removal_errors()
