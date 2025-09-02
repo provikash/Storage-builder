@@ -107,26 +107,30 @@ async def start_mother_bot():
         from bot.utils.session_cleanup import session_cleanup
         await session_cleanup.cleanup_on_start()
 
-        # Initialize and start Mother Bot with core plugins only (avoid missing modules)
+        # Initialize and start Mother Bot with full plugin access
         mother_bot_plugins = {
             "root": "bot.plugins",
             "include": [
                 "start_handler",
                 "missing_commands",
-                "step_clone_creation", 
+                "step_clone_creation",
                 "clone_management",
                 "mother_admin",
                 "admin_commands",
                 "admin_panel",
                 "balance_management",
+                "search",
                 "genlink",
                 "channel",
+                "callback_handlers",
+                "callback_fix",
                 "missing_callbacks",
                 "premium",
                 "token",
                 "stats",
                 "broadcast",
-                "clone_admin_settings"
+                "clone_admin_settings",
+                "water_about"
             ]
         }
 

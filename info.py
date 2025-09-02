@@ -64,9 +64,13 @@ class Config(object):
     PORT = int(os.environ.get("PORT", "5000"))
     HOST = os.environ.get("HOST", "0.0.0.0")
 
-    # Channel Configuration with defaults for missing vars
+    # Channel Configuration with defaults for missing vars  
     INDEX_CHANNEL_ID = int(os.environ.get("INDEX_CHANNEL_ID", "0"))
     OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
+    
+    # Update ADMINS to include OWNER_ID if it's set
+    if OWNER_ID != 0 and OWNER_ID not in ADMINS:
+        ADMINS = list(ADMINS) + [OWNER_ID]
 
     # Force Subscription - Handle both channel IDs and usernames
     FORCE_SUB_CHANNEL_RAW = os.environ.get("FORCE_SUB_CHANNEL", "").strip()
