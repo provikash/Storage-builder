@@ -862,32 +862,7 @@ async def deduct_user_balance(user_id: int, amount: float):
     print(f"DEBUG: Deducting {amount} from user {user_id}'s balance")
     pass
 
-# Placeholder for start message handler (needs to be implemented)
-@Client.on_message(filters.command("start") & filters.private)
-async def start_message_handler(client: Client, message: Message):
-    """Handles the /start command for all users."""
-    user_id = message.from_user.id
-    user_balance = await get_user_balance(user_id)
-    clone_cost = 10 # Example cost, should match the cost in create_clone_command
-
-    start_text = (
-        f"👋 Hello @{message.from_user.username}!\n\n"
-        f"💰 Your current balance is: {user_balance}\n\n"
-        f"You can create a new clone bot using the `/createclone` command.\n"
-        f"The cost to create a clone is {clone_cost}.\n\n"
-        f"**Available Commands:**\n"
-        f"• `/createclone` - Create a new clone bot\n"
-        f"• `/myclones` - View your created clones\n"
-        f"• `/addbalance` - Add balance to your account\n"
-    )
-
-    buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🚀 Create Clone", callback_data="create_clone_button")],
-        [InlineKeyboardButton("➕ Add Balance", callback_data="add_balance_button")]
-    ])
-
-    await message.reply_text(start_text, reply_markup=buttons)
-
+# Placeholder for start message handler (nee
 # Placeholder for callback query handlers (needs to be implemented)
 @Client.on_callback_query(filters.regex("create_clone_button"))
 async def handle_create_clone_button(client: Client, callback_query):

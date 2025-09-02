@@ -1421,28 +1421,3 @@ async def handle_clone_about_water(client: Client, query: CallbackQuery):
         debug_print(f"Error displaying 'About Water Info' for user {user_id}: {e}")
         await query.answer("❌ Error loading water information!", show_alert=True)
 
-# Start message modification
-@Client.on_message(filters.command("start") & filters.private)
-async def start_command_handler(client: Client, message: Message):
-    """Handles the /start command with a shortened message."""
-    user_id = message.from_user.id
-    debug_print(f"Received /start command from user {user_id}")
-
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    config = await clone_config_loader.get_bot_config(bot_token)
-    is_clone = config.get('bot_info', {}).get('is_clone', False)
-
-    if is_clone:
-        bot_username = (await client.get_me()).username
-        start_message = (
-            f"👋 Hello! Welcome to **@{bot_username}**.\n\n"
-            f"I'm your personal bot assistant. Use /help to see available commands."
-        )
-    else:
-        start_message = (
-            f"👋 Hello! Welcome to the Mother Bot.\n\n"
-            f"Manage clones, subscriptions, and more. Use /admin to access the admin panel."
-        )
-
-    await message.reply_text(start_message)
-    debug_print(f"Sent start message to user {user_id}")
