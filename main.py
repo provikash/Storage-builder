@@ -111,6 +111,7 @@ async def start_mother_bot():
         mother_bot_plugins = {
             "root": "bot.plugins",
             "include": [
+                "start_handler",
                 "missing_commands",
                 "step_clone_creation", 
                 "clone_management",

@@ -170,7 +170,7 @@ class Config(object):
 # Validate configuration on import
 if __name__ != "__main__":
     try:
-        Config.validate_extended()
+        Config.validate()
     except ValueError as e:
         print(f"❌ Configuration Error: {e}")
         print("Please check your environment variables!")

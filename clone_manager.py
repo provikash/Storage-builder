@@ -61,6 +61,7 @@ class CloneManager:
             clone_plugins = {
                 "root": "bot.plugins",
                 "include": [
+                    "start_handler",
                     "simple_file_sharing",
                     "genlink",
                     "callback_handlers",
@@ -79,8 +80,7 @@ class CloneManager:
                     "admin_panel",
                     "index",
                     "channel",
-                    "search",
-                    "start_handler"
+                    "search"
                 ]
             }
 
