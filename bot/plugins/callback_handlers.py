@@ -736,3 +736,153 @@ async def add_balance_50_callback(client: Client, query: CallbackQuery):
     ])
 
     await query.edit_message_text(text, reply_markup=buttons)
+from pyrogram import Client, filters
+from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from info import Config
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
+
+@Client.on_callback_query(filters.regex("^(back_to_start|restart)$"))
+async def back_to_start_callback(client: Client, query: CallbackQuery):
+    """Handle back to start callback"""
+    try:
+        await query.answer()
+        
+        # Simulate start command
+        user = query.from_user
+        user_id = user.id
+        
+        # Check if this is mother bot or clone bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        is_clone_bot = bot_token != Config.BOT_TOKEN
+        
+        if is_clone_bot:
+            text = f"🤖 **Welcome back {user.first_name}!**\n\n"
+            text += f"📁 **Your Personal File Bot**\n\n"
+            
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                    InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+                ],
+                [InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")],
+                [
+                    InlineKeyboardButton("👤 Profile", callback_data="user_profile"),
+                    InlineKeyboardButton("❓ Help", callback_data="help_menu")
+                ]
+            ])
+        else:
+            text = f"🚀 **Welcome back {user.first_name}!**\n\n"
+            text += f"🤖 **Bot Creator Dashboard**\n\n"
+            
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+                    InlineKeyboardButton("👤 Profile", callback_data="user_profile")
+                ],
+                [
+                    InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone"),
+                    InlineKeyboardButton("❓ Help", callback_data="help_menu")
+                ]
+            ])
+        
+        await query.edit_message_text(text, reply_markup=buttons)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in back_to_start callback: {e}")
+        await query.answer("❌ Error occurred. Please try /start command.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^help_menu$"))
+async def help_menu_callback(client: Client, query: CallbackQuery):
+    """Handle help menu callback"""
+    try:
+        await query.answer()
+        
+        help_text = """
+🤖 **Bot Help**
+
+**Available Features:**
+• File sharing and management
+• Clone bot creation
+• Premium subscriptions
+• User profiles and balances
+
+**Commands:**
+• `/start` - Start the bot
+• `/help` - Show help
+• `/profile` - View profile
+
+**Need Support?**
+Contact the administrator for assistance.
+        """
+        
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🏠 Back to Start", callback_data="back_to_start")]
+        ])
+        
+        await query.edit_message_text(help_text, reply_markup=buttons)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in help menu: {e}")
+        await query.answer("❌ Error loading help.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^user_profile$"))
+async def user_profile_callback(client: Client, query: CallbackQuery):
+    """Handle user profile callback"""
+    try:
+        await query.answer()
+        user = query.from_user
+        
+        profile_text = f"""
+👤 **User Profile**
+
+**Name:** {user.first_name}
+**Username:** @{user.username or 'Not set'}
+**User ID:** `{user.id}`
+**Status:** Free User
+
+**Account Info:**
+• Joined: Recently
+• Files Shared: 0
+• Premium: No
+
+**Actions:**
+        """
+        
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("💎 Get Premium", callback_data="premium_info"),
+                InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")
+            ],
+            [InlineKeyboardButton("🏠 Back to Start", callback_data="back_to_start")]
+        ])
+        
+        await query.edit_message_text(profile_text, reply_markup=buttons)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in user profile: {e}")
+        await query.answer("❌ Error loading profile.", show_alert=True)
+
+# Placeholder callbacks for features not yet implemented
+@Client.on_callback_query(filters.regex("^(random_files|recent_files|popular_files|premium_info|add_balance|manage_my_clone|user_stats|show_referral_main|about_water|admin_panel|start_clone_creation)$"))
+async def placeholder_callbacks(client: Client, query: CallbackQuery):
+    """Handle placeholder callbacks for features under development"""
+    try:
+        await query.answer()
+        
+        feature_name = query.data.replace('_', ' ').title()
+        
+        text = f"🚧 **{feature_name}**\n\n"
+        text += f"This feature is currently under development.\n\n"
+        text += f"Please check back later or contact the administrator."
+        
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🏠 Back to Start", callback_data="back_to_start")]
+        ])
+        
+        await query.edit_message_text(text, reply_markup=buttons)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in placeholder callback: {e}")
+        await query.answer("❌ Feature under development.", show_alert=True)

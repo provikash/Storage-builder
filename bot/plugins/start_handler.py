@@ -741,3 +741,132 @@ async def about_callback(client: Client, query: CallbackQuery):
     ])
 
     await safe_edit_message(query, text, reply_markup=buttons)
+import asyncio
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from info import Config
+from bot.database.users import add_user
+from bot.database.premium_db import is_premium_user
+from bot.database.balance_db import get_user_balance
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
+
+@Client.on_message(filters.command("start") & filters.private)
+async def start_command(client: Client, message: Message):
+    """Handle /start command"""
+    try:
+        user = message.from_user
+        user_id = user.id
+        
+        logger.info(f"🚀 /start command from user {user_id} (@{user.username})")
+        
+        # Add user to database
+        await add_user(user_id)
+        
+        # Check if user is premium
+        try:
+            user_premium = await is_premium_user(user_id)
+        except:
+            user_premium = False
+            
+        # Get user balance
+        try:
+            balance = await get_user_balance(user_id)
+        except:
+            balance = 0.0
+        
+        # Check if this is mother bot or clone bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        is_clone_bot = bot_token != Config.BOT_TOKEN
+        
+        if is_clone_bot:
+            # Clone bot welcome message
+            text = f"🤖 **Welcome {user.first_name}!**\n\n"
+            text += f"📁 **Your Personal File Bot** with secure sharing.\n\n"
+            text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+            text += f"🎯 Choose an option below:"
+            
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                    InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+                ],
+                [InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")],
+                [
+                    InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+                    InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")
+                ],
+                [
+                    InlineKeyboardButton("❓ Help", callback_data="help_menu"),
+                    InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+                ]
+            ])
+        else:
+            # Mother bot welcome message
+            text = f"🚀 **Welcome {user.first_name}!**\n\n"
+            text += f"🤖 **Advanced Bot Creator** - Create personal clone bots with file sharing.\n\n" 
+            text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+            text += f"🎯 Choose an option below:"
+            
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+                    InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+                ],
+                [
+                    InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone"),
+                    InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
+                ],
+                [
+                    InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
+                    InlineKeyboardButton("🎁 Referral Program", callback_data="show_referral_main")
+                ],
+                [InlineKeyboardButton("💧 About", callback_data="about_water")],
+                [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
+            ])
+            
+            # Add admin panel for admins
+            is_admin = user_id == Config.OWNER_ID or user_id in Config.ADMINS
+            if is_admin:
+                admin_row = [InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")]
+                buttons.inline_keyboard.append(admin_row)
+        
+        await message.reply_text(text, reply_markup=buttons)
+        logger.info(f"✅ Start message sent to user {user_id}")
+        
+    except Exception as e:
+        logger.error(f"❌ Error in start command: {e}")
+        await message.reply_text(
+            "⚠️ Something went wrong. Please try again later.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Try Again", callback_data="restart")]
+            ])
+        )
+
+@Client.on_message(filters.command("help") & filters.private)
+async def help_command(client: Client, message: Message):
+    """Handle /help command"""
+    try:
+        help_text = """
+🤖 **Bot Help**
+
+**Available Commands:**
+• `/start` - Start the bot
+• `/help` - Show this help message
+• `/profile` - View your profile
+• `/balance` - Check your balance
+
+**Need Support?**
+Contact the bot administrator for assistance.
+        """
+        
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🏠 Back to Start", callback_data="back_to_start")]
+        ])
+        
+        await message.reply_text(help_text, reply_markup=buttons)
+        
+    except Exception as e:
+        logger.error(f"❌ Error in help command: {e}")
+        await message.reply_text("⚠️ Error loading help. Please try /start")
