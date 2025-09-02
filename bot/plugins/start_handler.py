@@ -31,13 +31,13 @@ async def get_start_keyboard_for_clone_user(clone_data, bot_token=None):
     # ALWAYS show file browsing buttons to all users - token verification handles access control
     file_buttons_row1 = []
     file_buttons_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-    file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+    file_buttons_row1.append(InlineKeyboardButton("🆕 Recent Upload", callback_data="recent_files"))
 
     # Add first row
     buttons.append(file_buttons_row1)
 
     # Add popular files button in its own row
-    buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
+    buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
 
     logger.info(f"Clone user buttons: ALWAYS showing all file browsing buttons to user")
 
@@ -199,9 +199,14 @@ async def start_command(client: Client, message: Message):
     if is_clone_bot:
         # Clone bot start message
         text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
-        text += f"📁 **Your Personal File Bot** with secure sharing and search.\n\n"
+        text += f"📁 **Your Personal File Bot** - Browse, search, and download files instantly.\n\n"
+        text += f"🌟 **Features Available:**\n"
+        text += f"• 🎲 Random file discovery\n"
+        text += f"• 🆕 Latest uploaded content\n"
+        text += f"• 🔥 Most popular downloads\n"
+        text += f"• 🔍 Advanced search functionality\n\n"
         text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
-        text += f"🎯 Choose an option below:"
+        text += f"🎯 **Choose an option below:**"
 
         # Clone bot menu - check admin vs user
         if is_admin_user:
@@ -209,92 +214,85 @@ async def start_command(client: Client, message: Message):
             logger.info(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
             print(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
             
-            # Get clone data for admin menu with file buttons
-            clone_data = await get_clone_by_bot_token(bot_token)
-            
             buttons = []
             
             # Settings button for admin
             buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")])
             
-            # File access buttons based on settings (ALWAYS show for admin)
-            file_buttons = []
-            
-            # Show all file buttons for admin regardless of settings
-            file_buttons.append([
+            # File access buttons (ALWAYS show for admin)
+            buttons.append([
                 InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
-                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+                InlineKeyboardButton("🆕 Recent Upload", callback_data="recent_files")
             ])
-            file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")])
-            
-            # Add file buttons to main buttons
-            buttons.extend(file_buttons)
+            buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
             
             # Admin info buttons
             buttons.append([
-                InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats"),
+                InlineKeyboardButton("📊 My Stats", callback_data="my_stats"),
                 InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
             ])
             buttons.append([
-                InlineKeyboardButton("❓ Help", callback_data="help_menu"),
-                InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+                InlineKeyboardButton("💎 Plans", callback_data="premium_info"),
+                InlineKeyboardButton("❓ Help", callback_data="help_menu")
             ])
+            buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about_bot")])
         else:
             # Normal users get file access based on admin settings
             clone_data = await get_clone_by_bot_token(bot_token)
             buttons = await get_start_keyboard_for_clone_user(clone_data, bot_token)
 
-            # User action buttons
+            # User action buttons - Updated layout
             buttons.append([
-                InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
-                InlineKeyboardButton("💰 Add Balance", callback_data="add_balance")
+                InlineKeyboardButton("📊 My Stats", callback_data="my_stats"),
+                InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
             ])
-
-            # Always show help and about for normal users
             buttons.append([
-                InlineKeyboardButton("❓ Help", callback_data="help_menu"),
-                InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+                InlineKeyboardButton("💎 Plans", callback_data="premium_info"),
+                InlineKeyboardButton("❓ Help", callback_data="help_menu")
             ])
+            buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about_bot")])
     else:
         # Mother bot start message
-        text = f"🚀 **Welcome {message.from_user.first_name}!**\n\n"
-        text += f"🤖 **Advanced Bot Creator** - Create personal clone bots with file sharing.\n\n"
+        text = f"🚀 **Welcome to Advanced Bot Creator, {message.from_user.first_name}!**\n\n"
+        text += f"🤖 **Create & Manage Personal Clone Bots**\n"
+        text += f"Build your own file-sharing bot network with advanced features.\n\n"
+        text += f"🌟 **What You Can Do:**\n"
+        text += f"• 🤖 Create unlimited clone bots\n"
+        text += f"• 📁 Advanced file management system\n"
+        text += f"• 👥 User management & analytics\n"
+        text += f"• 💎 Premium features & monetization\n"
+        text += f"• 🔧 Complete customization control\n\n"
         text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
-        text += f"🎯 Choose an option below:"
+        text += f"🎯 **Get Started:**"
 
-        # Mother bot buttons
+        # Mother bot buttons - Updated layout as requested
         buttons = []
 
         # Row 1: Main Features
         buttons.append([
             InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
-            InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+            InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone")
         ])
 
-        # Row 2: Management & Stats
+        # Row 2: Profile & Plans
         buttons.append([
-            InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone"),
-            InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
+            InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+            InlineKeyboardButton("💎 Plans", callback_data="premium_info")
         ])
 
-        # Row 3: Premium & Referral
+        # Row 3: Help & About
         buttons.append([
-            InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
-            InlineKeyboardButton("🎁 Referral Program", callback_data="show_referral_main")
+            InlineKeyboardButton("❓ Help", callback_data="help_menu"),
+            InlineKeyboardButton("ℹ️ About", callback_data="about_water")
         ])
 
-        # Row 4: About
-        buttons.append([
-            InlineKeyboardButton("💧 About", callback_data="about_water")
-        ])
-
-        # Row 5: Help & Admin
-        help_admin_row = [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
+        # Row 4: Admin (if applicable)
         is_mother_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
         if not is_clone_bot and is_mother_admin:
-            help_admin_row.append(InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"))
-            help_admin_row.append(InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management"))
-        buttons.append(help_admin_row)
+            buttons.append([
+                InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
+                InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
+            ])
 
         reply_markup = InlineKeyboardMarkup(buttons)
 
@@ -458,10 +456,15 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
 
     if is_clone_bot:
         # Clone bot start message
-        text = f"🤖 **Welcome {user.first_name}!**\n\n"
-        text += f"📁 **Your Personal File Bot** with secure sharing and search.\n\n"
-        text += f"💎 Status: {'Premium' if user_premium else 'Free'}\n\n"
-        text += f"🎯 Choose an option below:"
+        text = f"🤖 **Welcome back {user.first_name}!**\n\n"
+        text += f"📁 **Your Personal File Bot** - Browse, search, and download files instantly.\n\n"
+        text += f"🌟 **Features Available:**\n"
+        text += f"• 🎲 Random file discovery\n"
+        text += f"• 🆕 Latest uploaded content\n"
+        text += f"• 🔥 Most popular downloads\n"
+        text += f"• 🔍 Advanced search functionality\n\n"
+        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+        text += f"🎯 **Choose an option below:**"
 
         # Check if user is clone admin
         is_admin = await is_clone_admin(client, user_id)
@@ -485,47 +488,52 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         else:
             # User action buttons for non-admin users
             file_buttons.append([
-                InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
-                InlineKeyboardButton("📊 My Stats", callback_data="my_stats")
+                InlineKeyboardButton("📊 My Stats", callback_data="my_stats"),
+                InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
             ])
-
             file_buttons.append([
-                InlineKeyboardButton("ℹ️ About", callback_data="about_bot"),
+                InlineKeyboardButton("💎 Plans", callback_data="premium_info"),
                 InlineKeyboardButton("❓ Help", callback_data="help_menu")
             ])
+            file_buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about_bot")])
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(file_buttons))
     else:
         # Mother bot logic (keep existing implementation)
         # Mother bot start message
-        text = f"🚀 **Welcome {user.first_name}!**\n\n"
-        text += f"🤖 **Advanced Bot Creator** - Create personal clone bots with file sharing.\n\n"
+        text = f"🚀 **Welcome back to Advanced Bot Creator, {user.first_name}!**\n\n"
+        text += f"🤖 **Create & Manage Personal Clone Bots**\n"
+        text += f"Build your own file-sharing bot network with advanced features.\n\n"
+        text += f"🌟 **What You Can Do:**\n"
+        text += f"• 🤖 Create unlimited clone bots\n"
+        text += f"• 📁 Advanced file management system\n"
+        text += f"• 👥 User management & analytics\n"
+        text += f"• 💎 Premium features & monetization\n"
+        text += f"• 🔧 Complete customization control\n\n"
         text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
-        text += f"🎯 Choose an option below:"
+        text += f"🎯 **Get Started:**"
 
-        # Mother bot buttons
+        # Mother bot buttons - Updated layout
         buttons = []
         buttons.append([
             InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
-            InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+            InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone")
         ])
         buttons.append([
-            InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone"),
-            InlineKeyboardButton("📊 Statistics", callback_data="user_stats")
+            InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+            InlineKeyboardButton("💎 Plans", callback_data="premium_info")
         ])
         buttons.append([
-            InlineKeyboardButton("💎 Premium", callback_data="premium_info"),
-            InlineKeyboardButton("🎁 Referral Program", callback_data="show_referral_main")
-        ])
-        buttons.append([
-            InlineKeyboardButton("💧 About", callback_data="about_water")
+            InlineKeyboardButton("❓ Help", callback_data="help_menu"),
+            InlineKeyboardButton("ℹ️ About", callback_data="about_water")
         ])
 
-        help_admin_row = [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
         is_mother_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
         if not is_clone_bot and is_mother_admin:
-            help_admin_row.append(InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"))
-        buttons.append(help_admin_row)
+            buttons.append([
+                InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
+                InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
+            ])
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
