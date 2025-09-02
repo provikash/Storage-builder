@@ -43,79 +43,58 @@ class HandlerManager:
 
             # Check if we're tracking this handler
             if client_id not in self.registered_handlers:
-                logger.debug(f"No handlers tracked for client {client_id}")
                 return False
 
             if handler not in self.registered_handlers[client_id]:
-                logger.debug(f"Handler not tracked, skipping removal")
                 return False
 
             # Check if handler exists in dispatcher groups - with better error handling
             if not hasattr(client, 'dispatcher') or not hasattr(client.dispatcher, 'groups'):
-                logger.debug(f"Client dispatcher not available")
                 # Clean up our tracking since dispatcher is unavailable
-                self.registered_handlers[client_id].discard(handler)
-                if client_id in self.client_handlers and group in self.client_handlers[client_id]:
-                    if handler in self.client_handlers[client_id][group]:
-                        self.client_handlers[client_id][group].remove(handler)
+                self._cleanup_handler_tracking(client_id, handler, group)
                 return False
 
             if group not in client.dispatcher.groups:
-                logger.debug(f"Group {group} not found in dispatcher")
                 # Clean up our tracking since group doesn't exist
-                self.registered_handlers[client_id].discard(handler)
-                if client_id in self.client_handlers and group in self.client_handlers[client_id]:
-                    if handler in self.client_handlers[client_id][group]:
-                        self.client_handlers[client_id][group].remove(handler)
+                self._cleanup_handler_tracking(client_id, handler, group)
                 return False
 
             # Double-check handler existence before removal
             if handler not in client.dispatcher.groups[group]:
-                logger.debug(f"Handler not found in group {group}, cleaning up tracking")
                 # Remove from our tracking since it's not in dispatcher
-                self.registered_handlers[client_id].discard(handler)
-                if client_id in self.client_handlers and group in self.client_handlers[client_id]:
-                    if handler in self.client_handlers[client_id][group]:
-                        self.client_handlers[client_id][group].remove(handler)
+                self._cleanup_handler_tracking(client_id, handler, group)
                 return False
 
-            # Perform the actual removal with extra safety
+            # Perform the actual removal with extra safety - this is now handled by callback_safety.py
             try:
                 client.remove_handler(handler, group)
-                logger.debug(f"✅ Handler removed safely from group {group}")
-            except ValueError as ve:
-                # Handler was already removed by another process
-                logger.debug(f"Handler already removed from dispatcher: {ve}")
-                # Still update our tracking
-                self.registered_handlers[client_id].discard(handler)
-                if client_id in self.client_handlers and group in self.client_handlers[client_id]:
-                    if handler in self.client_handlers[client_id][group]:
-                        self.client_handlers[client_id][group].remove(handler)
+                # Update tracking only after successful removal
+                self._cleanup_handler_tracking(client_id, handler, group)
+                return True
+            except ValueError:
+                # Handler was already removed - clean up tracking
+                self._cleanup_handler_tracking(client_id, handler, group)
                 return False
 
-            # Update tracking only after successful removal
-            self.registered_handlers[client_id].discard(handler)
-            if client_id in self.client_handlers and group in self.client_handlers[client_id]:
-                if handler in self.client_handlers[client_id][group]:
-                    self.client_handlers[client_id][group].remove(handler)
-
-            return True
-
-        except (ValueError, KeyError, AttributeError) as e:
-            logger.debug(f"Handler removal failed (expected): {e}")
+        except Exception as e:
             # Clean up tracking on any failure
             try:
                 client_id = str(id(client))
-                self.registered_handlers[client_id].discard(handler)
-                if client_id in self.client_handlers and group in self.client_handlers[client_id]:
-                    if handler in self.client_handlers[client_id][group]:
-                        self.client_handlers[client_id][group].remove(handler)
+                self._cleanup_handler_tracking(client_id, handler, group)
             except:
                 pass
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error removing handler: {e}")
-            return False
+
+    def _cleanup_handler_tracking(self, client_id: str, handler: Any, group: int):
+        """Helper method to clean up handler tracking"""
+        try:
+            if client_id in self.registered_handlers:
+                self.registered_handlers[client_id].discard(handler)
+            if client_id in self.client_handlers and group in self.client_handlers[client_id]:
+                if handler in self.client_handlers[client_id][group]:
+                    self.client_handlers[client_id][group].remove(handler)
+        except Exception:
+            pass  # Ignore cleanup errors
 
     async def cleanup_all_handlers(self, client: Client):
         """Cleanup all handlers for a client"""
