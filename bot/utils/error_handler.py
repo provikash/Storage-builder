@@ -1,63 +1,85 @@
 import logging
 import traceback
-from functools import wraps
-from typing import Callable, Any
-from pyrogram import Client
-from pyrogram.types import Message, CallbackQuery
-from pyrogram.errors import (
-    FloodWait, UserIsBlocked, ChatAdminRequired,
-    MessageNotModified, QueryIdInvalid, UserNotParticipant,
-    ChatWriteForbidden, MessageIdInvalid
-)
 import asyncio
-from pyrogram import enums
+from typing import Optional, Dict, Any
+from pyrogram.errors import (
+    FloodWait, UserIsBlocked, ChatWriteForbidden,
+    MessageNotModified, ButtonDataInvalid, QueryIdInvalid,
+    MessageIdInvalid, UserNotParticipant, ChannelPrivate
+)
 
 logger = logging.getLogger(__name__)
 
-class ErrorHandler:
-    """Centralized error handling system"""
+class ProductionErrorHandler:
+    """Production-ready error handler with comprehensive logging and recovery"""
 
-    @staticmethod
-    async def handle_pyrogram_error(error: Exception, context: str = "Unknown") -> str:
-        """Handle Pyrogram-specific errors"""
+    def __init__(self):
+        self.error_counts = {}
+        self.max_error_count = 10
+        self.error_window = 3600  # 1 hour
 
+    async def handle_error(self, error: Exception, context: str, user_id: Optional[int] = None) -> str:
+        """Handle errors with appropriate responses and logging"""
+
+        # Log the error
+        await self.log_error(error, context, user_id)
+
+        # Track error frequency
+        error_key = f"{type(error).__name__}:{context}"
+        current_time = asyncio.get_event_loop().time()
+
+        if error_key not in self.error_counts:
+            self.error_counts[error_key] = []
+
+        # Clean old errors
+        self.error_counts[error_key] = [
+            t for t in self.error_counts[error_key]
+            if current_time - t < self.error_window
+        ]
+
+        self.error_counts[error_key].append(current_time)
+
+        # Check if error is too frequent
+        if len(self.error_counts[error_key]) > self.max_error_count:
+            logger.critical(f"Too many {error_key} errors in the last hour!")
+            return "System temporarily unavailable. Please try again later."
+
+        # Handle specific error types
         if isinstance(error, FloodWait):
             wait_time = error.value
-            logger.warning(f"FloodWait: {wait_time}s in {context}")
-            # Don't sleep here in error handler, let the caller handle it
-            return f"Rate limited. Please wait {wait_time} seconds."
+            logger.warning(f"FloodWait: {wait_time} seconds in {context}")
+            if wait_time < 60:
+                await asyncio.sleep(wait_time + 1)
+                return None  # Retry after waiting
+            else:
+                return f"Rate limited. Please try again in {wait_time // 60} minutes."
 
         elif isinstance(error, UserIsBlocked):
-            logger.warning(f"User blocked bot in {context}")
-            return "Unable to send message - user has blocked the bot."
-
-        elif isinstance(error, ChatAdminRequired):
-            logger.error(f"Admin rights required in {context}")
-            return "Bot needs admin rights to perform this action."
-
-        elif isinstance(error, MessageNotModified):
-            logger.debug(f"Message not modified in {context}")
-            return "Message content is already up to date."
-
-        elif isinstance(error, QueryIdInvalid):
-            logger.warning(f"Invalid query ID in {context}")
-            return "This button has expired. Please try again."
-
-        elif isinstance(error, UserNotParticipant):
-            logger.info(f"User not participant in {context}")
-            return "You need to join the required channel first."
+            logger.warning(f"User {user_id} blocked the bot")
+            return "Unable to send message - bot is blocked."
 
         elif isinstance(error, ChatWriteForbidden):
             logger.error(f"Chat write forbidden in {context}")
             return "Cannot send messages to this chat."
 
+        elif isinstance(error, (MessageNotModified, ButtonDataInvalid, QueryIdInvalid)):
+            logger.warning(f"Message/Query error in {context}: {error}")
+            return None  # Silent handling for UI errors
+
+        elif isinstance(error, MessageIdInvalid):
+            logger.warning(f"Invalid message ID in {context}")
+            return "Message no longer available."
+
+        elif isinstance(error, (UserNotParticipant, ChannelPrivate)):
+            logger.warning(f"Access denied in {context}")
+            return "Access denied or channel is private."
+
         else:
             logger.error(f"Unhandled error in {context}: {error}")
-            return f"An unexpected error occurred: {str(error)}"
+            return "An unexpected error occurred. Please try again."
 
-    @staticmethod
-    async def log_error(error: Exception, context: str, user_id: int = None):
-        """Log error details"""
+    async def log_error(self, error: Exception, context: str, user_id: Optional[int] = None):
+        """Log error details with full context"""
         error_details = {
             'context': context,
             'error_type': type(error).__name__,
@@ -68,108 +90,22 @@ class ErrorHandler:
 
         logger.error(f"Error in {context}: {error_details}")
 
-def error_handler(context: str = "Unknown"):
-    """Decorator for handling errors in bot functions"""
-    def decorator(func: Callable) -> Callable:
-        @wraps(func)
-        async def wrapper(*args, **kwargs) -> Any:
-            try:
+        # Store critical errors for monitoring
+        if isinstance(error, (ConnectionError, TimeoutError)):
+            logger.critical(f"Critical system error: {error_details}")
+
+    async def safe_execute(self, func, *args, context: str = "unknown", user_id: Optional[int] = None, **kwargs):
+        """Safely execute a function with error handling"""
+        try:
+            if asyncio.iscoroutinefunction(func):
                 return await func(*args, **kwargs)
-            except Exception as e:
-                # Try to extract user_id and client from args
-                user_id = None
-                client = None
-                message = None
-
-                for arg in args:
-                    if isinstance(arg, Client):
-                        client = arg
-                    elif isinstance(arg, (Message, CallbackQuery)):
-                        message = arg
-                        user_id = arg.from_user.id if arg.from_user else None
-
-                # Log the error
-                await ErrorHandler.log_error(e, context, user_id)
-
-                # Handle Pyrogram errors
-                error_message = await ErrorHandler.handle_pyrogram_error(e, context)
-
-                # Try to send error message to user
-                if message and client:
-                    try:
-                        if isinstance(message, CallbackQuery):
-                            await message.answer(error_message, show_alert=True)
-                        else:
-                            await message.reply_text(f"❌ {error_message}")
-                    except Exception as send_error:
-                        logger.error(f"Failed to send error message: {send_error}")
-
-                return None
-        return wrapper
-    return decorator
-
-async def safe_edit_message(query, text, reply_markup=None, **kwargs):
-    """Safely edit message with error handling"""
-    try:
-        # Check if the message content would actually change
-        if hasattr(query, 'message') and hasattr(query.message, 'text'):
-            current_text = query.message.text or ""
-            if current_text.strip() == text.strip():
-                logger.debug("Message content unchanged, skipping edit")
-                return True
-
-        await query.edit_message_text(text, reply_markup=reply_markup, **kwargs)
-        return True
-    except MessageNotModified:
-        logger.debug("Message not modified - content unchanged")
-        return True  # This is actually success since message is already correct
-    except Exception as e:
-        logger.error(f"Error editing message: {e}")
-        try:
-            # Fallback: try to send new message instead
-            if hasattr(query, 'message') and hasattr(query.message, 'reply_text'):
-                await query.message.reply_text(text, reply_markup=reply_markup, **kwargs)
-                return True
-        except:
-            pass
-        return False
-
-async def safe_answer_callback(query, text="", show_alert=False):
-    """Safely answer callback queries"""
-    try:
-        await query.answer(text, show_alert=show_alert)
-    except Exception as e:
-        logger.error(f"Error answering callback: {e}")
-
-async def safe_remove_handler(client, handler, group: int = 0):
-    """Safely remove handler to prevent ValueError"""
-    try:
-        # Import handler manager to use centralized removal
-        from bot.utils.handler_manager import handler_manager
-        return await handler_manager.safe_remove_handler(client, handler, group)
-    except ImportError:
-        # Fallback to direct removal
-        try:
-            if hasattr(client, 'dispatcher') and hasattr(client.dispatcher, 'groups'):
-                if group in client.dispatcher.groups and handler in client.dispatcher.groups[group]:
-                    client.remove_handler(handler, group)
-                    return True
-            return False
-        except (ValueError, KeyError, AttributeError) as e:
-            logger.debug(f"Handler removal failed (expected): {e}")
-            return False
+            else:
+                return func(*args, **kwargs)
         except Exception as e:
-            logger.error(f"Unexpected error removing handler: {e}")
-            return False
+            error_msg = await self.handle_error(e, context, user_id)
+            if error_msg:
+                logger.warning(f"Error handled in {context}: {error_msg}")
+            return None
 
-def handle_database_lock():
-    """Handle SQLite database lock by using in-memory storage"""
-    try:
-        import os
-        session_files = [f for f in os.listdir('.') if f.endswith('.session')]
-        for session_file in session_files:
-            if os.path.exists(session_file + '-journal'):
-                os.remove(session_file + '-journal')
-                logger.info(f"Removed journal file: {session_file}-journal")
-    except Exception as e:
-        logger.error(f"Error handling database lock: {e}")
+# Global instance
+error_handler = ProductionErrorHandler()

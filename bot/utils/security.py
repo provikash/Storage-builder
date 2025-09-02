@@ -1,240 +1,190 @@
 
-import re
-import html
 import hashlib
 import hmac
+import secrets
 import time
-from typing import Any, Union, Optional
-from functools import wraps
 import logging
+from typing import Optional, Dict, Set
+from pyrogram.types import User, Message
+from info import Config
 
 logger = logging.getLogger(__name__)
 
-class SecurityValidator:
-    """Enhanced security validation and sanitization utilities"""
-
-    # Dangerous patterns that should be rejected
-    SQL_INJECTION_PATTERNS = [
-        r"(union|select|insert|update|delete|drop|create|alter|exec|execute)",
-        r"(\$ne|\$regex|\$where|\$or|\$and)",
-        r"(javascript:|<script|</script>)",
-        r"(--|#|/\*|\*/)",
-        r"('|\"|;|\\)",
-        r"(eval\(|setTimeout\(|setInterval\()",
-        r"(document\.|window\.|location\.)"
-    ]
-
-    # File path traversal patterns
-    PATH_TRAVERSAL_PATTERNS = [
-        r"\.\./",
-        r"\.\.\\",
-        r"/etc/",
-        r"\\windows\\",
-        r"system32",
-        r"/proc/",
-        r"/sys/",
-        r"passwd",
-        r"shadow"
-    ]
-
-    # XSS patterns
-    XSS_PATTERNS = [
-        r"<script[^>]*>.*?</script>",
-        r"javascript:",
-        r"vbscript:",
-        r"onload\s*=",
-        r"onerror\s*=",
-        r"onclick\s*=",
-        r"onmouseover\s*="
-    ]
-
-    @staticmethod
-    def generate_secure_token(length: int = 32) -> str:
-        """Generate a cryptographically secure random token"""
-        import secrets
-        return secrets.token_urlsafe(length)
-
-    @staticmethod
-    def hash_password(password: str, salt: Optional[str] = None) -> tuple:
-        """Hash password with salt using PBKDF2"""
-        if salt is None:
-            import os
-            salt = os.urandom(32)
-        elif isinstance(salt, str):
-            salt = salt.encode('utf-8')
+class SecurityManager:
+    """Production security manager with rate limiting and access control"""
+    
+    def __init__(self):
+        self.rate_limits: Dict[int, Dict[str, float]] = {}
+        self.blocked_users: Set[int] = set()
+        self.admin_sessions: Dict[int, float] = {}
+        self.failed_attempts: Dict[int, int] = {}
         
-        pwdhash = hashlib.pbkdf2_hmac('sha256', 
-                                      password.encode('utf-8'), 
-                                      salt, 
-                                      100000)  # 100k iterations
-        return pwdhash, salt
-
-    @staticmethod
-    def verify_password(password: str, stored_hash: bytes, salt: bytes) -> bool:
-        """Verify password against stored hash"""
-        pwdhash, _ = SecurityValidator.hash_password(password, salt)
-        return hmac.compare_digest(pwdhash, stored_hash)
-
-    @staticmethod
-    def sanitize_search_query(query: str) -> str:
-        """Enhanced search query sanitization"""
-        if not isinstance(query, str):
-            raise ValueError("Query must be a string")
-
-        # Remove null bytes and control characters
-        query = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', query)
-
-        # Check for dangerous patterns
-        for pattern in SecurityValidator.SQL_INJECTION_PATTERNS:
-            if re.search(pattern, query, re.IGNORECASE):
-                logger.warning(f"Potentially dangerous query pattern detected: {pattern}")
-                raise ValueError(f"Query contains potentially dangerous content")
-
-        # Check for XSS patterns
-        for pattern in SecurityValidator.XSS_PATTERNS:
-            if re.search(pattern, query, re.IGNORECASE):
-                logger.warning(f"XSS pattern detected in query: {pattern}")
-                raise ValueError(f"Query contains potentially dangerous content")
-
-        # Limit query length
-        if len(query) > 100:
-            raise ValueError("Query too long (max 100 characters)")
-
-        # Remove excessive whitespace
-        query = ' '.join(query.split())
-
-        # HTML encode for safety
-        return html.escape(query.strip())
-
-    @staticmethod
-    def sanitize_filename(filename: str) -> str:
-        """Enhanced filename sanitization"""
-        if not isinstance(filename, str):
-            raise ValueError("Filename must be a string")
-
-        # Remove null bytes and control characters
-        filename = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', filename)
-
-        # Check for path traversal attempts
-        for pattern in SecurityValidator.PATH_TRAVERSAL_PATTERNS:
-            if re.search(pattern, filename, re.IGNORECASE):
-                logger.warning(f"Path traversal attempt detected: {pattern}")
-                raise ValueError("Filename contains potentially dangerous path elements")
-
-        # Remove or replace dangerous characters
-        filename = re.sub(r'[<>:"/\\|?*]', '_', filename)
-
-        # Remove leading/trailing dots and spaces
-        filename = filename.strip('. ')
-
-        # Ensure filename isn't empty
-        if not filename:
-            filename = "unnamed_file"
-
-        # Limit filename length
-        if len(filename) > 255:
-            name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
-            max_name_length = 250 - len(ext) - 1 if ext else 250
-            filename = name[:max_name_length] + ('.' + ext if ext else '')
-
-        return html.escape(filename)
-
-    @staticmethod
-    def validate_user_id(user_id) -> Optional[int]:
-        """Enhanced user ID validation"""
-        if user_id is None:
-            return None
-
+        # Rate limit settings
+        self.rate_limit_window = 60  # 1 minute
+        self.max_requests_per_minute = 20
+        self.admin_max_requests = 60
+        
+        # Security settings
+        self.max_failed_attempts = 5
+        self.lockout_duration = 3600  # 1 hour
+        self.session_timeout = 7200  # 2 hours
+        
+    def validate_bot_token(self, token: str) -> bool:
+        """Validate bot token format"""
+        if not token or not isinstance(token, str):
+            return False
+            
+        parts = token.split(':')
+        if len(parts) != 2:
+            return False
+            
         try:
-            user_id = int(user_id)
-            # Telegram user IDs are positive integers within specific range
-            if user_id <= 0 or user_id > 2**53 - 1:  # JavaScript safe integer limit
-                logger.warning(f"User ID out of valid range: {user_id}")
-                raise ValueError("Invalid user ID range")
-            return user_id
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Invalid user_id format: {user_id} - {e}")
-            return None
-
-    @staticmethod
-    def validate_file_size(file_size) -> int:
-        """Enhanced file size validation"""
-        if file_size is None:
-            return 0
-
+            bot_id = int(parts[0])
+            token_hash = parts[1]
+            return len(token_hash) == 35 and bot_id > 0
+        except ValueError:
+            return False
+    
+    def validate_api_credentials(self, api_id: str, api_hash: str) -> bool:
+        """Validate API credentials format"""
         try:
-            file_size = int(file_size)
-            if file_size < 0:
-                return 0
-            # Max file size 2GB (Telegram limit)
-            if file_size > 2147483648:
-                logger.warning(f"File size {file_size} exceeds maximum limit")
-                return 2147483648
-            return file_size
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Invalid file_size format: {file_size} - {e}")
-            return 0
-
-    @staticmethod
-    def validate_message_id(message_id) -> Optional[int]:
-        """Validate Telegram message ID"""
-        if message_id is None:
-            return None
-
-        try:
-            message_id = int(message_id)
-            if message_id <= 0:
-                return None
-            return message_id
+            api_id_int = int(api_id)
+            return (
+                api_id_int > 0 and 
+                len(api_hash) == 32 and 
+                all(c in '0123456789abcdef' for c in api_hash.lower())
+            )
         except (ValueError, TypeError):
-            return None
-
-    @staticmethod
-    def is_safe_url(url: str) -> bool:
-        """Check if URL is safe (basic validation)"""
-        if not isinstance(url, str):
+            return False
+    
+    def is_rate_limited(self, user_id: int, action: str = "default") -> bool:
+        """Check if user is rate limited"""
+        current_time = time.time()
+        
+        if user_id not in self.rate_limits:
+            self.rate_limits[user_id] = {}
+        
+        user_limits = self.rate_limits[user_id]
+        
+        # Clean old entries
+        cutoff_time = current_time - self.rate_limit_window
+        user_limits = {k: v for k, v in user_limits.items() if v > cutoff_time}
+        self.rate_limits[user_id] = user_limits
+        
+        # Check limits
+        action_key = f"{action}:{int(current_time // self.rate_limit_window)}"
+        requests_this_window = sum(1 for k in user_limits.keys() if k.startswith(action))
+        
+        max_requests = self.admin_max_requests if self.is_admin(user_id) else self.max_requests_per_minute
+        
+        if requests_this_window >= max_requests:
+            logger.warning(f"Rate limit exceeded for user {user_id}, action {action}")
+            return True
+        
+        # Record this request
+        user_limits[action_key] = current_time
+        return False
+    
+    def is_admin(self, user_id: int) -> bool:
+        """Check if user is admin"""
+        return user_id in Config.ADMINS
+    
+    def is_blocked(self, user_id: int) -> bool:
+        """Check if user is blocked"""
+        return user_id in self.blocked_users
+    
+    def block_user(self, user_id: int, reason: str = "Security violation"):
+        """Block a user"""
+        self.blocked_users.add(user_id)
+        logger.warning(f"User {user_id} blocked: {reason}")
+    
+    def unblock_user(self, user_id: int):
+        """Unblock a user"""
+        self.blocked_users.discard(user_id)
+        logger.info(f"User {user_id} unblocked")
+    
+    def record_failed_attempt(self, user_id: int):
+        """Record a failed authentication attempt"""
+        self.failed_attempts[user_id] = self.failed_attempts.get(user_id, 0) + 1
+        
+        if self.failed_attempts[user_id] >= self.max_failed_attempts:
+            self.block_user(user_id, f"Too many failed attempts ({self.failed_attempts[user_id]})")
+    
+    def sanitize_input(self, text: str, max_length: int = 4096) -> str:
+        """Sanitize user input"""
+        if not isinstance(text, str):
+            return ""
+        
+        # Remove null bytes and control characters
+        sanitized = ''.join(char for char in text if ord(char) >= 32 or char in '\n\r\t')
+        
+        # Limit length
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length] + "..."
+        
+        return sanitized
+    
+    def create_secure_token(self) -> str:
+        """Create a secure random token"""
+        return secrets.token_urlsafe(32)
+    
+    def verify_signature(self, data: str, signature: str, secret: str) -> bool:
+        """Verify HMAC signature"""
+        try:
+            expected = hmac.new(
+                secret.encode(),
+                data.encode(),
+                hashlib.sha256
+            ).hexdigest()
+            return hmac.compare_digest(signature, expected)
+        except Exception:
+            return False
+    
+    async def security_check(self, message: Message) -> bool:
+        """Perform comprehensive security check"""
+        user_id = message.from_user.id
+        
+        # Check if user is blocked
+        if self.is_blocked(user_id):
+            logger.warning(f"Blocked user {user_id} attempted access")
             return False
         
-        # Check for dangerous protocols
-        dangerous_protocols = ['javascript:', 'vbscript:', 'data:', 'file:']
-        for protocol in dangerous_protocols:
-            if url.lower().startswith(protocol):
-                return False
+        # Check rate limiting
+        if self.is_rate_limited(user_id):
+            logger.warning(f"Rate limited user {user_id}")
+            return False
         
-        # Check for valid HTTP/HTTPS
-        return url.startswith(('http://', 'https://'))
-
-def rate_limit_decorator(max_calls: int = 10, time_window: int = 60):
-    """Rate limiting decorator"""
-    def decorator(func):
-        calls = {}
+        # Check message content
+        if message.text:
+            sanitized = self.sanitize_input(message.text)
+            if len(sanitized) != len(message.text):
+                logger.warning(f"Suspicious input from user {user_id}")
         
-        @wraps(func)
-        async def wrapper(*args, **kwargs):
-            now = time.time()
-            # Get user_id from args or kwargs
-            user_id = None
-            if args and hasattr(args[1], 'from_user'):
-                user_id = args[1].from_user.id
-            elif 'message' in kwargs and hasattr(kwargs['message'], 'from_user'):
-                user_id = kwargs['message'].from_user.id
-            
-            if user_id:
-                # Clean old entries
-                calls[user_id] = [call_time for call_time in calls.get(user_id, []) 
-                                if now - call_time < time_window]
-                
-                # Check rate limit
-                if len(calls.get(user_id, [])) >= max_calls:
-                    logger.warning(f"Rate limit exceeded for user {user_id}")
-                    return
-                
-                # Record this call
-                calls.setdefault(user_id, []).append(now)
-            
-            return await func(*args, **kwargs)
-        return wrapper
-    return decorator
+        return True
+    
+    def cleanup_old_data(self):
+        """Clean up old security data"""
+        current_time = time.time()
+        
+        # Clean rate limits
+        for user_id in list(self.rate_limits.keys()):
+            cutoff_time = current_time - self.rate_limit_window
+            user_limits = {k: v for k, v in self.rate_limits[user_id].items() if v > cutoff_time}
+            if user_limits:
+                self.rate_limits[user_id] = user_limits
+            else:
+                del self.rate_limits[user_id]
+        
+        # Clean admin sessions
+        session_cutoff = current_time - self.session_timeout
+        self.admin_sessions = {k: v for k, v in self.admin_sessions.items() if v > session_cutoff}
+        
+        # Reset failed attempts after lockout period
+        lockout_cutoff = current_time - self.lockout_duration
+        for user_id in list(self.failed_attempts.keys()):
+            if user_id in self.blocked_users:
+                # Unblock after lockout period (basic auto-unblock)
+                pass  # Keep manual control for now
 
-# Global security instance
-security = SecurityValidator()
+# Global instance
+security_manager = SecurityManager()
