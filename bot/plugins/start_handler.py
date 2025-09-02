@@ -197,7 +197,7 @@ async def start_command(client: Client, message: Message):
 
     # Create main menu buttons based on bot type
     if is_clone_bot:
-        # Clone bot start message
+        # Clone bot start message - as requested in the specification
         text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
         text += f"📁 **Your Personal File Bot** - Browse, search, and download files instantly.\n\n"
         text += f"🌟 **Features Available:**\n"
@@ -237,22 +237,27 @@ async def start_command(client: Client, message: Message):
             ])
             buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about_bot")])
         else:
-            # Normal users get file access based on admin settings
-            clone_data = await get_clone_by_bot_token(bot_token)
-            buttons = await get_start_keyboard_for_clone_user(clone_data, bot_token)
-
-            # User action buttons - Updated layout
+            # Normal clone bot users - as specified in the requirements
+            buttons = []
+            
+            # File browsing buttons for regular users
+            buttons.append([
+                InlineKeyboardButton("🎲 Random Upload", callback_data="random_files"),
+                InlineKeyboardButton("🆕 Recent Upload", callback_data="recent_files")
+            ])
+            buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
+            
+            # User action buttons as specified in requirements
             buttons.append([
                 InlineKeyboardButton("📊 My Stats", callback_data="my_stats"),
-                InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+                InlineKeyboardButton("❓ Help", callback_data="help_menu")
             ])
             buttons.append([
                 InlineKeyboardButton("💎 Plans", callback_data="premium_info"),
-                InlineKeyboardButton("❓ Help", callback_data="help_menu")
+                InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
             ])
-            buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about_bot")])
     else:
-        # Mother bot start message
+        # Mother bot start message - as specified in requirements
         text = f"🚀 **Welcome to Advanced Bot Creator, {message.from_user.first_name}!**\n\n"
         text += f"🤖 **Create & Manage Personal Clone Bots**\n"
         text += f"Build your own file-sharing bot network with advanced features.\n\n"
@@ -265,36 +270,32 @@ async def start_command(client: Client, message: Message):
         text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
         text += f"🎯 **Get Started:**"
 
-        # Mother bot buttons - Updated layout as requested
+        # Mother bot buttons - as specified in requirements
         buttons = []
 
-        # Row 1: Main Features
+        # Row 1: Main Features - Create Clone, My Clones, My Profile, Plans
         buttons.append([
             InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
             InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone")
         ])
-
-        # Row 2: Profile & Plans
         buttons.append([
             InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
             InlineKeyboardButton("💎 Plans", callback_data="premium_info")
         ])
 
-        # Row 3: Help & About
+        # Row 2: Help & About
         buttons.append([
             InlineKeyboardButton("❓ Help", callback_data="help_menu"),
             InlineKeyboardButton("ℹ️ About", callback_data="about_water")
         ])
 
-        # Row 4: Admin (if applicable)
+        # Admin panel for admins
         is_mother_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
         if not is_clone_bot and is_mother_admin:
             buttons.append([
                 InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
                 InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
             ])
-
-        reply_markup = InlineKeyboardMarkup(buttons)
 
     await message.reply_text(
         text,
@@ -708,19 +709,18 @@ async def help_callback(client: Client, query: CallbackQuery):
 
 @Client.on_callback_query(filters.regex("^about_bot$"))
 async def about_callback(client: Client, query: CallbackQuery):
-    """Show about information"""
+    """Show about information for clone bot"""
     await query.answer()
 
-    text = f"ℹ️ **About Advanced File Storage Bot Creator**\n\n"
+    text = f"ℹ️ **About Advanced File Storage Bot**\n\n"
     text += f"🔐 **Next-Generation File Management System**\n"
-    text += f"The most advanced Telegram file storage and bot creation platform\n\n"
+    text += f"Your personal file storage and sharing solution\n\n"
     text += f"🌟 **Core Features:**\n"
     text += f"• 🔗 Generate secure download links\n"
     text += f"• 🔑 Advanced token verification system\n"
     text += f"• 📦 Intelligent batch file operations\n"
     text += f"• 🚫 Robust force subscription system\n"
     text += f"• 💎 Premium user tier benefits\n"
-    text += f"• 🤖 Personal clone bot creation\n"
     text += f"• 📊 Comprehensive analytics dashboard\n"
     text += f"• 🔒 Military-grade encryption\n\n"
 
@@ -734,16 +734,66 @@ async def about_callback(client: Client, query: CallbackQuery):
     text += f"• 24/7 monitoring & health checks\n\n"
 
     text += f"🔧 **Version:** 3.0.0 Advanced\n"
-    text += f"👨‍💻 **Developer:** @{Config.ADMIN_USERNAME}"
+    text += f"👨‍💻 **Developer:** @{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"
 
     buttons = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📞 Contact Developer", url=f"https://t.me/{Config.ADMIN_USERNAME}"),
+            InlineKeyboardButton("📞 Contact Developer", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"),
             InlineKeyboardButton("⭐ Rate Bot", callback_data="rate_bot")
         ],
         [
             InlineKeyboardButton("🐛 Report Bug", callback_data="report_bug"),
             InlineKeyboardButton("💡 Suggest Feature", callback_data="suggest_feature")
+        ],
+        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+    ])
+
+    await safe_edit_message(query, text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^about_water$"))
+async def about_water_callback(client: Client, query: CallbackQuery):
+    """Show about information for mother bot"""
+    await query.answer()
+
+    text = f"💧 **About Water Bot Creator System**\n\n"
+    text += f"🚀 **Advanced Bot Creation Platform**\n"
+    text += f"The most sophisticated Telegram bot cloning and management system\n\n"
+    text += f"🌟 **Platform Features:**\n"
+    text += f"• 🤖 Unlimited clone bot creation\n"
+    text += f"• 📁 Advanced file management system\n"
+    text += f"• 👥 Comprehensive user management\n"
+    text += f"• 💎 Premium monetization features\n"
+    text += f"• 🔧 Complete customization control\n"
+    text += f"• 📊 Real-time analytics & monitoring\n"
+    text += f"• 🔒 Enterprise-grade security\n"
+    text += f"• ⚡ Lightning-fast performance\n\n"
+
+    text += f"🛡️ **Security & Reliability:**\n"
+    text += f"Built with enterprise-grade security protocols and 99.9% uptime guarantee.\n\n"
+
+    text += f"💻 **Advanced Technology Stack:**\n"
+    text += f"• Python 3.11+ with Pyrogram\n"
+    text += f"• MongoDB with advanced indexing\n"
+    text += f"• Redis caching layer\n"
+    text += f"• Distributed architecture\n"
+    text += f"• Real-time health monitoring\n\n"
+
+    text += f"🔧 **Version:** 3.0.0 Advanced\n"
+    text += f"👨‍💻 **Developer:** @{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}\n"
+    text += f"🌊 **Powered by Water Technology**"
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📞 Contact Developer", url=f"https://t.me/{Config.ADMIN_USERNAME if hasattr(Config, 'ADMIN_USERNAME') else 'admin'}"),
+            InlineKeyboardButton("⭐ Rate Platform", callback_data="rate_bot")
+        ],
+        [
+            InlineKeyboardButton("📚 Documentation", callback_data="documentation"),
+            InlineKeyboardButton("💡 Feature Request", callback_data="suggest_feature")
+        ],
+        [
+            InlineKeyboardButton("🐛 Report Issue", callback_data="report_bug"),
+            InlineKeyboardButton("💬 Join Community", url="https://t.me/your_support_group")
         ],
         [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
     ])
