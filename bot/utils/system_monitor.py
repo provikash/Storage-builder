@@ -42,14 +42,34 @@ class SystemMonitor:
         logger.info("📊 System monitoring stopped")
     
     async def collect_metrics(self):
-        """Collect system metrics"""
+        """Collect system metrics with error recovery"""
+        from bot.utils.error_handler import safe_execute_async, ErrorRecoveryConfig
+        from bot.logging import get_context_logger
+        
+        context_logger = get_context_logger(__name__).add_context(operation="collect_metrics")
+        
         try:
             timestamp = time.time()
             
-            # CPU metrics
-            cpu_percent = psutil.cpu_percent(interval=1)
-            cpu_count = psutil.cpu_count()
-            load_avg = psutil.getloadavg() if hasattr(psutil, 'getloadavg') else (0, 0, 0)
+            # CPU metrics with fallback
+            async def get_cpu_metrics():
+                cpu_percent = psutil.cpu_percent(interval=1)
+                cpu_count = psutil.cpu_count()
+                load_avg = psutil.getloadavg() if hasattr(psutil, 'getloadavg') else (0, 0, 0)
+                return cpu_percent, cpu_count, load_avg
+            
+            cpu_data = await safe_execute_async(
+                get_cpu_metrics,
+                config=ErrorRecoveryConfig(
+                    max_retries=2,
+                    retry_delay=0.5,
+                    fallback_value=(0, 1, (0, 0, 0)),
+                    log_errors=True
+                ),
+                context={"metric_type": "cpu"}
+            )
+            
+            cpu_percent, cpu_count, load_avg = cpu_data
             
             # Memory metrics
             memory = psutil.virtual_memory()

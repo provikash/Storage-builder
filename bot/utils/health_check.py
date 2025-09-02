@@ -169,32 +169,42 @@ class HealthChecker:
             return {'status': 'critical', 'error': str(e)}
     
     async def check_database(self) -> Dict[str, Any]:
-        """Check database connectivity"""
+        """Check database connectivity with enhanced error detection"""
+        from bot.database.connection_manager import db_manager
+        from bot.logging import get_context_logger
+        
+        context_logger = get_context_logger(__name__).add_context(check_type="database")
+        
         try:
-            from bot.database.mongo_db import MongoDB
+            context_logger.debug("Starting database health check")
+            health_result = await db_manager.health_check()
             
-            mongo = MongoDB()
-            start_time = time.time()
-            await mongo.test_connection()
-            response_time = time.time() - start_time
-            mongo.close()
-            
-            if response_time > 5.0:
-                status = 'degraded'
+            # Enhanced status determination
+            if health_result.get('connected'):
+                response_time = health_result.get('response_time_ms', 0)
+                if response_time > 5000:  # 5 seconds
+                    health_result['status'] = 'critical'
+                    context_logger.warning("Database response time critical", response_time=response_time)
+                elif response_time > 2000:  # 2 seconds
+                    health_result['status'] = 'degraded'
+                    context_logger.warning("Database response time degraded", response_time=response_time)
+                else:
+                    health_result['status'] = 'healthy'
+                    context_logger.debug("Database health check successful", response_time=response_time)
             else:
-                status = 'healthy'
+                health_result['status'] = 'critical'
+                context_logger.error("Database connection failed", error=health_result.get('error'))
             
-            return {
-                'status': status,
-                'response_time': round(response_time, 3),
-                'connected': True
-            }
+            return health_result
+            
         except Exception as e:
-            logger.error(f"Database health check failed: {e}")
+            error_msg = str(e)
+            context_logger.error("Database health check exception", error=error_msg, error_type=type(e).__name__)
             return {
                 'status': 'critical',
                 'connected': False,
-                'error': str(e)
+                'error': error_msg,
+                'error_type': type(e).__name__
             }
     
     async def check_clone_system(self) -> Dict[str, Any]:

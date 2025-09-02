@@ -108,6 +108,57 @@ def LOGGER(name: str) -> logging.Logger:
     """Get logger instance"""
     return logging.getLogger(name)
 
+class ContextLogger:
+    """Logger with context support for debugging"""
+    
+    def __init__(self, logger_name: str):
+        self.logger = logging.getLogger(logger_name)
+        self.context = {}
+    
+    def add_context(self, **kwargs):
+        """Add context to logger"""
+        self.context.update(kwargs)
+        return self
+    
+    def _format_message(self, msg: str) -> str:
+        """Format message with context"""
+        if self.context:
+            context_str = " | ".join([f"{k}={v}" for k, v in self.context.items()])
+            return f"[{context_str}] {msg}"
+        return msg
+    
+    def debug(self, msg: str, **kwargs):
+        temp_context = {**self.context, **kwargs}
+        if temp_context:
+            context_str = " | ".join([f"{k}={v}" for k, v in temp_context.items()])
+            msg = f"[{context_str}] {msg}"
+        self.logger.debug(msg)
+    
+    def info(self, msg: str, **kwargs):
+        temp_context = {**self.context, **kwargs}
+        if temp_context:
+            context_str = " | ".join([f"{k}={v}" for k, v in temp_context.items()])
+            msg = f"[{context_str}] {msg}"
+        self.logger.info(msg)
+    
+    def warning(self, msg: str, **kwargs):
+        temp_context = {**self.context, **kwargs}
+        if temp_context:
+            context_str = " | ".join([f"{k}={v}" for k, v in temp_context.items()])
+            msg = f"[{context_str}] {msg}"
+        self.logger.warning(msg)
+    
+    def error(self, msg: str, **kwargs):
+        temp_context = {**self.context, **kwargs}
+        if temp_context:
+            context_str = " | ".join([f"{k}={v}" for k, v in temp_context.items()])
+            msg = f"[{context_str}] {msg}"
+        self.logger.error(msg)
+
+def get_context_logger(name: str) -> ContextLogger:
+    """Get context logger instance"""
+    return ContextLogger(name)
+
 def setup_access_logging():
     """Setup access logging for web interface"""
     access_logger = logging.getLogger("access")

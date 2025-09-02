@@ -18,19 +18,49 @@ class CloneManager:
 
     async def start_clone(self, bot_id: str):
         """Start a specific clone bot"""
+        from bot.logging import get_context_logger
+        from bot.utils.debug_helper import create_execution_tracker
+        
+        context_logger = get_context_logger(__name__).add_context(bot_id=bot_id, operation="start_clone")
+        tracker = create_execution_tracker(f"start_clone_{bot_id}")
+        
         try:
+            tracker.add_step("fetching_clone_data")
+            context_logger.debug("Starting clone startup process")
+            
             clone = await get_clone(bot_id)
             if not clone:
-                return False, "Clone not found"
+                error_msg = "Clone not found in database"
+                context_logger.error(error_msg)
+                tracker.complete(success=False, error=error_msg)
+                return False, error_msg
+            
+            tracker.add_step("clone_data_retrieved", {"clone_exists": True})
 
             # Check subscription - be more flexible with status check
+            tracker.add_step("checking_subscription")
             subscription = await get_subscription(bot_id)
             if not subscription:
-                return False, "No subscription found"
+                error_msg = "No subscription found"
+                context_logger.error(error_msg)
+                tracker.complete(success=False, error=error_msg)
+                return False, error_msg
 
             # Allow active subscriptions or payment verified subscriptions
             is_active_status = subscription['status'] == 'active'
             is_payment_verified = subscription.get('payment_verified', False)
+            
+            context_logger.debug(
+                "Subscription status checked",
+                status=subscription['status'],
+                payment_verified=is_payment_verified,
+                is_active=is_active_status
+            )
+            
+            tracker.add_step("subscription_validated", {
+                "status": subscription['status'],
+                "payment_verified": is_payment_verified
+            })
 
             if not is_active_status and not is_payment_verified:
                 # Only fail if both conditions are false
