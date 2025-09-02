@@ -25,7 +25,7 @@ class Config(object):
     BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
 
     # Database Configuration - REQUIRED
-    DATABASE_URI = os.environ.get("DATABASE_URI", "")
+    DATABASE_URI = os.environ.get("DATABASE_URL", "")
     DATABASE_NAME = os.environ.get("DATABASE_NAME", "mother_bot")
 
     # Admin Configuration - REQUIRED
@@ -92,3 +92,75 @@ if __name__ != "__main__":
     except ValueError as e:
         print(f"❌ Configuration Error: {e}")
         print("Please check your environment variables!")
+
+
+    # Additional Configuration from second class
+    WEB_MODE = os.environ.get("WEB_MODE", "False").lower() in ("true", "1", "yes")
+    PORT = int(os.environ.get("PORT", "5000"))
+    HOST = os.environ.get("HOST", "0.0.0.0")
+    
+    # Channel Configuration with defaults for missing vars
+    INDEX_CHANNEL_ID = int(os.environ.get("INDEX_CHANNEL_ID", "0"))
+    OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
+    
+    # Force Subscription - Handle both channel IDs and usernames
+    FORCE_SUB_CHANNEL_RAW = os.environ.get("FORCE_SUB_CHANNEL", "").strip()
+    FORCE_SUB_CHANNEL = []
+    if FORCE_SUB_CHANNEL_RAW:
+        for ch in FORCE_SUB_CHANNEL_RAW.split():
+            ch = ch.strip()
+            if ch and ch != "...":
+                if ch.lstrip('-').isdigit():
+                    FORCE_SUB_CHANNEL.append(int(ch))
+                else:
+                    FORCE_SUB_CHANNEL.append(ch)
+    
+    # Request channels
+    REQUEST_CHANNEL_RAW = os.environ.get("REQUEST_CHANNEL", "").strip()
+    REQUEST_CHANNEL = []
+    if REQUEST_CHANNEL_RAW:
+        for ch in REQUEST_CHANNEL_RAW.split():
+            ch = ch.strip()
+            if ch and ch != "...":
+                if ch.lstrip('-').isdigit():
+                    REQUEST_CHANNEL.append(int(ch))
+                else:
+                    REQUEST_CHANNEL.append(ch)
+    
+    # Messages
+    START_PIC = os.environ.get("START_PIC", "")
+    START_MSG = os.environ.get("START_MESSAGE", "👋 Hello {mention},\n\nThis bot helps you store private files in a secure channel and generate special access links for sharing. 🔐📁\n\n Only admins can upload files and generate links. Just send the file here to get started.")
+    FORCE_MSG = os.environ.get("FORCE_SUB_MESSAGE", "👋 Hello {mention}, \n\n <b>You need to join our updates channel before using this bot.</b>\n\n 📢 Please join the required channel, then try again.")
+    CUSTOM_CAPTION = os.environ.get("CUSTOM_CAPTION", None)
+    
+    # Security Configuration
+    PROTECT_CONTENT = os.environ.get("PROTECT_CONTENT", "False") == "True"
+    DISABLE_CHANNEL_BUTTON = os.environ.get("DISABLE_CHANNEL_BUTTON", "False") == "True"
+    
+    # Auto Delete Configuration
+    AUTO_DELETE_TIME = int(os.environ.get("AUTO_DELETE_TIME", "600"))
+    AUTO_DELETE_MSG = os.environ.get("AUTO_DELETE_MSG", "This file will be automatically deleted in {time}.")
+    AUTO_DEL_SUCCESS_MSG = os.environ.get("AUTO_DEL_SUCCESS_MSG", "✅ File deleted successfully.")
+    
+    # Token Verification (Shortlink)
+    VERIFY_MODE = os.environ.get("VERIFY_MODE", "True").lower() in ("true", "1", "yes")
+    SHORTLINK_API = os.environ.get("SHORTLINK_API")
+    SHORTLINK_URL = os.environ.get("SHORTLINK_URL", "https://teraboxlinks.com/")
+    TUTORIAL = os.environ.get("TUTORIAL","https://t.me/alfhamovies/13")
+    
+    # Bot Messages
+    BOT_STATS_TEXT = os.environ.get("BOT_STATS_TEXT", "<b>BOT UPTIME</b>\n{uptime}")
+    USER_REPLY_TEXT = os.environ.get("USER_REPLY_TEXT", "❌ I'm a bot — please don't DM me!")
+    
+    # Premium Settings
+    PREMIUM_ENABLED = os.environ.get("PREMIUM_ENABLED", "True").lower() in ("true", "1", "yes")
+    PAYMENT_UPI = os.environ.get("PAYMENT_UPI", "your_actual_upi@paytm")
+    PAYMENT_PHONE = os.environ.get("PAYMENT_PHONE", "+911234567890")
+    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "termuxro")
+    
+    # Cryptocurrency Payment Options
+    CRYPTO_ENABLED = os.environ.get("CRYPTO_ENABLED", "True").lower() in ("true", "1", "yes")
+    BITCOIN_ADDRESS = os.environ.get("BITCOIN_ADDRESS", "")
+    ETHEREUM_ADDRESS = os.environ.get("ETHEREUM_ADDRESS", "")
+    USDT_TRC20_ADDRESS = os.environ.get("USDT_TRC20_ADDRESS", "")
+    USDT_ERC20_ADDRESS = os.environ.get("USDT_ERC20_ADDRESS", "")
