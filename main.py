@@ -168,7 +168,8 @@ async def start_mother_bot():
                     return app
                 elif "FLOOD_WAIT" in str(start_error):
                     import re
-                    wait_time = int(re.search(r'(\d+)', str(start_error)).group(1)) if re.search(r'(\d+)', str(start_error)) else 15
+                    match = re.search(r'(\d+)', str(start_error))
+                    wait_time = int(match.group(1)) if match else 15
                     logger.warning(f"FloodWait during start, waiting {wait_time} seconds (attempt {attempt + 1}/{max_start_retries})")
                     await asyncio.sleep(wait_time + 2)
                 else:
@@ -249,14 +250,16 @@ async def main():
         for attempt in range(max_retries):
             try:
                 # Ensure client is connected before getting info
-                if not app.is_connected:
+                if app and not app.is_connected:
                     await app.connect()
-                me = await app.get_me()
+                if app:
+                    me = await app.get_me()
                 break
             except Exception as e:
                 if "FLOOD_WAIT" in str(e):
                     import re
-                    wait_time = int(re.search(r'(\d+)', str(e)).group(1)) if re.search(r'(\d+)', str(e)) else 15
+                    match = re.search(r'(\d+)', str(e))
+                    wait_time = int(match.group(1)) if match else 15
                     logger.warning(f"FloodWait detected, waiting {wait_time} seconds (attempt {attempt + 1}/{max_retries})")
                     await asyncio.sleep(wait_time + 2)  # Add 2 extra seconds as buffer
                 elif "Client is already connected" in str(e):
@@ -293,10 +296,11 @@ async def main():
 
         # Start session cleanup task if session manager exists
         try:
-            if hasattr(clone_manager, 'session_manager'):
-                asyncio.create_task(clone_manager.session_manager.start_cleanup_task())
-        except AttributeError:
-            logger.warning("⚠️ Session manager not available, skipping cleanup task")
+            session_manager = getattr(clone_manager, 'session_manager', None)
+            if session_manager:
+                asyncio.create_task(session_manager.start_cleanup_task())
+        except (AttributeError, Exception) as e:
+            logger.warning(f"⚠️ Session manager not available, skipping cleanup task: {e}")
 
         # Clone request feature removed - users create clones directly
 
@@ -333,7 +337,7 @@ async def main():
         logger.info("\n" + "="*60)
         logger.info("🎉 MOTHER BOT + CLONE SYSTEM READY!")
         logger.info("="*60)
-        logger.info(f"🤖 Mother Bot: @{me.username}")
+        logger.info(f"🤖 Mother Bot: @{me.username if me else 'Unknown'}")
         logger.info(f"📊 Running Clones: {len(clone_manager.get_running_clones())}")
         logger.info(f"🎛️ Admin Panel: /motheradmin")
         logger.info(f"🆕 Create Clone: /createclone")

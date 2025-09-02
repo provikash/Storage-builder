@@ -7,7 +7,7 @@ from bot.logging import LOGGER
 logger = LOGGER(__name__)
 
 # Balance database
-balance_client = AsyncIOMotorClient(Config.DATABASE_URL)
+balance_client = AsyncIOMotorClient(Config.DATABASE_URI)
 balance_db = balance_client[Config.DATABASE_NAME]
 user_balances = balance_db.user_balances
 balance_transactions = balance_db.balance_transactions

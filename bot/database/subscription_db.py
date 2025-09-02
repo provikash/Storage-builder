@@ -7,7 +7,7 @@ from bot.logging import LOGGER
 logger = LOGGER(__name__)
 
 # Subscription database
-subscription_client = AsyncIOMotorClient(Config.DATABASE_URL)
+subscription_client = AsyncIOMotorClient(Config.DATABASE_URI)
 subscription_db = subscription_client[Config.DATABASE_NAME]
 subscriptions_collection = subscription_db.subscriptions
 pricing_collection = subscription_db.pricing

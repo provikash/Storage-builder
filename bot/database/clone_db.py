@@ -7,7 +7,7 @@ from bot.logging import LOGGER
 logger = LOGGER(__name__)
 
 # Clone database
-clone_client = AsyncIOMotorClient(Config.DATABASE_URL)
+clone_client = AsyncIOMotorClient(Config.DATABASE_URI)
 clone_db = clone_client[Config.DATABASE_NAME] # Corrected to use Config.DATABASE_DB_NAME
 clones_collection = clone_db.clones # Renamed to avoid conflict with the import
 clone_configs_collection = clone_db.clone_configs # Renamed for clarity

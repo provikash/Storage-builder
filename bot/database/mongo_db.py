@@ -11,7 +11,7 @@ from bson import ObjectId
 import pymongo
 
 # MongoDB Connection
-mongo_client = motor.motor_asyncio.AsyncIOMotorClient(Config.DATABASE_URL)
+mongo_client = motor.motor_asyncio.AsyncIOMotorClient(Config.DATABASE_URI)
 db = mongo_client[Config.DATABASE_NAME]
 collection = db['files']
 
@@ -44,7 +44,7 @@ async def get_clone_files_collection(clone_id):
         # clone_db_url = clone_details['mongodb_url']
         # For now, we'll use a dummy URL, assuming it's accessible and valid.
         # You should replace this with actual logic to get the clone's DB URL.
-        clone_db_url = Config.DATABASE_URL # Placeholder: Use the main DB URL for demonstration
+        clone_db_url = Config.DATABASE_URI # Placeholder: Use the main DB URL for demonstration
                                           # Replace with actual clone-specific URL fetching logic
 
         if not clone_db_url:
@@ -243,7 +243,7 @@ class MongoDB:
     """MongoDB connection handler"""
 
     def __init__(self):
-        self.client = AsyncIOMotorClient(Config.DATABASE_URL)
+        self.client = AsyncIOMotorClient(Config.DATABASE_URI)
         self.db = self.client[Config.DATABASE_NAME]
 
     async def test_connection(self):

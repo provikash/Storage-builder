@@ -186,5 +186,64 @@ class SecurityManager:
                 # Unblock after lockout period (basic auto-unblock)
                 pass  # Keep manual control for now
 
-# Global instance
+class SecurityValidator:
+    """Static methods for input validation and sanitization"""
+    
+    @staticmethod
+    def sanitize_filename(filename: str, max_length: int = 255) -> str:
+        """Sanitize filename to prevent injection and issues"""
+        if not isinstance(filename, str):
+            return "untitled"
+        
+        # Remove null bytes and control characters
+        sanitized = ''.join(char for char in filename if ord(char) >= 32 or char in '\n\r\t')
+        
+        # Remove potentially dangerous characters
+        dangerous_chars = '<>:"/\\|?*'
+        for char in dangerous_chars:
+            sanitized = sanitized.replace(char, '_')
+        
+        # Limit length
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length-3] + "..."
+        
+        return sanitized.strip() or "untitled"
+    
+    @staticmethod
+    def validate_user_id(user_id: any) -> Optional[int]:
+        """Validate and convert user ID to int"""
+        if user_id is None:
+            return None
+        
+        try:
+            user_id_int = int(user_id)
+            return user_id_int if user_id_int > 0 else None
+        except (ValueError, TypeError):
+            return None
+    
+    @staticmethod
+    def validate_file_size(file_size: any) -> int:
+        """Validate file size"""
+        try:
+            size = int(file_size)
+            return max(0, size)  # Ensure non-negative
+        except (ValueError, TypeError):
+            return 0
+    
+    @staticmethod
+    def sanitize_search_query(query: str, max_length: int = 200) -> str:
+        """Sanitize search query"""
+        if not isinstance(query, str):
+            return ""
+        
+        # Remove null bytes and control characters except space
+        sanitized = ''.join(char for char in query if ord(char) >= 32 or char in ' \n\r\t')
+        
+        # Limit length
+        if len(sanitized) > max_length:
+            sanitized = sanitized[:max_length]
+        
+        return sanitized.strip()
+
+# Global instances
 security_manager = SecurityManager()
