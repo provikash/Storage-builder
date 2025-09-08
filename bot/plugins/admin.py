@@ -498,9 +498,9 @@ async def broadcast_message(client: Client, message: Message):
 
         await status_msg.edit_text(
 
-
-@Client.on_message(filters.command("clearinvalidchannels") & filters.private)
 @admin_only
+@Client.on_message(filters.command("clearinvalidchannels") & filters.private)
+
 async def clear_invalid_channels(client: Client, message: Message):
     """Clear invalid force subscription channels"""
     if not Config.FORCE_SUB_CHANNEL:
