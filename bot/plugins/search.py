@@ -8,6 +8,8 @@ from bot.utils.token_verification import TokenVerificationManager
 from info import Config
 import asyncio
 import traceback
+from datetime import datetime, timedelta
+from bot.database.mongo_db import collection
 
 # --- Feature Checking Function ---
 async def check_feature_enabled(client: Client, feature_name: str) -> bool:
@@ -952,13 +954,46 @@ async def show_index_stats(client: Client, callback_query: CallbackQuery):
 user_recent_offsets = {}
 
 async def handle_recent_files_direct(client: Client, message, is_callback: bool = False):
-    """Get and send 5 recent files directly to user, with different files each time"""
+    """Enhanced recent files handler with better sorting and presentation"""
     loading_msg = None
 
     try:
-        user_id = message.from_user.id if hasattr(message, 'from_user') and message.from_user else message.chat.id
+        # Check force subscription first
+        if await handle_force_sub(client, message):
+            return
 
-        # Determine clone ID to use the correct database
+        # Check if the recent feature is enabled
+        if not await check_feature_enabled(client, 'recent'):
+            await message.reply_text("❌ Recent files feature is currently disabled by the admin.")
+            return
+
+        user_id = message.from_user.id if hasattr(message, 'from_user') else None
+        if not user_id:
+            await message.reply_text("❌ Could not identify user.")
+            return
+
+        # Check command limit
+        if not await use_command(user_id, client):
+            needs_verification, remaining = await check_command_limit(user_id, client)
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = f"⚠️ **Verification Required!**\n\n🕐 Get {duration} hours of unlimited access!"
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = f"⚠️ **Command Limit Reached!**\n\nGet {command_limit} more commands with verification!"
+
+            await message.reply_text(message_text, reply_markup=buttons)
+            return
+
+        # Determine clone ID
         clone_id = getattr(client, 'clone_id', None)
         if clone_id is None:
             bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
@@ -968,278 +1003,246 @@ async def handle_recent_files_direct(client: Client, message, is_callback: bool 
                 if clone_data:
                     clone_id = clone_data.get('id')
 
-        if clone_id is None:
-            await message.reply_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
-            return
-
         # Initialize loading message
         if is_callback:
-            loading_msg = await message.edit_text("🆕 Getting recent files...")
+            loading_msg = await message.edit_text("🆕 Fetching recently added files...")
         else:
-            loading_msg = await message.reply_text("🆕 Getting recent files...")
+            loading_msg = await message.reply_text("🆕 Fetching recently added files...")
 
-        print(f"DEBUG: Starting recent files retrieval for user {user_id} on clone {clone_id}")
-
-        # Get current offset for this user (defaults to 0)
-        current_offset = user_recent_offsets.get(user_id, 0)
-        print(f"DEBUG: Current offset for user {user_id}: {current_offset}")
-
-        # Step 1: Query MongoDB for recent file metadata with offset
+        # Enhanced recent files query with date-based sorting
         try:
-            # Updated to use clone_id for database selection
-            results = await get_recent_files(limit=10, offset=current_offset, clone_id=clone_id)  # Get more to account for invalid files
-            print(f"DEBUG: Retrieved {len(results)} recent files from database for clone {clone_id} with offset {current_offset}")
+            from bot.database.mongo_db import collection
+            from datetime import datetime, timedelta
+
+            # Get files added in last 7 days, sorted by most recent
+            recent_date = datetime.utcnow() - timedelta(days=7)
+
+            pipeline = [
+                {
+                    "$match": {
+                        "file_type": {"$in": ["video", "document", "photo", "audio", "animation"]},
+                        "file_name": {"$exists": True, "$ne": "", "$ne": None},
+                        "file_size": {"$gt": 1024},
+                        "indexed_at": {"$gte": recent_date}
+                    }
+                },
+                {
+                    "$addFields": {
+                        "freshness_score": {
+                            "$add": [
+                                {"$divide": [
+                                    {"$subtract": ["$indexed_at", recent_date]},
+                                    86400000  # Convert to days
+                                ]},
+                                {"$multiply": [{"$ifNull": ["$file_size", 0]}, 0.000001]}  # Size bonus
+                            ]
+                        }
+                    }
+                },
+                {"$sort": {"freshness_score": -1, "indexed_at": -1}},
+                {"$limit": 8}
+            ]
+
+            if clone_id:
+                pipeline[0]["$match"]["clone_id"] = clone_id
+
+            cursor = collection.aggregate(pipeline)
+            results = await cursor.to_list(length=8)
+
+            # Fallback to general recent files if no recent files found
+            if not results:
+                fallback_query = {
+                    "file_type": {"$in": ["video", "document", "photo", "audio"]},
+                    "file_name": {"$exists": True, "$ne": ""}
+                }
+                if clone_id:
+                    fallback_query["clone_id"] = clone_id
+
+                cursor = collection.find(fallback_query).sort("_id", -1).limit(5)
+                results = await cursor.to_list(length=5)
+
         except Exception as db_error:
-            error_msg = f"❌ Database query failed: {str(db_error)}"
-            print(f"ERROR: MongoDB query failed for clone {clone_id}: {db_error}")
-            await loading_msg.edit_text(error_msg)
+            print(f"ERROR: Recent files database query failed: {db_error}")
+            await loading_msg.edit_text("❌ Database error. Please try again.")
             return
 
         if not results:
-            # Reset offset if no more files and try again
-            if current_offset > 0:
-                user_recent_offsets[user_id] = 0
-                results = await get_recent_files(limit=10, offset=0, clone_id=clone_id)
-                print(f"DEBUG: Reset offset, retrieved {len(results)} files for clone {clone_id}")
+            await loading_msg.edit_text("❌ No recent files found. Files will appear here when added.")
+            return
 
-            if not results:
-                await loading_msg.edit_text("❌ No recent files found in database.")
-                return
+        await loading_msg.edit_text(f"📁 Sending {len(results)} recently added files...")
 
-        try:
-            await loading_msg.edit_text(f"📁 Processing {len(results)} recent files...")
-        except Exception as msg_error:
-            print(f"WARNING: Failed to update loading message: {msg_error}")
-
-        # Step 2: Send 5 recent files directly to user
+        # Send recent files with enhanced presentation
         sent_count = 0
-        target_count = 5  # Target number of files to send
-        errors_encountered = []
-
         for idx, file_data in enumerate(results):
-            if sent_count >= target_count:
-                print(f"DEBUG: Reached target count of {target_count} files")
-                break
-
-            print(f"DEBUG: Processing recent file {idx + 1}/{len(results)}")
-
             try:
-                # Extract metadata from MongoDB document with validation
-                if not isinstance(file_data, dict):
-                    print(f"ERROR: Invalid file_data type: {type(file_data)}")
-                    errors_encountered.append(f"Invalid data structure for file {idx + 1}")
-                    continue
-
                 file_id = str(file_data.get('_id', ''))
                 file_name = file_data.get('file_name', 'Unknown File')
-                file_type = file_data.get('file_type', 'unknown')
+                file_size = file_data.get('file_size', 0)
+                indexed_at = file_data.get('indexed_at')
 
-                if not file_id:
-                    print(f"ERROR: No file_id found for file: {file_name}")
-                    errors_encountered.append(f"Missing file_id for {file_name}")
-                    continue
-
-                print(f"DEBUG: Processing recent file: {file_name} with ID: {file_id}, Type: {file_type}")
-
-                # Parse file_id to extract message_id
-                message_id = None
-                try:
-                    if '_' in file_id:
-                        parts = file_id.split('_')
-                        if len(parts) >= 2:
-                            message_id = int(parts[-1])
-                            print(f"DEBUG: Extracted message_id {message_id} from composite ID: {file_id}")
-                        else:
-                            print(f"ERROR: Invalid composite file_id format: {file_id}")
-                            errors_encountered.append(f"Invalid ID format: {file_id}")
-                            continue
+                # Calculate time since added
+                if indexed_at:
+                    time_diff = datetime.utcnow() - indexed_at
+                    if time_diff.days > 0:
+                        time_str = f"{time_diff.days} days ago"
+                    elif time_diff.seconds > 3600:
+                        hours = time_diff.seconds // 3600
+                        time_str = f"{hours} hours ago"
                     else:
-                        message_id = int(file_id)
-                        print(f"DEBUG: Using direct message_id: {message_id}")
+                        minutes = time_diff.seconds // 60
+                        time_str = f"{minutes} minutes ago"
+                else:
+                    time_str = "Recently"
 
-                except (ValueError, IndexError) as parse_error:
-                    print(f"ERROR: Failed to parse message ID from {file_id}: {parse_error}")
-                    errors_encountered.append(f"Parse error for {file_id}: {str(parse_error)}")
-                    continue
+                # Extract message ID
+                if '_' in file_id:
+                    message_id = int(file_id.split('_')[-1])
+                else:
+                    message_id = int(file_id)
 
-                if not message_id or message_id <= 0:
-                    print(f"ERROR: Invalid message_id {message_id} for file: {file_id}")
-                    errors_encountered.append(f"Invalid message_id {message_id}")
-                    continue
+                # Get message from database channel
+                db_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
 
-                # Retrieve file from Telegram
-                try:
-                    print(f"DEBUG: Fetching message {message_id} from channel {Config.INDEX_CHANNEL_ID}")
-                    db_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
+                if db_message and db_message.media:
+                    # Create enhanced caption with freshness info
+                    size_str = get_readable_file_size(file_size) if file_size else "Unknown"
+                    caption = f"🆕 **{file_name}**\n📊 Size: {size_str}\n⏰ Added: {time_str}"
 
-                    if not db_message or db_message.empty or not db_message.media:
-                        print(f"ERROR: Message {message_id} invalid or has no media")
-                        errors_encountered.append(f"Message {message_id} invalid or no media")
-                        continue
-
-                    print(f"DEBUG: Successfully retrieved message {message_id} with media")
-
-                except Exception as telegram_get_error:
-                    print(f"ERROR: Telegram get_messages failed for message {message_id}: {telegram_get_error}")
-                    errors_encountered.append(f"Get message {message_id}: {str(telegram_get_error)}")
-                    continue
-
-                # Send the file to user without caption but with custom keyboard
-                try:
-                    print(f"DEBUG: Sending recent media from message {message_id} to user {message.chat.id}")
-
-                    # Create custom keyboard
-                    custom_keyboard = ReplyKeyboardMarkup([
+                    # Enhanced keyboard for recent files
+                    keyboard = InlineKeyboardMarkup([
                         [
-                            KeyboardButton("🎲 Random"),
-                            KeyboardButton("🆕 Recent Added")
+                            InlineKeyboardButton("🆕 More Recent", callback_data="recent_more"),
+                            InlineKeyboardButton("📤 Share", callback_data=f"share_{file_id}")
                         ],
                         [
-                            KeyboardButton("💎 Buy Premium"),
-                            KeyboardButton("🔥 Most Popular")
+                            InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                            InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")
                         ]
-                    ], resize_keyboard=True, one_time_keyboard=False)
+                    ])
 
-                    # Send media based on type without caption
-                    copied_msg = None
+                    # Send based on media type
                     if db_message.photo:
-                        copied_msg = await client.send_photo(
+                        await client.send_photo(
                             chat_id=message.chat.id,
                             photo=db_message.photo.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
                     elif db_message.video:
-                        copied_msg = await client.send_video(
+                        await client.send_video(
                             chat_id=message.chat.id,
                             video=db_message.video.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
                     elif db_message.document:
-                        copied_msg = await client.send_document(
+                        await client.send_document(
                             chat_id=message.chat.id,
                             document=db_message.document.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
                     elif db_message.audio:
-                        copied_msg = await client.send_audio(
+                        await client.send_audio(
                             chat_id=message.chat.id,
                             audio=db_message.audio.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    elif db_message.voice:
-                        copied_msg = await client.send_voice(
-                            chat_id=message.chat.id,
-                            voice=db_message.voice.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
                     elif db_message.animation:
-                        copied_msg = await client.send_animation(
+                        await client.send_animation(
                             chat_id=message.chat.id,
                             animation=db_message.animation.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    else:
-                        copied_msg = await db_message.copy(
-                            chat_id=message.chat.id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
 
-                    if copied_msg:
-                        sent_count += 1
-                        print(f"SUCCESS: Sent recent file #{sent_count}: {file_name}")
+                    sent_count += 1
 
-                        # Increment access count
-                        try:
-                            await increment_access_count(file_id)
-                            print(f"DEBUG: Incremented access count for {file_id}")
-                        except Exception as count_error:
-                            print(f"WARNING: Failed to increment access count for {file_id}: {count_error}")
+                    # Update access count
+                    await collection.update_one(
+                        {"_id": file_id},
+                        {"$inc": {"access_count": 1}}
+                    )
 
-                        # Small delay to avoid flooding
-                        await asyncio.sleep(1.0)
-                    else:
-                        print(f"ERROR: Send operation returned None for message {message_id}")
-                        errors_encountered.append(f"Send failed for message {message_id}")
+                    await asyncio.sleep(0.5)
 
-                except Exception as send_error:
-                    print(f"ERROR: Failed to send message {message_id}: {send_error}")
-                    errors_encountered.append(f"Send error for {message_id}: {str(send_error)}")
-                    continue
-
-            except Exception as processing_error:
-                print(f"ERROR: General processing error for file {idx + 1}: {processing_error}")
-                errors_encountered.append(f"Processing error: {str(processing_error)}")
+            except Exception as send_error:
+                print(f"ERROR: Failed to send recent file {idx + 1}: {send_error}")
                 continue
 
-        # Update offset for next time (increment by files processed)
-        user_recent_offsets[user_id] = current_offset + len(results)
-        print(f"DEBUG: Updated offset for user {user_id} to {user_recent_offsets[user_id]}")
-
-        # Send final status with navigation buttons
-        try:
-            if sent_count > 0:
-                final_text = f"✅ Successfully sent {sent_count} recent files!"
-                if errors_encountered:
-                    final_text += f"\n\n⚠️ {len(errors_encountered)} files had issues (check logs)"
-            else:
-                final_text = "❌ No valid recent files could be sent."
-                if errors_encountered:
-                    final_text += f"\n\nErrors encountered:\n• " + "\n• ".join(errors_encountered[:3])
-                    if len(errors_encountered) > 3:
-                        final_text += f"\n• ... and {len(errors_encountered) - 3} more"
-
-            nav_buttons = [
-                InlineKeyboardButton("🆕 More Recent", callback_data="rand_recent"),
-                InlineKeyboardButton("🎲 Random", callback_data="rand_new")
-            ]
-            more_buttons = [
-                InlineKeyboardButton("🔥 Popular", callback_data="rand_popular"),
-                InlineKeyboardButton("📊 Stats", callback_data="rand_stats")
-            ]
-
-            buttons = [nav_buttons, more_buttons]
+        # Final status with navigation
+        if sent_count > 0:
+            final_buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🆕 More Recent", callback_data="recent_more"),
+                    InlineKeyboardButton("🎲 Random", callback_data="random_files")
+                ],
+                [
+                    InlineKeyboardButton("🔥 Popular", callback_data="popular_files"),
+                    InlineKeyboardButton("📊 Statistics", callback_data="file_stats")
+                ]
+            ])
 
             await loading_msg.edit_text(
-                final_text,
-                reply_markup=InlineKeyboardMarkup(buttons)
+                f"✅ Sent {sent_count} recently added files!\n\n"
+                f"🆕 These are the latest files added to the database.\n"
+                f"📈 Use buttons below to explore more content.",
+                reply_markup=final_buttons
             )
-
-            print(f"DEBUG: Recent files final status - Sent: {sent_count}, Errors: {len(errors_encountered)}")
-
-        except Exception as final_error:
-            print(f"ERROR: Failed to send final status message: {final_error}")
-            try:
-                await loading_msg.edit_text(f"⚠️ Process completed but status update failed: {str(final_error)}")
-            except:
-                pass
+        else:
+            await loading_msg.edit_text("❌ No recent files could be sent. Try again later.")
 
     except Exception as main_error:
-        error_text = f"❌ Critical error in recent files process: {str(main_error)}"
-        print(f"CRITICAL ERROR: Recent files process failed: {main_error}")
-
+        print(f"CRITICAL ERROR in recent files: {main_error}")
         try:
             if loading_msg:
-                await loading_msg.edit_text(error_text)
-            else:
-                await message.reply_text(error_text)
-        except Exception as msg_error:
-            print(f"ERROR: Could not send error message: {msg_error}")
+                await loading_msg.edit_text("❌ An unexpected error occurred. Please try again.")
+        except:
+            pass
 
-async def handle_popular_files_direct(client: Client, message: Message, is_callback: bool = False):
-    """Get and send 5 popular files directly to user, with different files each time"""
+async def handle_popular_files_direct(client: Client, message, is_callback: bool = False):
+    """Enhanced popular files handler with advanced popularity scoring"""
     loading_msg = None
 
     try:
-        user_id = message.from_user.id if message.from_user else message.chat.id
+        # Check force subscription first
+        if await handle_force_sub(client, message):
+            return
 
-        # Determine clone ID to use the correct database
+        # Check if the popular feature is enabled
+        if not await check_feature_enabled(client, 'popular'):
+            await message.reply_text("❌ Most popular files feature is currently disabled by the admin.")
+            return
+
+        user_id = message.from_user.id if hasattr(message, 'from_user') else None
+        if not user_id:
+            await message.reply_text("❌ Could not identify user.")
+            return
+
+        # Check command limit
+        if not await use_command(user_id, client):
+            needs_verification, remaining = await check_command_limit(user_id, client)
+            token_settings = await TokenVerificationManager.get_clone_token_settings(client)
+            verification_mode = token_settings.get('verification_mode', 'command_limit')
+
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+
+            if verification_mode == 'time_based':
+                duration = token_settings.get('time_duration', 24)
+                message_text = f"⚠️ **Verification Required!**\n\n🕐 Get {duration} hours of unlimited access!"
+            else:
+                command_limit = token_settings.get('command_limit', 3)
+                message_text = f"⚠️ **Command Limit Reached!**\n\nGet {command_limit} more commands with verification!"
+
+            await message.reply_text(message_text, reply_markup=buttons)
+            return
+
+        # Determine clone ID
         clone_id = getattr(client, 'clone_id', None)
         if clone_id is None:
             bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
@@ -1249,270 +1252,256 @@ async def handle_popular_files_direct(client: Client, message: Message, is_callb
                 if clone_data:
                     clone_id = clone_data.get('id')
 
-        if clone_id is None:
-            await message.reply_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
-            return
-
         # Initialize loading message
         if is_callback:
-            loading_msg = await message.edit_text("🔥 Getting popular files...")
+            loading_msg = await message.edit_text("🔥 Finding most popular files...")
         else:
-            loading_msg = await message.reply_text("🔥 Getting popular files...")
+            loading_msg = await message.reply_text("🔥 Finding most popular files...")
 
-        print(f"DEBUG: Starting popular files retrieval for user {user_id} on clone {clone_id}")
-
-        # Get current offset for this user (defaults to 0)
-        current_offset = user_popular_offsets.get(user_id, 0)
-        print(f"DEBUG: Current offset for user {user_id}: {current_offset}")
-
-        # Step 1: Query MongoDB for popular file metadata with offset
+        # Enhanced popular files query with advanced scoring
         try:
-            # Updated to use clone_id for database selection
-            results = await get_popular_files(limit=10, offset=current_offset, clone_id=clone_id)  # Get more to account for invalid files
-            print(f"DEBUG: Retrieved {len(results)} popular files from database for clone {clone_id} with offset {current_offset}")
+            from bot.database.mongo_db import collection
+            from datetime import datetime, timedelta
+
+            # Advanced popularity algorithm considering multiple factors
+            pipeline = [
+                {
+                    "$match": {
+                        "file_type": {"$in": ["video", "document", "photo", "audio", "animation"]},
+                        "file_name": {"$exists": True, "$ne": "", "$ne": None},
+                        "file_size": {"$gt": 1024},
+                        "access_count": {"$gte": 1}  # Must have at least 1 view
+                    }
+                },
+                {
+                    "$addFields": {
+                        "popularity_score": {
+                            "$add": [
+                                # Base popularity from access count (70% weight)
+                                {"$multiply": [{"$ifNull": ["$access_count", 0]}, 0.7]},
+
+                                # Download count bonus (20% weight)
+                                {"$multiply": [{"$ifNull": ["$download_count", 0]}, 0.2]},
+
+                                # File size bonus for larger files (5% weight)
+                                {"$multiply": [
+                                    {"$cond": [
+                                        {"$gte": ["$file_size", 52428800]},  # 50MB+
+                                        5,
+                                        {"$cond": [
+                                            {"$gte": ["$file_size", 10485760]},  # 10MB+
+                                            2,
+                                            1
+                                        ]}
+                                    ]}, 0.05
+                                ]},
+
+                                # Recency bonus (5% weight) - newer files get slight boost
+                                {"$multiply": [
+                                    {"$cond": [
+                                        {"$gte": ["$indexed_at", {"$subtract": [datetime.utcnow(), 604800000]}]},  # Last week
+                                        3,
+                                        {"$cond": [
+                                            {"$gte": ["$indexed_at", {"$subtract": [datetime.utcnow(), 2592000000]}]},  # Last month
+                                            1,
+                                            0
+                                        ]}
+                                    ]}, 0.05
+                                ]}
+                            ]
+                        },
+
+                        # Calculate engagement rate
+                        "engagement_rate": {
+                            "$divide": [
+                                {"$add": [
+                                    {"$ifNull": ["$access_count", 0]},
+                                    {"$multiply": [{"$ifNull": ["$download_count", 0]}, 2]}
+                                ]},
+                                {"$add": [
+                                    {"$divide": [
+                                        {"$subtract": [datetime.utcnow(), {"$ifNull": ["$indexed_at", datetime.utcnow()]}]},
+                                        86400000  # Days since indexed
+                                    ]},
+                                    1
+                                ]}
+                            ]
+                        }
+                    }
+                },
+                {
+                    "$sort": {
+                        "popularity_score": -1,
+                        "engagement_rate": -1,
+                        "access_count": -1
+                    }
+                },
+                {"$limit": 8}
+            ]
+
+            if clone_id:
+                pipeline[0]["$match"]["clone_id"] = clone_id
+
+            cursor = collection.aggregate(pipeline)
+            results = await cursor.to_list(length=8)
+
+            # Fallback to simple access count sorting if no results
+            if not results:
+                fallback_query = {
+                    "file_type": {"$in": ["video", "document", "photo", "audio"]},
+                    "file_name": {"$exists": True, "$ne": ""},
+                    "access_count": {"$gte": 1}
+                }
+                if clone_id:
+                    fallback_query["clone_id"] = clone_id
+
+                cursor = collection.find(fallback_query).sort("access_count", -1).limit(5)
+                results = await cursor.to_list(length=5)
+
         except Exception as db_error:
-            error_msg = f"❌ Database query failed: {str(db_error)}"
-            print(f"ERROR: MongoDB query failed for clone {clone_id}: {db_error}")
-            await loading_msg.edit_text(error_msg)
+            print(f"ERROR: Popular files database query failed: {db_error}")
+            await loading_msg.edit_text("❌ Database error. Please try again.")
             return
 
         if not results:
-            # Reset offset if no more files and try again
-            if current_offset > 0:
-                user_popular_offsets[user_id] = 0
-                results = await get_popular_files(limit=10, offset=0, clone_id=clone_id)
-                print(f"DEBUG: Reset offset, retrieved {len(results)} files for clone {clone_id}")
+            await loading_msg.edit_text("❌ No popular files found yet. Files become popular as users access them.")
+            return
 
-            if not results:
-                await loading_msg.edit_text("❌ No popular files found in database.")
-                return
+        await loading_msg.edit_text(f"📁 Sending {len(results)} most popular files...")
 
-        try:
-            await loading_msg.edit_text(f"📁 Processing {len(results)} popular files...")
-        except Exception as msg_error:
-            print(f"WARNING: Failed to update loading message: {msg_error}")
-
-        # Step 2: Send 5 popular files directly to user
+        # Send popular files with enhanced presentation
         sent_count = 0
-        target_count = 5  # Target number of files to send
-        errors_encountered = []
-
         for idx, file_data in enumerate(results):
-            if sent_count >= target_count:
-                print(f"DEBUG: Reached target count of {target_count} files")
-                break
-
-            print(f"DEBUG: Processing popular file {idx + 1}/{len(results)}")
-
             try:
-                # Extract metadata from MongoDB document with validation
-                if not isinstance(file_data, dict):
-                    print(f"ERROR: Invalid file_data type: {type(file_data)}")
-                    errors_encountered.append(f"Invalid data structure for file {idx + 1}")
-                    continue
-
                 file_id = str(file_data.get('_id', ''))
                 file_name = file_data.get('file_name', 'Unknown File')
-                file_type = file_data.get('file_type', 'unknown')
+                file_size = file_data.get('file_size', 0)
                 access_count = file_data.get('access_count', 0)
+                download_count = file_data.get('download_count', 0)
+                popularity_score = file_data.get('popularity_score', 0)
 
-                if not file_id:
-                    print(f"ERROR: No file_id found for file: {file_name}")
-                    errors_encountered.append(f"Missing file_id for {file_name}")
-                    continue
+                # Calculate popularity rank
+                rank_emoji = ["🥇", "🥈", "🥉", "🏅", "⭐"][min(idx, 4)]
 
-                print(f"DEBUG: Processing popular file: {file_name} with ID: {file_id}, Type: {file_type}, Views: {access_count}")
+                # Extract message ID
+                if '_' in file_id:
+                    message_id = int(file_id.split('_')[-1])
+                else:
+                    message_id = int(file_id)
 
-                # Parse file_id to extract message_id
-                message_id = None
-                try:
-                    if '_' in file_id:
-                        parts = file_id.split('_')
-                        if len(parts) >= 2:
-                            message_id = int(parts[-1])
-                            print(f"DEBUG: Extracted message_id {message_id} from composite ID: {file_id}")
-                        else:
-                            print(f"ERROR: Invalid composite file_id format: {file_id}")
-                            errors_encountered.append(f"Invalid ID format: {file_id}")
-                            continue
-                    else:
-                        message_id = int(file_id)
-                        print(f"DEBUG: Using direct message_id: {message_id}")
+                # Get message from database channel
+                db_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
 
-                except (ValueError, IndexError) as parse_error:
-                    print(f"ERROR: Failed to parse message ID from {file_id}: {parse_error}")
-                    errors_encountered.append(f"Parse error for {file_id}: {str(parse_error)}")
-                    continue
+                if db_message and db_message.media:
+                    # Create enhanced caption with popularity metrics
+                    size_str = get_readable_file_size(file_size) if file_size else "Unknown"
+                    total_interactions = access_count + (download_count * 2)
 
-                if not message_id or message_id <= 0:
-                    print(f"ERROR: Invalid message_id {message_id} for file: {file_id}")
-                    errors_encountered.append(f"Invalid message_id {message_id}")
-                    continue
+                    caption = (f"{rank_emoji} **Popular #{idx + 1}:** {file_name}\n"
+                              f"📊 Size: {size_str}\n"
+                              f"👁️ Views: {access_count:,}\n"
+                              f"⬇️ Downloads: {download_count:,}\n"
+                              f"🔥 Popularity Score: {popularity_score:.1f}")
 
-                # Retrieve file from Telegram
-                try:
-                    print(f"DEBUG: Fetching message {message_id} from channel {Config.INDEX_CHANNEL_ID}")
-                    db_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
-
-                    if not db_message or db_message.empty or not db_message.media:
-                        print(f"ERROR: Message {message_id} invalid or has no media")
-                        errors_encountered.append(f"Message {message_id} invalid or no media")
-                        continue
-
-                    print(f"DEBUG: Successfully retrieved message {message_id} with media")
-
-                except Exception as telegram_get_error:
-                    print(f"ERROR: Telegram get_messages failed for message {message_id}: {telegram_get_error}")
-                    errors_encountered.append(f"Get message {message_id}: {str(telegram_get_error)}")
-                    continue
-
-                # Send the file to user without caption but with custom keyboard
-                try:
-                    print(f"DEBUG: Sending popular media from message {message_id} to user {message.chat.id}")
-
-                    # Create custom keyboard
-                    custom_keyboard = ReplyKeyboardMarkup([
+                    # Enhanced keyboard for popular files
+                    keyboard = InlineKeyboardMarkup([
                         [
-                            KeyboardButton("🎲 Random"),
-                            KeyboardButton("🆕 Recent Added")
+                            InlineKeyboardButton("🔥 More Popular", callback_data="popular_more"),
+                            InlineKeyboardButton("📤 Share", callback_data=f"share_{file_id}")
                         ],
                         [
-                            KeyboardButton("💎 Buy Premium"),
-                            KeyboardButton("🔥 Most Popular")
+                            InlineKeyboardButton("📈 File Stats", callback_data=f"stats_{file_id}"),
+                            InlineKeyboardButton("🎲 Random", callback_data="random_files")
                         ]
-                    ], resize_keyboard=True, one_time_keyboard=False)
+                    ])
 
-                    # Send media based on type without caption
-                    copied_msg = None
+                    # Send based on media type
                     if db_message.photo:
-                        copied_msg = await client.send_photo(
+                        await client.send_photo(
                             chat_id=message.chat.id,
                             photo=db_message.photo.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
                     elif db_message.video:
-                        copied_msg = await client.send_video(
+                        await client.send_video(
                             chat_id=message.chat.id,
                             video=db_message.video.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
                     elif db_message.document:
-                        copied_msg = await client.send_document(
+                        await client.send_document(
                             chat_id=message.chat.id,
                             document=db_message.document.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
                     elif db_message.audio:
-                        copied_msg = await client.send_audio(
+                        await client.send_audio(
                             chat_id=message.chat.id,
                             audio=db_message.audio.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    elif db_message.voice:
-                        copied_msg = await client.send_voice(
-                            chat_id=message.chat.id,
-                            voice=db_message.voice.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
                     elif db_message.animation:
-                        copied_msg = await client.send_animation(
+                        await client.send_animation(
                             chat_id=message.chat.id,
                             animation=db_message.animation.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    else:
-                        copied_msg = await db_message.copy(
-                            chat_id=message.chat.id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
+                            caption=caption,
+                            reply_markup=keyboard
                         )
 
-                    if copied_msg:
-                        sent_count += 1
-                        print(f"SUCCESS: Sent popular file #{sent_count}: {file_name}")
+                    sent_count += 1
 
-                        # Increment access count
-                        try:
-                            await increment_access_count(file_id)
-                            print(f"DEBUG: Incremented access count for {file_id}")
-                        except Exception as count_error:
-                            print(f"WARNING: Failed to increment access count for {file_id}: {count_error}")
+                    # Update access count and popularity metrics
+                    await collection.update_one(
+                        {"_id": file_id},
+                        {
+                            "$inc": {"access_count": 1},
+                            "$set": {"last_accessed": datetime.utcnow()}
+                        }
+                    )
 
-                        # Small delay to avoid flooding
-                        await asyncio.sleep(1.0)
-                    else:
-                        print(f"ERROR: Send operation returned None for message {message_id}")
-                        errors_encountered.append(f"Send failed for message {message_id}")
+                    await asyncio.sleep(0.5)
 
-                except Exception as send_error:
-                    print(f"ERROR: Failed to send message {message_id}: {send_error}")
-                    errors_encountered.append(f"Send error for {message_id}: {str(send_error)}")
-                    continue
-
-            except Exception as processing_error:
-                print(f"ERROR: General processing error for file {idx + 1}: {processing_error}")
-                errors_encountered.append(f"Processing error: {str(processing_error)}")
+            except Exception as send_error:
+                print(f"ERROR: Failed to send popular file {idx + 1}: {send_error}")
                 continue
 
-        # Update offset for next time (increment by files processed)
-        user_popular_offsets[user_id] = current_offset + len(results)
-        print(f"DEBUG: Updated offset for user {user_id} to {user_popular_offsets[user_id]}")
+        # Final status with popularity insights
+        if sent_count > 0:
+            total_views = sum(f.get('access_count', 0) for f in results[:sent_count])
+            avg_views = total_views // sent_count if sent_count > 0 else 0
 
-        # Send final status with navigation buttons
-        try:
-            if sent_count > 0:
-                final_text = f"✅ Successfully sent {sent_count} popular files!"
-                if errors_encountered:
-                    final_text += f"\n\n⚠️ {len(errors_encountered)} files had issues (check logs)"
-            else:
-                final_text = "❌ No valid popular files could be sent."
-                if errors_encountered:
-                    final_text += f"\n\nErrors encountered:\n• " + "\n• ".join(errors_encountered[:3])
-                    if len(errors_encountered) > 3:
-                        final_text += f"\n• ... and {len(errors_encountered) - 3} more"
-
-            nav_buttons = [
-                InlineKeyboardButton("🔥 More Popular", callback_data="rand_popular"),
-                InlineKeyboardButton("🎲 Random", callback_data="rand_new")
-            ]
-            more_buttons = [
-                InlineKeyboardButton("🆕 Recent", callback_data="rand_recent"),
-                InlineKeyboardButton("📊 Stats", callback_data="rand_stats")
-            ]
-
-            buttons = [nav_buttons, more_buttons]
+            final_buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🔥 More Popular", callback_data="popular_more"),
+                    InlineKeyboardButton("🎲 Random", callback_data="random_files")
+                ],
+                [
+                    InlineKeyboardButton("🆕 Recent", callback_data="recent_files"),
+                    InlineKeyboardButton("📊 Full Statistics", callback_data="detailed_stats")
+                ]
+            ])
 
             await loading_msg.edit_text(
-                final_text,
-                reply_markup=InlineKeyboardMarkup(buttons)
+                f"🔥 Sent {sent_count} most popular files!\n\n"
+                f"📈 Total views: {total_views:,}\n"
+                f"📊 Average views: {avg_views:,}\n\n"
+                f"🎯 These files are trending among users!",
+                reply_markup=final_buttons
             )
-
-            print(f"DEBUG: Popular files final status - Sent: {sent_count}, Errors: {len(errors_encountered)}")
-
-        except Exception as final_error:
-            print(f"ERROR: Failed to send final status message: {final_error}")
-            try:
-                await loading_msg.edit_text(f"⚠️ Process completed but status update failed: {str(final_error)}")
-            except:
-                pass
+        else:
+            await loading_msg.edit_text("❌ No popular files could be sent. Try again later.")
 
     except Exception as main_error:
-        error_text = f"❌ Critical error in popular files process: {str(main_error)}"
-        print(f"CRITICAL ERROR: Popular files process failed: {main_error}")
-
+        print(f"CRITICAL ERROR in popular files: {main_error}")
         try:
             if loading_msg:
-                await loading_msg.edit_text(error_text)
-            else:
-                await message.reply_text(error_text)
-        except Exception as msg_error:
-            print(f"ERROR: Could not send error message: {msg_error}")
+                await loading_msg.edit_text("❌ An unexpected error occurred. Please try again.")
+        except:
+            pass
 
 # Store user offset for popular files to ensure different files each time
 user_popular_offsets = {}
@@ -1726,16 +1715,16 @@ async def search_command(client: Client, message: Message):
         if len(message.command) < 2:
             await message.reply_text("❌ **Usage:** `/search <query>`\n\nExample: `/search funny videos`")
             return
-        
+
         query = " ".join(message.command[1:])
-        
+
         text = f"🔍 **Search Results for:** `{query}`\n\n"
         text += f"⚠️ Search functionality is currently under development.\n"
         text += f"Please try again later!"
-        
+
         await message.reply_text(text)
         logger.info(f"Search query '{query}' from user {message.from_user.id}")
-        
+
     except Exception as e:
         logger.error(f"Error in search command: {e}")
         await message.reply_text("❌ Search error occurred. Please try again.")
@@ -1746,11 +1735,11 @@ async def handle_random_files(client, message, is_callback=False, skip_command_c
         text = "🎲 **Random Files**\n\n"
         text += "⚠️ Random file feature is currently under development.\n"
         text += "Please check back later!"
-        
+
         if is_callback:
             await message.edit_text(text)
         else:
             await message.reply_text(text)
-            
+
     except Exception as e:
         logger.error(f"Error in handle_random_files: {e}")
