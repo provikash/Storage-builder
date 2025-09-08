@@ -106,7 +106,9 @@ async def debug_help_command(client: Client, message: Message):
 • Try `/start` to refresh
 • Contact support for help
         """
-        await message.reply_text(help_textd: {e}")
+        await message.reply_text(help_text)
+    except Exception as e:
+        print(f"❌ DEBUG: Error routing help command for user {user_id}: {e}")
         await message.reply_text(f"❌ Help command error: {e}")
 
 # Add debug message for all unhandled commands
