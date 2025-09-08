@@ -111,19 +111,23 @@ async def start_mother_bot():
         mother_bot_plugins = {
             "root": "bot.plugins",
             "include": [
-                "debug_start",
                 "start_handler",
-                "missing_commands",
-                "step_clone_creation",
-                "clone_management",
-                "mother_admin",
+                "genlink",
+                "channel",
                 "admin_commands",
                 "admin_panel",
                 "balance_management",
                 "premium",
                 "stats",
                 "broadcast",
-                "clone_admin_settings"
+                "mother_admin",
+                "mother_bot_commands",
+                "step_clone_creation",
+                "referral_program",
+                "debug_commands",
+                "debug_callbacks",
+                "debug_start",
+                "enhanced_about"
             ]
         }
 

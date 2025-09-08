@@ -135,7 +135,7 @@ class CloneManager:
                 context_logger.error(error_msg)
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
-            
+
             tracker.add_step("bot_token_retrieved")
 
             # Define plugin list for clone bots (exclude clone management)
