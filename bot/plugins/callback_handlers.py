@@ -734,14 +734,13 @@ async def balance_and_transaction_callbacks(client: Client, query: CallbackQuery
 
             buttons = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("$5", callback_data="add_balance_5"),
-                    InlineKeyboardButton("$10 (+Bonus)", callback_data="add_balance_10")
+                    InlineKeyboardButton("✅ $5", callback_data="add_balance_5"),
+                    InlineKeyboardButton("✅ $10", callback_data="add_balance_10")
                 ],
                 [
-                    InlineKeyboardButton("$25 (+Bonus)", callback_data="add_balance_25"),
-                    InlineKeyboardButton("$50 (+Mega Bonus)", callback_data="add_balance_50")
+                    InlineKeyboardButton("✅ $25", callback_data="add_balance_25"),
+                    InlineKeyboardButton("✅ $50", callback_data="add_balance_50")
                 ],
-                [InlineKeyboardButton("📜 View Transaction History", callback_data="transaction_history")],
                 [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
             ])
             await query.edit_message_text(text, reply_markup=buttons)
@@ -1265,3 +1264,276 @@ async def mother_admin_actions_callbacks(client: Client, query: CallbackQuery):
     except Exception as e:
         logger.error(f"Error in mother_admin_actions_callbacks: {e}")
         await query.edit_message_text(f"❌ Error processing {action_text}. Please try again.")
+
+# Premium Panel Callbacks
+@Client.on_callback_query(filters.regex("^(premium_info|add_balance|user_profile|my_stats)$"), group=CALLBACK_PRIORITIES["premium"])
+async def premium_panel_callbacks(client: Client, query: CallbackQuery):
+    """Handle premium panel callbacks"""
+    user_id = query.from_user.id
+    callback_data = query.data
+
+    try:
+        await query.answer()
+
+        if callback_data == "premium_info":
+            from bot.database.premium_db import is_premium_user
+            is_premium = await is_premium_user(user_id)
+
+            if is_premium:
+                text = f"💎 **Premium Status**\n\n"
+                text += f"✅ **You have Premium access!**\n\n"
+                text += f"🌟 **Premium Benefits:**\n"
+                text += f"• ⚡ Priority support\n"
+                text += f"• 🚀 Faster processing\n"
+                text += f"• 📁 Unlimited file access\n"
+                text += f"• 🎯 Advanced features\n"
+                text += f"• 💎 Exclusive content\n\n"
+
+                buttons = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("📊 Usage Stats", callback_data="premium_stats"),
+                        InlineKeyboardButton("⚙️ Settings", callback_data="premium_settings")
+                    ],
+                    [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
+                ])
+            else:
+                text = f"💎 **Upgrade to Premium**\n\n"
+                text += f"🌟 **Premium Benefits:**\n"
+                text += f"• ⚡ Priority support & faster processing\n"
+                text += f"• 📁 Unlimited file downloads\n"
+                text += f"• 🎯 Advanced search features\n"
+                text += f"• 💎 Exclusive premium content\n"
+                text += f"• 🚀 No usage limits\n\n"
+                text += f"💰 **Pricing:** $9.99/month\n\n"
+
+                buttons = InlineKeyboardMarkup([
+                    [
+                        InlineKeyboardButton("💳 Subscribe", callback_data="premium_subscribe"),
+                        InlineKeyboardButton("🎁 Free Trial", callback_data="premium_trial")
+                    ],
+                    [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
+                ])
+
+            await query.edit_message_text(text, reply_markup=buttons)
+
+        elif callback_data == "add_balance":
+            from bot.database.balance_db import get_user_balance
+            current_balance = await get_user_balance(user_id)
+
+            text = f"💰 **Add Balance**\n\n"
+            text += f"💳 **Current Balance:** ${current_balance:.2f}\n\n"
+            text += f"💎 **Available Packages:**\n"
+            text += f"• $5.00 - Basic Package\n"
+            text += f"• $10.00 - Standard Package\n"
+            text += f"• $25.00 - Premium Package\n"
+            text += f"• $50.00 - Professional Package\n\n"
+
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("💵 $5.00", callback_data="add_balance_5"),
+                    InlineKeyboardButton("💴 $10.00", callback_data="add_balance_10")
+                ],
+                [
+                    InlineKeyboardButton("💶 $25.00", callback_data="add_balance_25"),
+                    InlineKeyboardButton("💷 $50.00", callback_data="add_balance_50")
+                ],
+                [
+                    InlineKeyboardButton("💳 Custom Amount", callback_data="add_balance_custom"),
+                    InlineKeyboardButton("📜 Payment History", callback_data="payment_history")
+                ],
+                [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
+            ])
+
+            await query.edit_message_text(text, reply_markup=buttons)
+
+        elif callback_data == "user_profile":
+            from bot.database.balance_db import get_user_balance
+            from bot.database.premium_db import is_premium_user
+            from bot.database.users import get_user_stats
+
+            balance = await get_user_balance(user_id)
+            is_premium = await is_premium_user(user_id)
+            user_stats = await get_user_stats(user_id)
+
+            text = f"👤 **User Profile**\n\n"
+            text += f"📝 **Name:** {query.from_user.first_name}\n"
+            text += f"🆔 **User ID:** `{user_id}`\n"
+            text += f"👤 **Username:** @{query.from_user.username or 'Not set'}\n"
+            text += f"💰 **Balance:** ${balance:.2f}\n"
+            text += f"💎 **Status:** {'Premium' if is_premium else 'Free'}\n"
+            text += f"📊 **Commands Used:** {user_stats.get('command_count', 0)}\n"
+
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("💰 Add Balance", callback_data="add_balance"),
+                    InlineKeyboardButton("💎 Upgrade Plan", callback_data="premium_info")
+                ],
+                [
+                    InlineKeyboardButton("⚙️ Settings", callback_data="user_settings"),
+                    InlineKeyboardButton("📊 Statistics", callback_data="my_stats")
+                ],
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+
+            await query.edit_message_text(text, reply_markup=buttons)
+
+        elif callback_data == "my_stats":
+            from bot.database.balance_db import get_user_balance
+            from bot.database.premium_db import is_premium_user
+            from bot.database.users import get_user_stats
+
+            user_stats = await get_user_stats(user_id)
+            balance = await get_user_balance(user_id)
+            is_premium = await is_premium_user(user_id)
+
+            text = f"📊 **Your Statistics**\n\n"
+            text += f"📈 **Usage Stats:**\n"
+            text += f"• Commands Used: {user_stats.get('command_count', 0)}\n"
+            text += f"• Files Downloaded: {user_stats.get('downloads', 0)}\n"
+            text += f"• Searches Made: {user_stats.get('searches', 0)}\n"
+            text += f"• Days Active: {user_stats.get('active_days', 1)}\n\n"
+            text += f"💰 **Financial Stats:**\n"
+            text += f"• Current Balance: ${balance:.2f}\n"
+            text += f"• Total Spent: ${user_stats.get('total_spent', 0):.2f}\n"
+            text += f"• Account Type: {'Premium' if is_premium else 'Free'}\n\n"
+
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("📱 Export Data", callback_data="export_stats"),
+                    InlineKeyboardButton("🔄 Refresh", callback_data="my_stats")
+                ],
+                [InlineKeyboardButton("🔙 Back to Profile", callback_data="user_profile")]
+            ])
+
+            await query.edit_message_text(text, reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in premium panel callbacks: {e}")
+        await query.answer("❌ Error processing request", show_alert=True)
+
+# Clone Settings Toggle Handlers
+@Client.on_callback_query(filters.regex("^clone_toggle_(random|recent|popular|force_join)$"), group=CALLBACK_PRIORITIES["settings"])
+async def clone_toggle_handlers(client: Client, query: CallbackQuery):
+    """Handle clone settings toggle buttons"""
+    user_id = query.from_user.id
+    callback_data = query.data
+
+    try:
+        await query.answer()
+
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        if bot_token == Config.BOT_TOKEN:
+            await query.answer("❌ Settings only available in clone bots!", show_alert=True)
+            return
+
+        # Get clone data and verify admin
+        from bot.database.clone_db import get_clone_by_bot_token, update_clone_config
+        clone_data = await get_clone_by_bot_token(bot_token)
+
+        if not clone_data or int(user_id) != int(clone_data.get('admin_id')):
+            await query.answer("❌ Only clone admin can modify settings!", show_alert=True)
+            return
+
+        # Toggle the setting
+        setting_map = {
+            "clone_toggle_random": "random_mode",
+            "clone_toggle_recent": "recent_mode",
+            "clone_toggle_popular": "popular_mode",
+            "clone_toggle_force_join": "force_join_enabled"
+        }
+
+        setting_key = setting_map.get(callback_data)
+        if setting_key:
+            current_value = clone_data.get(setting_key, True)
+            new_value = not current_value
+
+            # Update in database
+            await update_clone_config(bot_token, {setting_key: new_value})
+
+            # Get updated data
+            updated_clone_data = await get_clone_by_bot_token(bot_token)
+
+            # Recreate settings panel with updated values
+            show_random = updated_clone_data.get('random_mode', True)
+            show_recent = updated_clone_data.get('recent_mode', True)
+            show_popular = updated_clone_data.get('popular_mode', True)
+            force_join = updated_clone_data.get('force_join_enabled', False)
+
+            text = f"⚙️ **Clone Bot Settings**\n\n"
+            text += f"🔧 **Configuration Panel**\n"
+            text += f"Manage your clone bot's features and behavior.\n\n"
+            text += f"📋 **Current Settings:**\n"
+            text += f"• 🎲 Random Files: {'✅ Enabled' if show_random else '❌ Disabled'}\n"
+            text += f"• 🆕 Recent Files: {'✅ Enabled' if show_recent else '❌ Disabled'}\n"
+            text += f"• 🔥 Popular Files: {'✅ Enabled' if show_popular else '❌ Disabled'}\n"
+            text += f"• 🔐 Force Join: {'✅ Enabled' if force_join else '❌ Disabled'}\n\n"
+
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(f"🎲 Random: {'✅' if show_random else '❌'}", callback_data="clone_toggle_random"),
+                    InlineKeyboardButton(f"🆕 Recent: {'✅' if show_recent else '❌'}", callback_data="clone_toggle_recent")
+                ],
+                [
+                    InlineKeyboardButton(f"🔥 Popular: {'✅' if show_popular else '❌'}", callback_data="clone_toggle_popular"),
+                    InlineKeyboardButton(f"🔐 Force Join: {'✅' if force_join else '❌'}", callback_data="clone_toggle_force_join")
+                ],
+                [
+                    InlineKeyboardButton("🔑 Token Settings", callback_data="clone_token_verification_mode"),
+                    InlineKeyboardButton("🔗 URL Shortener", callback_data="clone_url_shortener_config")
+                ],
+                [
+                    InlineKeyboardButton("📋 Force Channels", callback_data="clone_force_channels_list"),
+                    InlineKeyboardButton("🔧 Advanced Settings", callback_data="clone_advanced_settings")
+                ],
+                [
+                    InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")
+                ]
+            ])
+
+            await query.edit_message_text(text, reply_markup=buttons)
+
+            # Show confirmation
+            setting_names = {
+                "random_mode": "Random Files",
+                "recent_mode": "Recent Files",
+                "popular_mode": "Popular Files",
+                "force_join_enabled": "Force Join"
+            }
+            setting_name = setting_names.get(setting_key, "Setting")
+            status = "enabled" if new_value else "disabled"
+            await query.answer(f"✅ {setting_name} {status}!", show_alert=False)
+
+    except Exception as e:
+        logger.error(f"Error in clone toggle handlers: {e}")
+        await query.answer("❌ Error updating setting. Please try again.", show_alert=True)
+
+# Clone Advanced Settings Callbacks
+@Client.on_callback_query(filters.regex("^(clone_token_verification_mode|clone_url_shortener_config|clone_force_channels_list|clone_advanced_settings)$"), group=CALLBACK_PRIORITIES["settings"])
+async def clone_advanced_settings_callbacks(client: Client, query: CallbackQuery):
+    """Handle clone advanced settings callbacks"""
+    await query.answer()
+
+    feature_names = {
+        "clone_token_verification_mode": "🔑 Token Settings",
+        "clone_url_shortener_config": "🔗 URL Shortener",
+        "clone_force_channels_list": "📋 Force Channels",
+        "clone_advanced_settings": "🔧 Advanced Settings"
+    }
+
+    feature_name = feature_names.get(query.data, "Advanced Setting")
+
+    text = f"{feature_name}\n\n"
+    text += f"🚧 **Coming Soon!**\n\n"
+    text += f"This advanced feature is currently under development.\n"
+    text += f"Stay tuned for updates!\n\n"
+    text += f"💬 **Need assistance?**\n"
+    text += f"Contact support for help with clone configuration."
+
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📞 Contact Support", url=f"https://t.me/{Config.OWNER_USERNAME if hasattr(Config, 'OWNER_USERNAME') else 'admin'}"),
+            InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_settings_panel")
+        ]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)

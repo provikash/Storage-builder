@@ -133,7 +133,7 @@ async def start_mother_bot():
         import os
         session_dir = "temp_sessions"
         os.makedirs(session_dir, exist_ok=True)
-        
+
         app = Client(
             "mother_bot",
             api_id=Config.API_ID,
@@ -369,7 +369,7 @@ async def main():
                 for bot_id in clone_ids:
                     task = asyncio.create_task(clone_manager.stop_clone(bot_id))
                     stop_tasks.append(task)
-                
+
                 # Wait for all clones to stop with timeout
                 try:
                     await asyncio.wait_for(asyncio.gather(*stop_tasks, return_exceptions=True), timeout=30.0)
@@ -392,7 +392,7 @@ async def main():
                         logger.debug("✅ Mother Bot handlers cleaned up")
                     except Exception as cleanup_error:
                         logger.error(f"❌ Error cleaning Mother Bot handlers: {cleanup_error}")
-                    
+
                     # Stop with timeout
                     await asyncio.wait_for(app.stop(), timeout=15.0)
                     logger.info("✅ Mother Bot stopped")

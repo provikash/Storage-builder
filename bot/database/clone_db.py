@@ -401,6 +401,23 @@ async def get_clone_file_count(bot_id: str):
         logger.error(f"Error getting file count for clone {bot_id}: {e}")
         return 0
 
+async def update_clone_config(bot_token: str, config_updates: dict):
+    """Update clone configuration"""
+    try:
+        if not bot_token:
+            return False
+            
+        result = await clone_collection.update_one(
+            {"bot_token": bot_token},
+            {"$set": config_updates}
+        )
+        
+        return result.modified_count > 0
+        
+    except Exception as e:
+        logger.error(f"Error updating clone config: {e}")
+        return False
+
 async def get_clone_by_bot_token(bot_token: str):
     """Get clone by bot token"""
     try:
