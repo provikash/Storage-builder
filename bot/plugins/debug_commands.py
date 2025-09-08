@@ -77,17 +77,36 @@ async def debug_help_command(client: Client, message: Message):
     """Debug help command"""
     user_id = message.from_user.id
     
-    print(f"❓ DEBUG COMMAND: /help from user {user_id}")
-    print(f"👤 DEBUG COMMAND: User details - ID: {user_id}, Username: @{message.from_user.username}")
+    print(f"🔍 DEBUG: /help command received from user {user_id}")
+    print(f"👤 DEBUG: User - ID: {user_id}, Username: @{message.from_user.username}")
     
     # Route to start_handler help
     try:
         from bot.plugins.start_handler import help_command
-        print(f"🔄 DEBUG COMMAND: Routing to help command for user {user_id}")
+        print(f"🔄 DEBUG: Routing help command for user {user_id}")
         await help_command(client, message)
-        print(f"✅ DEBUG COMMAND: Successfully routed help command for user {user_id}")
+        print(f"✅ DEBUG: Help command routed successfully for user {user_id}")
     except Exception as e:
-        print(f"❌ DEBUG COMMAND: Error routing help command: {e}")
+        print(f"❌ DEBUG: Error routing help command for user {user_id}: {e}")
+        
+        # Fallback help message
+        help_text = """
+❓ **Help & Support**
+
+**🤖 Bot Commands:**
+• `/start` - Start the bot
+• `/help` - Show this help message
+• `/stats` - View your statistics
+
+**📞 Support:**
+• Contact: @admin
+• Status: Online 24/7
+
+**🔧 Having Issues?**
+• Try `/start` to refresh
+• Contact support for help
+        """
+        await message.reply_text(help_textd: {e}")
         await message.reply_text(f"❌ Help command error: {e}")
 
 # Add debug message for all unhandled commands

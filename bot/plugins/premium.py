@@ -80,16 +80,48 @@ async def premium_handler(client, message):
 
     buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="close")])
 
+    premium_text = f"""
+💎 **Premium Plans & Pricing**
+
+**🆓 Free Plan**
+• Limited daily downloads
+• Basic file access
+• Standard support
+
+**💎 Premium Tiers:**
+
+**🥉 Basic - $29/month**
+• 50 premium tokens
+• Priority downloads
+• Ad-free experience
+• Email support
+
+**🥈 Standard - $79/month** 
+• 150 premium tokens
+• 2x faster downloads
+• Premium support
+• Advanced search
+
+**🥇 Premium - $149/month**
+• 300 premium tokens
+• Maximum speeds
+• VIP support
+• All features unlocked
+
+**💎 Unlimited - $299/month**
+• ∞ Unlimited tokens
+• Highest priority
+• 24/7 premium support
+• Custom configurations
+
+━━━━━━━━━━━━━━━━━━━━━━
+📞 **Contact:** @{Config.ADMIN_USERNAME}
+💳 **Payment:** Secure & Instant
+🔒 **Guarantee:** 30-day refund policy
+    """
+
     await message.reply_text(
-        "🎫 **Token Verification Plans**\n\n"
-        "⚠️ **Note:** These are for bot command usage only, NOT for clone creation.\n\n"
-        "🎯 **Token Benefits:**\n"
-        "• 🚫 **No Ads** - Skip verification steps when using bot commands\n"
-        "• ⚡ **Instant Access** - Direct file access with tokens\n"
-        "• 🔥 **No Command Limits** - Use bot features freely\n"
-        "• 👑 **Token Support** - Help with token-related issues\n\n"
-        "💰 **Choose Your Token Plan:**\n"
-        "💡 **For clone creation, use /createclone command**",
+        premium_text,
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 

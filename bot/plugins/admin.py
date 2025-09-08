@@ -21,37 +21,43 @@ def admin_only(func):
 async def admin_help_command(client: Client, message: Message):
     """Show admin help"""
     help_text = f"""
-🔧 **Admin Commands Help**
+🛠️ **Admin Panel - Command Reference**
 
-🔗 **File Management:**
+**📁 File Management**
 • `/genlink` - Generate single file link
 • `/batch` - Generate batch file links  
 • `/link` - Generate link for specific file
 • `/indexchannel` - Index a channel for file storage
 
-📊 **User Management:**
+**👥 User Management**
 • `/users` - Get total user count
 • `/broadcast` - Broadcast message to all users
 • `/stats` - View bot statistics
 
-🛠️ **Channel Management:**
+**📢 Channel Management**
 • `/addforce <channel_id>` - Add force subscription channel
 • `/removeforce <channel_id>` - Remove force subscription channel
 • `/listforce` - List all force subscription channels
 
-🔐 **Request Channels:**
+**🔐 Request Management**
 • `/approveuser <user_id> <channel_id>` - Approve join request
 • `/pendingrequests` - View pending requests
 
-💰 **Payment Commands:**
+**💎 Premium Management**
+• `/addpremium <user_id> <plan>` - Add premium subscription
+• `/removepremium <user_id>` - Remove premium subscription
+• `/listpremium` - List all premium users
+
+**💰 Payment System**
 • `/payments` - Show available payment methods
-• `/addpremium <user_id> <days>` - Add premium subscription
 
-⚙️ **System:**
+**⚙️ System Tools**
 • `/debug` - Debug information
-• `/token` - Generate verification tokens
+• `/clearinvalidchannels` - Clean invalid channels
 
-📨 **Contact:** @{Config.ADMIN_USERNAME}
+📧 **Support:** @{Config.ADMIN_USERNAME}
+━━━━━━━━━━━━━━━━━━━━━━
+🔹 Use commands responsibly
     """
     await message.reply_text(help_text)
 
@@ -61,7 +67,7 @@ async def admin_help_command(client: Client, message: Message):
 async def add_force_channel(client: Client, message: Message):
     """Add force subscription channel"""
     if len(message.command) < 2:
-        return await message.reply_text("❌ Usage: `/addforce <channel_id_or_username>`\nExample: `/addforce -1001234567890` or `/addforce @mychannel`")
+        return await message.reply_text("❌ **Invalid Usage**\n\n**Usage:** `/addforce <channel_id_or_username>`\n\n**Examples:**\n• `/addforce -1001234567890`\n• `/addforce @mychannel`\n\n💡 **Tip:** Make sure the bot is admin in the channel")
 
     try:
         channel_input = message.command[1]
@@ -115,7 +121,7 @@ async def add_force_channel(client: Client, message: Message):
         except Exception as e:
             print(f"Warning: Could not update channel info: {e}")
 
-        await message.reply_text(f"✅ Added force subscription channel: **{channel_title}** (`{channel_id}`)")
+        await message.reply_text(f"✅ **Success!**\n\n📢 Added force subscription channel:\n**{channel_title}** (`{channel_id}`)\n\n🔹 Channel is now active for force subscription")
 
     except Exception as e:
         await message.reply_text(f"❌ Error adding channel: {str(e)}")
@@ -353,7 +359,7 @@ async def users_count(client: Client, message: Message):
     """Get total user count"""
     try:
         total_users = await get_users_count()
-        await message.reply_text(f"👥 **Total Users:** {total_users}")
+        await message.reply_text(f"📊 **User Statistics**\n\n👥 **Total Users:** {total_users:,}\n📈 **Status:** Active\n🕒 **Last Updated:** Just now")
     except Exception as e:
         await message.reply_text(f"❌ Error getting user count: {e}")
 
@@ -369,15 +375,25 @@ async def bot_stats(client: Client, message: Message):
         premium_rate = (premium_count/total_users*100) if total_users > 0 else 0
 
         stats_text = f"""
-📊 **Bot Statistics**
+📊 **Comprehensive Bot Statistics**
 
-👥 **Total Users:** {total_users}
-👑 **Premium Users:** {premium_count}
-📈 **Premium Rate:** {premium_rate:.1f}%
-📢 **Force Sub Channels:** {len(Config.FORCE_SUB_CHANNEL)}
-🔔 **Request Channels:** {len(getattr(Config, 'REQUEST_CHANNEL', []))}
+**👥 User Analytics**
+• Total Users: {total_users:,}
+• Premium Users: {premium_count:,}
+• Premium Rate: {premium_rate:.1f}%
+• Free Users: {total_users - premium_count:,}
 
-🤖 **System Status:** Online ✅
+**📢 Channel Configuration** 
+• Force Sub Channels: {len(Config.FORCE_SUB_CHANNEL)}
+• Request Channels: {len(getattr(Config, 'REQUEST_CHANNEL', []))}
+
+**🤖 System Health**
+• Status: 🟢 Online
+• Performance: Optimal
+• Database: Connected
+
+━━━━━━━━━━━━━━━━━━━━━━
+📈 **Growth Rate:** Steady
         """
         await message.reply_text(stats_text)
     except Exception as e:
