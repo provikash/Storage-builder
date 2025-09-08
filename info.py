@@ -66,6 +66,7 @@ class Config(object):
     
     # Web Configuration
     WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
+    WEB_HOST = os.environ.get("WEB_HOST", "0.0.0.0")
 
     # Channel Configuration with defaults for missing vars  
     INDEX_CHANNEL_ID = int(os.environ.get("INDEX_CHANNEL_ID", "0"))
