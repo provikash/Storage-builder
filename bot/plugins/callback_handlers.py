@@ -113,7 +113,7 @@ async def is_clone_bot_instance_async(client: Client):
 from bot.utils.callback_safety import safe_callback_handler
 
 # Emergency callback handlers with highest priority to catch button issues
-@Client.on_callback_query(filters.regex("^(clone_settings_panel|settings|back_to_start)$"), group=CALLBACK_PRIORITIES["emergency"])
+@Client.on_callback_query(filters.regex("^(clone_settings_panel|settings)$"), group=CALLBACK_PRIORITIES["emergency"])
 @safe_callback_handler
 async def emergency_callback_handler(client: Client, query: CallbackQuery):
     """Emergency handler for critical non-responsive buttons"""

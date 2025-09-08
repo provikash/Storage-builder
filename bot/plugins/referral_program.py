@@ -77,43 +77,8 @@ async def referral_command(client: Client, message: Message):
     
     await message.reply_text(text, reply_markup=buttons)
 
-@Client.on_message(filters.regex(r"^/start ref_(.+)$") & filters.private)
-async def handle_referral_start(client: Client, message: Message):
-    """Handle referral link starts"""
-    user_id = message.from_user.id
-    
-    # Check if this is mother bot
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    if bot_token != Config.BOT_TOKEN:
-        return  # Let normal start handler take over in clone bots
-    
-    # Extract referral code
-    referral_code = message.text.split("ref_")[1]
-    
-    # Get referrer
-    referrer_id = await get_referrer_by_code(referral_code)
-    
-    if not referrer_id:
-        # Invalid referral code, show normal start
-        from bot.plugins.start_handler import start_command
-        await start_command(client, message)
-        return
-    
-    if referrer_id == user_id:
-        await message.reply_text("😅 **Nice try!**\n\nYou can't refer yourself! Share your link with friends instead.")
-        return
-    
-    # Record the referral
-    success = await record_referral(referrer_id, user_id, referral_code)
-    
-    if success:
-        # Notify about referral program
-        text = f"🎉 **Welcome via Referral!**\n\n"
-        text += f"You've joined through a referral link!\n\n"
-        text += f"💡 **Special Offer:**\n"
-        text += f"When you purchase any premium plan, your referrer gets $0.10 reward!\n\n"
-        text += f"🚀 **Get Started:**\n"
-        text += f"Explore the bot and create your own clone bot!"
+# DISABLED: Referral start handler moved to main start_handler.py to avoid conflicts
+# Referral logic can be integrated into the main start command when neededeate your own clone bot!"
         
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🚀 Create My Clone", callback_data="start_clone_creation")],

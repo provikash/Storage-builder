@@ -20,5 +20,4 @@ async def catch_all_handler(client: Client, message: Message):
     """Catch-all handler to log unhandled messages"""
     if message.text and message.text.startswith('/'):
         logger.warning(f"Unhandled command: {message.text} from user {message.from_user.id}")
-        if message.text == "/start":
-            await message.reply_text("⚠️ **Start command not working properly**\n\nTry /debug to test bot responsiveness.")
+        await message.reply_text("❌ **Unknown Command**\n\nUse /start to see available options.")
