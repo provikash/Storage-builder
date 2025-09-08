@@ -251,7 +251,7 @@ def run_server():
 
     try:
         # Always use port 5000 for Replit
-        app.run(host='0.0.0.0', port=5000, debug=False)
+        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
     except Exception as e:
         print(f"Web server error: {e}")
 
@@ -262,11 +262,9 @@ def start_webserver():
     return server_thread
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get('PORT', 8080))  # Use 8080 if 5000 is in use
+    # Always use port 5000 for Replit
+    port = 5000
     try:
-        app.run(host='0.0.0.0', port=port, debug=False)
+        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
     except OSError as e:
-        if "Address already in use" in str(e):
-            print(f"Port {port} in use, trying port {port + 1}")
-            app.run(host='0.0.0.0', port=port + 1, debug=False)
+        print(f"Web server error on port {port}: {e}")
