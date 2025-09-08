@@ -497,10 +497,17 @@ async def broadcast_message(client: Client, message: Message):
                 failed_count += 1
 
         await status_msg.edit_text(
+            f"📢 **Broadcast Complete**\n\n"
+            f"✅ **Successful:** {success_count}\n"
+            f"❌ **Failed:** {failed_count}\n"
+            f"📊 **Total:** {len(users)}"
+        )
 
-@admin_only
+    except Exception as e:
+        await message.reply_text(f"❌ Error during broadcast: {str(e)}")
+
 @Client.on_message(filters.command("clearinvalidchannels") & filters.private)
-
+@admin_only
 async def clear_invalid_channels(client: Client, message: Message):
     """Clear invalid force subscription channels"""
     if not Config.FORCE_SUB_CHANNEL:
@@ -543,15 +550,6 @@ async def clear_invalid_channels(client: Client, message: Message):
             result_text += f"• `{ch}`\n"
 
     await message.reply_text(result_text)
-
-            f"📢 **Broadcast Complete**\n\n"
-            f"✅ **Successful:** {success_count}\n"
-            f"❌ **Failed:** {failed_count}\n"
-            f"📊 **Total:** {len(users)}"
-        )
-
-    except Exception as e:
-        await message.reply_text(f"❌ Error during broadcast: {str(e)}")
 
 @Client.on_message(filters.command("approveuser") & filters.private)
 @admin_only
