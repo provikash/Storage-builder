@@ -33,15 +33,24 @@ async def check_clone_feature_enabled(client: Client, feature_name: str):
         if bot_token == Config.BOT_TOKEN:
             return False  # Mother bot doesn't use random features
 
-        # Get clone configuration
-        config = await clone_config_loader.get_bot_config(bot_token)
-        if not config:
-            logger.error(f"No config found for bot token {bot_token}")
+        # Get clone data from database
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data:
+            logger.error(f"No clone data found for bot token {bot_token}")
             return False
 
-        # Check feature status
-        features = config.get('features', {})
-        return features.get(feature_name, False)
+        # Map feature names to database fields
+        feature_mapping = {
+            'random_button': 'random_mode',
+            'recent_button': 'recent_mode', 
+            'popular_button': 'popular_mode'
+        }
+        
+        db_field = feature_mapping.get(feature_name, feature_name)
+        is_enabled = clone_data.get(db_field, False)
+        
+        logger.info(f"Feature check for {feature_name} (db_field: {db_field}): {is_enabled}")
+        return is_enabled
 
     except Exception as e:
         logger.error(f"Error checking clone feature {feature_name}: {e}")

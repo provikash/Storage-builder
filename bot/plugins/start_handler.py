@@ -289,17 +289,40 @@ async def start_command(client: Client, message: Message):
             ])
             buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about_bot")])
         else:
-            # Normal clone bot users - as specified in the requirements
+            # Normal clone bot users - check database settings for feature visibility
             buttons = []
 
-            # File browsing buttons for regular users
-            buttons.append([
-                InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
-                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
-            ])
-            buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
+            # Get current settings from database to determine which buttons to show
+            try:
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    show_random = clone_data.get('random_mode', False)
+                    show_recent = clone_data.get('recent_mode', False) 
+                    show_popular = clone_data.get('popular_mode', False)
 
-            # User action buttons as specified in requirements
+                    logger.info(f"Clone {clone_data.get('bot_id')} settings for regular user in start: random={show_random}, recent={show_recent}, popular={show_popular}")
+
+                    # Only show file browsing buttons if enabled by admin
+                    file_buttons_row = []
+                    if show_random:
+                        file_buttons_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+                    if show_recent:
+                        file_buttons_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+
+                    # Add file buttons row if any buttons exist
+                    if file_buttons_row:
+                        buttons.append(file_buttons_row)
+
+                    # Add popular files button in its own row if enabled
+                    if show_popular:
+                        buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
+
+                else:
+                    logger.warning(f"No clone data found for bot_token in start: {bot_token}")
+            except Exception as e:
+                logger.error(f"Error getting clone settings in start: {e}")
+
+            # User action buttons as specified in requirements (always visible)
             buttons.append([
                 InlineKeyboardButton("📊 My Stats", callback_data="my_stats"),
                 InlineKeyboardButton("❓ Help", callback_data="help_menu")
@@ -505,7 +528,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     user_premium = await is_premium_user(user_id)
     balance = await get_user_balance(user_id)
-    is_clone_bot, _ = await is_clone_bot_instance_async(client)
+    is_clone_bot, bot_token = await is_clone_bot_instance_async(client)
 
     if is_clone_bot:
         # Clone bot start message - standardized version
@@ -523,14 +546,13 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         is_admin = await is_clone_admin(client, user_id)
 
         # Get clone data for feature settings
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         clone_data = await get_clone_by_bot_token(bot_token)
 
         # Create file access buttons based on clone admin settings
         file_buttons = await get_start_keyboard_for_clone_user(clone_data, bot_token)
 
-        # Settings button - only for clone admin
         if is_admin:
+            # Admin buttons
             file_buttons = [
                 [InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")],
                 [InlineKeyboardButton("📊 Bot Stats", callback_data="clone_stats")],
@@ -539,16 +561,49 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
                 [InlineKeyboardButton("ℹ️ About", callback_data="about_bot")]
             ]
         else:
-            # User action buttons for non-admin users
-            file_buttons.append([
+            # Normal clone bot users - check database settings for feature visibility
+            buttons = []
+
+            # Get current settings from database to determine which buttons to show
+            try:
+                clone_data = await get_clone_by_bot_token(bot_token)
+                if clone_data:
+                    show_random = clone_data.get('random_mode', False)
+                    show_recent = clone_data.get('recent_mode', False) 
+                    show_popular = clone_data.get('popular_mode', False)
+
+                    logger.info(f"Clone {clone_data.get('bot_id')} settings for regular user in back_to_start: random={show_random}, recent={show_recent}, popular={show_popular}")
+
+                    # Only show file browsing buttons if enabled by admin
+                    file_buttons_row = []
+                    if show_random:
+                        file_buttons_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
+                    if show_recent:
+                        file_buttons_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
+
+                    # Add file buttons row if any buttons exist
+                    if file_buttons_row:
+                        buttons.append(file_buttons_row)
+
+                    # Add popular files button in its own row if enabled
+                    if show_popular:
+                        buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
+
+                else:
+                    logger.warning(f"No clone data found for bot_token in back_to_start: {bot_token}")
+            except Exception as e:
+                logger.error(f"Error getting clone settings in back_to_start: {e}")
+
+            # User action buttons as specified in requirements (always visible)
+            buttons.append([
                 InlineKeyboardButton("📊 My Stats", callback_data="my_stats"),
-                InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
-            ])
-            file_buttons.append([
-                InlineKeyboardButton("💎 Plans", callback_data="premium_info"),
                 InlineKeyboardButton("❓ Help", callback_data="help_menu")
             ])
-            file_buttons.append([InlineKeyboardButton("ℹ️ About", callback_data="about_bot")])
+            buttons.append([
+                InlineKeyboardButton("💎 Plans", callback_data="premium_info"),
+                InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
+            ])
+            file_buttons = buttons # Assign the dynamically generated buttons
 
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(file_buttons))
     else:
