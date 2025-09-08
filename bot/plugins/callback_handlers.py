@@ -201,22 +201,26 @@ async def emergency_callback_handler(client: Client, query: CallbackQuery):
             # Route to clone random files handlers with proper callback data mapping
             try:
                 if callback_data == "random_files":
-                    # Create a new query object with the correct callback data
-                    query.data = "clone_random_files"
+                    # Import and call the handler directly
                     from bot.plugins.clone_random_files import handle_clone_random_files
+                    # Create a modified query with the correct callback data
+                    query.data = "clone_random_files"
                     await handle_clone_random_files(client, query)
                 elif callback_data == "recent_files":
-                    # Create a new query object with the correct callback data
-                    query.data = "clone_recent_files"
+                    # Import and call the handler directly
                     from bot.plugins.clone_random_files import handle_clone_recent_files
+                    # Create a modified query with the correct callback data
+                    query.data = "clone_recent_files"
                     await handle_clone_recent_files(client, query)
                 elif callback_data == "popular_files":
-                    # Create a new query object with the correct callback data
-                    query.data = "clone_popular_files"
+                    # Import and call the handler directly  
                     from bot.plugins.clone_random_files import handle_clone_popular_files
+                    # Create a modified query with the correct callback data
+                    query.data = "clone_popular_files"
                     await handle_clone_popular_files(client, query)
             except Exception as handler_error:
                 logger.error(f"Error in {callback_data} handler: {handler_error}")
+                traceback.print_exc()
                 await query.edit_message_text(f"❌ Error loading {feature_display_name.lower()}. Please try again.")
 
         elif callback_data == "back_to_start":
@@ -350,6 +354,99 @@ async def handle_start_admin_buttons(client: Client, query: CallbackQuery):
         ])
 
         await query.edit_message_text(text, reply_markup=buttons)
+
+# File browsing callbacks with higher priority than emergency handler
+@Client.on_callback_query(filters.regex("^(random_files|recent_files|popular_files)$"), group=CALLBACK_PRIORITIES["search"])
+async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
+    """Handle file browsing callbacks with proper routing"""
+    user_id = query.from_user.id
+    callback_data = query.data
+
+    logger.info(f"📁 File browsing callback: {callback_data} from user {user_id}")
+    print(f"📁 File browsing callback: {callback_data} from user {user_id}")
+
+    try:
+        await query.answer()
+
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Check if this is mother bot
+        if bot_token == Config.BOT_TOKEN:
+            feature_name = callback_data.replace('_files', '').replace('_', ' ').title()
+            await query.edit_message_text(
+                f"📁 **{feature_name} Files**\n\n"
+                f"{feature_name} file features are disabled in the mother bot. "
+                f"This functionality is only available in clone bots.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+            )
+            return
+
+        # Get clone data to check feature status
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
+
+        if not clone_data:
+            await query.edit_message_text(
+                "❌ Clone configuration not found!",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+            )
+            return
+
+        # Check feature enablement
+        feature_enabled = True
+        feature_display_name = ""
+
+        if callback_data == "random_files":
+            feature_enabled = clone_data.get('random_mode', True)
+            feature_display_name = "Random Files"
+        elif callback_data == "recent_files":
+            feature_enabled = clone_data.get('recent_mode', True)
+            feature_display_name = "Recent Files"
+        elif callback_data == "popular_files":
+            feature_enabled = clone_data.get('popular_mode', True)
+            feature_display_name = "Popular Files"
+
+        if not feature_enabled:
+            await query.edit_message_text(
+                f"❌ **{feature_display_name} Disabled**\n\n"
+                "This feature has been disabled by the bot admin.\n\n"
+                "Contact the bot administrator if you need access.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+            )
+            return
+
+        # Route to appropriate handler
+        if callback_data == "random_files":
+            from bot.plugins.clone_random_files import handle_clone_random_files
+            query.data = "clone_random_files"
+            await handle_clone_random_files(client, query)
+        elif callback_data == "recent_files":
+            from bot.plugins.clone_random_files import handle_clone_recent_files
+            query.data = "clone_recent_files"  
+            await handle_clone_recent_files(client, query)
+        elif callback_data == "popular_files":
+            from bot.plugins.clone_random_files import handle_clone_popular_files
+            query.data = "clone_popular_files"
+            await handle_clone_popular_files(client, query)
+
+    except Exception as e:
+        logger.error(f"Error in file browsing callback handler: {e}")
+        traceback.print_exc()
+        try:
+            await query.edit_message_text(
+                f"❌ Error processing {callback_data}. Please try again.",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+                ])
+            )
+        except:
+            await query.answer("❌ Error processing request", show_alert=True)
 
 # General Callbacks
 @Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history|add_balance|manage_my_clone|show_referral_main)$"), group=CALLBACK_PRIORITIES["general"])

@@ -3,7 +3,20 @@ import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import FloodWait
-from bot.database.mongo_db import get_random_files, get_recent_files, get_popular_files
+try:
+    from bot.database.mongo_db import get_random_files, get_recent_files, get_popular_files, get_file_by_id, increment_download_count
+except ImportError:
+    logger.warning("Failed to import from mongo_db, trying index_db")
+    try:
+        from bot.database.index_db import get_random_files, get_recent_files, get_popular_files
+        from bot.database.mongo_db import get_file_by_id, increment_download_count
+    except ImportError:
+        logger.error("Failed to import database functions")
+        async def get_random_files(*args, **kwargs): return []
+        async def get_recent_files(*args, **kwargs): return []
+        async def get_popular_files(*args, **kwargs): return []
+        async def get_file_by_id(*args, **kwargs): return None
+        async def increment_download_count(*args, **kwargs): pass
 from bot.database.clone_db import get_clone_by_bot_token
 from bot.utils.helper import get_readable_file_size
 from info import Config
@@ -136,7 +149,7 @@ async def random_files_command(client: Client, message: Message):
         logger.error(f"Error in random files command: {e}")
         await message.reply_text("❌ Error retrieving random files. Please try again.")
 
-@Client.on_callback_query(filters.regex("^(clone_random_files|random_files)$"), group=2)
+@Client.on_callback_query(filters.regex("^(clone_random_files)$"), group=3)
 async def handle_clone_random_files(client: Client, query):
     """Handle random files callback for clones"""
     try:
@@ -179,7 +192,7 @@ async def handle_clone_random_files(client: Client, query):
         logger.error(f"Error in clone random files callback: {e}")
         await query.answer("❌ Error retrieving random files.", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^(clone_recent_files|recent_files)$"), group=2)
+@Client.on_callback_query(filters.regex("^(clone_recent_files)$"), group=3)
 async def handle_clone_recent_files(client: Client, query):
     """Handle recent files callback for clones"""
     try:
@@ -222,7 +235,7 @@ async def handle_clone_recent_files(client: Client, query):
         logger.error(f"Error in clone recent files callback: {e}")
         await query.answer("❌ Error retrieving recent files.", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^(clone_popular_files|popular_files)$"), group=2)
+@Client.on_callback_query(filters.regex("^(clone_popular_files)$"), group=3)
 async def handle_clone_popular_files(client: Client, query):
     """Handle popular files callback for clones"""
     try:
