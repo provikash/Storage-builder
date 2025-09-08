@@ -1,4 +1,4 @@
-modules = ["python-3.12", "c-clang14", "nodejs-20", "web"]
+modules = ["c-clang14", "nodejs-20", "web", "python-3.11"]
 run = "python3 main.py"
 
 [nix]
