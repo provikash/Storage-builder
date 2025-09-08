@@ -250,15 +250,8 @@ def run_server():
             return jsonify({"error": str(e)}), 500
 
     try:
-        # Try port 5000 first, then fall back to 8080
-        try:
-            app.run(host='0.0.0.0', port=5000, debug=False)
-        except OSError as port_error:
-            if "Address already in use" in str(port_error):
-                print("Port 5000 in use, trying port 8080...")
-                app.run(host='0.0.0.0', port=8080, debug=False)
-            else:
-                raise port_error
+        # Always use port 5000 for Replit
+        app.run(host='0.0.0.0', port=5000, debug=False)
     except Exception as e:
         print(f"Web server error: {e}")
 
