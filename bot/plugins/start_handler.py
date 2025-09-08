@@ -193,20 +193,38 @@ async def start_command(client: Client, message: Message):
 
     except Exception as e:
         logger.error(f"Error in start command for user {user_id}: {e}")
-        await message.reply_text("❌ An error occurred. Please try again later.")
+        try:
+            await message.reply_text("❌ An error occurred. Please try again later.")
+        except Exception as reply_error:
+            logger.error(f"Failed to send error message to user {user_id}: {reply_error}")
 
 @Client.on_callback_query(filters.regex("^back_to_start$"))
 async def back_to_start_callback(client: Client, query: CallbackQuery):
     """Return to main start menu"""
-    await query.answer()
-    
-    # Create a fake message to reuse start_command logic
-    fake_message = type('obj', (object,), {
-        'from_user': query.from_user,
-        'reply_text': lambda text, reply_markup=None: query.edit_message_text(text, reply_markup=reply_markup)
-    })()
-    
-    await start_command(client, fake_message)
+    try:
+        await query.answer()
+        
+        # Create a proper fake message object
+        class FakeMessage:
+            def __init__(self, from_user):
+                self.from_user = from_user
+            
+            async def reply_text(self, text, reply_markup=None):
+                return await query.edit_message_text(text, reply_markup=reply_markup)
+        
+        fake_message = FakeMessage(query.from_user)
+        await start_command(client, fake_message)
+        
+    except Exception as e:
+        logger.error(f"Error in back_to_start_callback: {e}")
+        try:
+            await query.edit_message_text("❌ Error returning to start. Please use /start command.")
+        except:
+            # If edit fails, try to answer with alert
+            try:
+                await query.answer("❌ Error returning to start. Please use /start command.", show_alert=True)
+            except:
+                pass
 
 # Settings handlers for clone bots
 @Client.on_callback_query(filters.regex("^clone_settings$"))
