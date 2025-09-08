@@ -20,21 +20,21 @@ class CloneManager:
         """Start a specific clone bot"""
         from bot.logging import get_context_logger
         from bot.utils.debug_helper import create_execution_tracker
-        
+
         context_logger = get_context_logger(__name__).add_context(bot_id=bot_id, operation="start_clone")
         tracker = create_execution_tracker(f"start_clone_{bot_id}")
-        
+
         try:
             tracker.add_step("fetching_clone_data")
             context_logger.debug("Starting clone startup process")
-            
+
             clone = await get_clone(bot_id)
             if not clone:
                 error_msg = "Clone not found in database"
                 context_logger.error(error_msg)
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
-            
+
             tracker.add_step("clone_data_retrieved", {"clone_exists": True})
 
             # Check subscription - be more flexible with status check
@@ -49,14 +49,14 @@ class CloneManager:
             # Allow active subscriptions or payment verified subscriptions
             is_active_status = subscription['status'] == 'active'
             is_payment_verified = subscription.get('payment_verified', False)
-            
+
             context_logger.debug(
                 "Subscription status checked",
                 status=subscription['status'],
                 payment_verified=is_payment_verified,
                 is_active=is_active_status
             )
-            
+
             tracker.add_step("subscription_validated", {
                 "status": subscription['status'],
                 "payment_verified": is_payment_verified
@@ -92,14 +92,30 @@ class CloneManager:
                 "root": "bot.plugins",
                 "include": [
                     "start_handler",
-                    "simple_file_sharing",
-                    "genlink",
-                    "callback_handlers",
                     "missing_commands",
+                    "admin",
+                    "callback", 
+                    "channel",
+                    "clone_admin", 
+                    "clone_admin_commands",
+                    "clone_force_commands",
+                    "clone_token_commands",
+                    "command_stats",
+                    "debug_callbacks",
+                    "debug_commands",
+                    "enhanced_about",
+                    "force_sub_commands",
+                    "genlink",
+                    "index",
                     "missing_callbacks",
+                    "referral_program",
+                    "simple_file_sharing",
                     "token",
-                    "stats",
-                    "clone_admin_settings"
+                    "water_about",
+                    "auto_post",
+                    "callback_fix",
+                    "clone_index",
+                    "clone_random_files"
                 ],
                 "exclude": [
                     "clone_management",
@@ -108,7 +124,57 @@ class CloneManager:
                     "admin_commands",
                     "balance_management",
                     "admin_panel",
+                    "channel",
+                    "search"
+                ]
+            }
+
+            bot_token = clone.get('bot_token') or clone.get('token')
+            if not bot_token:
+                error_msg = "Bot token not found for clone"
+                context_logger.error(error_msg)
+                tracker.complete(success=False, error=error_msg)
+                return False, error_msg
+            
+            tracker.add_step("bot_token_retrieved")
+
+            # Define plugin list for clone bots (exclude clone management)
+            clone_plugins = {
+                "root": "bot.plugins",
+                "include": [
+                    "start_handler",
+                    "missing_commands",
+                    "admin",
+                    "callback", 
+                    "channel",
+                    "clone_admin", 
+                    "clone_admin_commands",
+                    "clone_force_commands",
+                    "clone_token_commands",
+                    "command_stats",
+                    "debug_callbacks",
+                    "debug_commands",
+                    "enhanced_about",
+                    "force_sub_commands",
+                    "genlink",
                     "index",
+                    "missing_callbacks",
+                    "referral_program",
+                    "simple_file_sharing",
+                    "token",
+                    "water_about",
+                    "auto_post",
+                    "callback_fix",
+                    "clone_index",
+                    "clone_random_files"
+                ],
+                "exclude": [
+                    "clone_management",
+                    "step_clone_creation", 
+                    "mother_admin",
+                    "admin_commands",
+                    "balance_management",
+                    "admin_panel",
                     "channel",
                     "search"
                 ]
@@ -143,6 +209,18 @@ class CloneManager:
             logger.info(f"✅ Clone {bot_id} started successfully")
             return True, f"Clone @{clone_bot.me.username} started successfully"
 
+        except AuthKeyUnregistered:
+            logger.error(f"❌ AuthKeyUnregistered for clone {bot_id}. Deactivating.")
+            await deactivate_clone(bot_id)
+            return False, "Authentication key unregistered"
+        except AccessTokenExpired:
+            logger.error(f"❌ AccessTokenExpired for clone {bot_id}. Deactivating.")
+            await deactivate_clone(bot_id)
+            return False, "Access token expired"
+        except AccessTokenInvalid:
+            logger.error(f"❌ AccessTokenInvalid for clone {bot_id}. Deactivating.")
+            await deactivate_clone(bot_id)
+            return False, "Access token invalid"
         except Exception as e:
             logger.error(f"❌ Error starting clone {bot_id}: {e}")
             return False, str(e)
@@ -292,6 +370,7 @@ class CloneManager:
         """Check subscription status for all clones"""
         try:
             await self.cleanup_inactive_clones()
+            await self.check_pending_clones()
             logger.info("✅ Subscription check completed")
         except Exception as e:
             logger.error(f"❌ Error checking subscriptions: {e}")
@@ -348,8 +427,9 @@ class CloneManager:
             for subscription in expired_subscriptions:
                 bot_id = subscription['bot_id']
 
-                # Stop the clone
-                await self.stop_clone(bot_id)
+                # Stop the clone if it's running
+                if bot_id in self.active_clones:
+                    await self.stop_clone(bot_id)
 
                 # Deactivate in database
                 await deactivate_clone(bot_id)
@@ -385,6 +465,8 @@ class CloneManager:
                         logger.info(f"✅ Successfully started pending clone {bot_id}")
                     else:
                         logger.warning(f"⚠️ Failed to start clone {bot_id}: {message}")
+                        # If it fails to start even with active subscription, consider marking as failed or deactivated
+                        # For now, we'll let the _retry_pending_clone handle further retries if needed
 
         except Exception as e:
             logger.error(f"❌ Error checking pending clones: {e}")
