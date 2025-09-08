@@ -1053,7 +1053,7 @@ async def user_profile_callback(client: Client, query: CallbackQuery):
         await query.answer("❌ Error loading profile.", show_alert=True)
 
 # Placeholder callbacks for features not yet implemented
-@Client.on_callback_query(filters.regex("^(random_files|recent_files|popular_files|premium_info|add_balance|manage_my_clone|user_stats|show_referral_main|about_water|admin_panel|start_clone_creation)$"))
+@Client.on_callback_query(filters.regex("^(premium_info|add_balance|manage_my_clone|user_stats|show_referral_main|about_water|admin_panel|start_clone_creation)$"))
 async def placeholder_callbacks(client: Client, query: CallbackQuery):
     """Handle placeholder callbacks for features under development"""
     try:
