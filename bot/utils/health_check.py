@@ -172,16 +172,16 @@ class HealthChecker:
         from bot.logging import get_context_logger
 
         context_logger = get_context_logger(__name__).add_context(check_type="database")
+        start_time = time.time()
 
         try:
             # Test database connection
-            from bot.database.mongo_db import MongoDB
-            db = MongoDB()
+            from bot.database.connection import db
             if db is not None:
-                # Try a simple operation
+                # Try a simple operation - correct method call
                 try:
-                    result = await db.db.admin.command("ping")
-                    self.checks['database'] = {
+                    result = await db.command("ping")
+                    return {
                         'status': 'healthy',
                         'connected': True,
                         'response_time': time.time() - start_time
@@ -191,11 +191,6 @@ class HealthChecker:
             else:
                 raise Exception("Database connection is None")
         except Exception as e:
-            self.checks['database'] = {
-                'status': 'critical',
-                'error': str(e),
-                'connected': False
-            }
             error_msg = str(e)
             context_logger.error("Database health check exception", error=error_msg, error_type=type(e).__name__)
             return {

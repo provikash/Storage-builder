@@ -51,6 +51,15 @@ try:
 except ImportError:
     async def get_command_stats(user_id): return {'command_count': 0}
 
+try:
+    from bot.utils import helper as utils
+except ImportError:
+    # Create a minimal utils mock if import fails
+    class utils:
+        @staticmethod
+        async def handle_force_sub(client, message):
+            return True  # Allow all users if force sub is not available
+
 logger = LOGGER(__name__)
 
 # User settings storage (in-memory dictionary)
@@ -588,8 +597,12 @@ async def user_profile_callback(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
 
     # Check force subscription first
-    if await handle_force_sub(client, query.message):
-        return
+    try:
+        if await utils.handle_force_sub(client, query.message):
+            return
+    except:
+        # Continue if force sub check fails
+        pass
 
     # Check if this is a clone bot
     is_clone, bot_token = await is_clone_bot_instance_async(client)

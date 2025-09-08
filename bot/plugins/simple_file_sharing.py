@@ -227,3 +227,20 @@ async def handle_callbacks(client: Client, query):
 
     if is_clone:
         # Clone bot callbacks - only file sharing related
+        if data == "search_files":
+            await query.answer("🔍 Search functionality")
+            await query.edit_message_text("🔍 **Search Files**\n\nSend /search <query> to search for files")
+        elif data.startswith("get_link_"):
+            file_id = data.replace("get_link_", "")
+            link = f"https://t.me/{client.me.username}?start=file_{file_id}"
+            await query.answer("Link copied!")
+            await query.edit_message_text(f"🔗 **File Link:**\n\n`{link}`")
+        elif data == "help_info":
+            await query.answer()
+            await query.edit_message_text("❓ **Help**\n\nThis is a file sharing bot. Send me files to share them!")
+        else:
+            await query.answer("Feature not implemented yet")
+    else:
+        # Mother bot callbacks - delegate to main callback handlers
+        await query.answer("Please use the main bot interface")
+        return
