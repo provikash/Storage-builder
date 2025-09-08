@@ -5,6 +5,9 @@ import re
 from info import Config
 from ..utils.helper import get_collection_name, get_readable_file_size
 from ..utils.security import SecurityValidator
+import logging
+
+logger = logging.getLogger(__name__)
 
 collection = db["file_index"]
 
@@ -58,282 +61,60 @@ async def search_files(query: str, limit: int = 50) -> List[Dict]:
     cursor = collection.find(search_filter).sort("indexed_at", -1).limit(limit)
     return await cursor.to_list(length=limit)
 
-async def get_popular_files(limit: int = 20, offset: int = 0, clone_id: str = None) -> List[Dict]:
-    """Enhanced popular files with advanced popularity scoring algorithm"""
+async def get_popular_files(limit=10, clone_id=None):
+    """Get most popular files (most accessed)"""
     try:
-        print(f"DEBUG: Starting get_popular_files with limit={limit}, offset={offset}, clone_id={clone_id}")
-
-        # Base match criteria for popular files
-        match_criteria = {
-            "file_type": {"$in": ["video", "document", "photo", "audio", "animation"]},
-            "file_name": {"$exists": True, "$ne": None, "$ne": ""},
-            "_id": {"$exists": True, "$ne": None, "$ne": ""},
-            "file_size": {"$gt": 1024},
-            "access_count": {"$gte": 1}  # Must have at least 1 view to be popular
-        }
-        
-        # Add clone filter if specified
         if clone_id:
-            match_criteria["clone_id"] = clone_id
+            db_collection = db["clone_files"] # Assuming clone_id maps to a specific collection or a field
+        else:
+            db_collection = db["files"]  # Mother bot files
 
-        # Advanced popularity scoring pipeline
-        pipeline = [
-            {"$match": match_criteria},
-            {
-                "$addFields": {
-                    # Advanced popularity algorithm
-                    "popularity_score": {
-                        "$add": [
-                            # Base popularity from views (60% weight)
-                            {"$multiply": [{"$ifNull": ["$access_count", 0]}, 0.6]},
-                            
-                            # Download count (25% weight)
-                            {"$multiply": [{"$ifNull": ["$download_count", 0]}, 0.25]},
-                            
-                            # File size factor (10% weight) - larger files often more valuable
-                            {"$multiply": [
-                                {"$cond": [
-                                    {"$gte": ["$file_size", 104857600]},  # 100MB+
-                                    10,
-                                    {"$cond": [
-                                        {"$gte": ["$file_size", 52428800]},  # 50MB+
-                                        5,
-                                        {"$cond": [
-                                            {"$gte": ["$file_size", 10485760]},  # 10MB+
-                                            2,
-                                            1
-                                        ]}
-                                    ]}
-                                ]}, 0.1
-                            ]},
-                            
-                            # File type bonus (5% weight)
-                            {"$multiply": [
-                                {"$cond": [
-                                    {"$eq": ["$file_type", "video"]},
-                                    3,
-                                    {"$cond": [
-                                        {"$eq": ["$file_type", "animation"]},
-                                        2,
-                                        {"$cond": [
-                                            {"$eq": ["$file_type", "document"]},
-                                            1.5,
-                                            1
-                                        ]}
-                                    ]}
-                                ]}, 0.05
-                            ]}
-                        ]
-                    },
-                    
-                    # Calculate engagement rate (views per day since indexed)
-                    "engagement_rate": {
-                        "$cond": [
-                            {"$and": [
-                                {"$ne": ["$indexed_at", null]},
-                                {"$gt": ["$access_count", 0]}
-                            ]},
-                            {"$divide": [
-                                "$access_count",
-                                {"$max": [
-                                    {"$divide": [
-                                        {"$subtract": [datetime.utcnow(), "$indexed_at"]},
-                                        86400000  # Convert to days
-                                    ]},
-                                    1  # Minimum 1 day to avoid division by zero
-                                ]}
-                            ]},
-                            0
-                        ]
-                    },
-                    
-                    # Calculate viral coefficient (rapid growth indicator)
-                    "viral_coefficient": {
-                        "$cond": [
-                            {"$and": [
-                                {"$ne": ["$indexed_at", null]},
-                                {"$gt": ["$access_count", 10]}
-                            ]},
-                            {"$multiply": [
-                                "$engagement_rate",
-                                {"$sqrt": "$access_count"}
-                            ]},
-                            0
-                        ]
-                    }
-                }
-            },
-            {
-                "$sort": {
-                    "popularity_score": -1,
-                    "viral_coefficient": -1,
-                    "engagement_rate": -1,
-                    "access_count": -1
-                }
-            },
-            {"$skip": offset},
-            {"$limit": limit}
-        ]
+        # Find files sorted by access/download count
+        cursor = db_collection.find({'clone_id': clone_id} if clone_id else {}).sort('access_count', -1).limit(limit)
+        files = await cursor.to_list(length=limit)
 
-        try:
-            cursor = collection.aggregate(pipeline)
-            results = await cursor.to_list(length=limit)
-            print(f"DEBUG: Enhanced popularity query returned {len(results)} results")
-        except Exception as agg_error:
-            print(f"ERROR: Enhanced popularity aggregation failed: {agg_error}")
-            
-            # Fallback to simple access count sorting
-            cursor = collection.find(match_criteria).sort("access_count", -1).skip(offset).limit(limit)
-            results = await cursor.to_list(length=limit)
-            print(f"DEBUG: Fallback popularity query returned {len(results)} results")
-
-        # Validate and enhance results
-        valid_results = []
-        for idx, doc in enumerate(results):
-            try:
-                if not isinstance(doc, dict):
-                    continue
-
-                file_id = str(doc.get('_id', ''))
-                file_name = doc.get('file_name', 'Unknown')
-                access_count = doc.get('access_count', 0)
-                popularity_score = doc.get('popularity_score', access_count)
-                engagement_rate = doc.get('engagement_rate', 0)
-
-                if not file_id or access_count < 1:
-                    continue
-
-                # Add popularity rank
-                doc['popularity_rank'] = idx + 1 + offset
-                
-                # Add trending indicator
-                doc['is_trending'] = engagement_rate > 5  # More than 5 views per day
-                
-                # Add popularity tier
-                if popularity_score >= 100:
-                    doc['popularity_tier'] = 'viral'
-                elif popularity_score >= 50:
-                    doc['popularity_tier'] = 'hot'
-                elif popularity_score >= 20:
-                    doc['popularity_tier'] = 'popular'
-                else:
-                    doc['popularity_tier'] = 'rising'
-
-                # Ensure required fields
-                doc['file_name'] = file_name
-                doc['download_count'] = doc.get('download_count', 0)
-                
-                valid_results.append(doc)
-                print(f"DEBUG: Validated popular file #{doc['popularity_rank']}: {file_name} "
-                      f"(Score: {popularity_score:.1f}, Views: {access_count}, Tier: {doc['popularity_tier']})")
-
-            except Exception as validation_error:
-                print(f"ERROR: Popular file validation failed: {validation_error}")
-                continue
-
-        print(f"DEBUG: get_popular_files returning {len(valid_results)} validated results")
-        return valid_results
-
+        return files
     except Exception as e:
-        print(f"ERROR: get_popular_files failed: {e}")
+        logger.error(f"Error getting popular files: {e}")
         return []
 
-async def get_recent_files(limit=10, offset=0, clone_id: str = None):
-    """Enhanced recent files retrieval with better date-based sorting"""
+async def get_recent_files(limit=10, clone_id=None):
+    """Get most recently added files"""
     try:
-        print(f"DEBUG: Starting get_recent_files with limit={limit}, offset={offset}, clone_id={clone_id}")
-
-        # Base match criteria for recent files
-        match_criteria = {
-            "file_type": {"$in": ["video", "document", "photo", "audio", "animation"]},
-            "file_name": {"$exists": True, "$ne": None, "$ne": ""},
-            "_id": {"$exists": True, "$ne": None, "$ne": ""},
-            "file_size": {"$gt": 1024},
-            "indexed_at": {"$exists": True}
-        }
-        
-        # Add clone filter if specified
         if clone_id:
-            match_criteria["clone_id"] = clone_id
+            db_collection = db["clone_files"]
+        else:
+            db_collection = db["files"]  # Mother bot files
 
-        # Enhanced pipeline with recency scoring
+        # Find files sorted by creation time (most recent first)
+        cursor = db_collection.find({'clone_id': clone_id} if clone_id else {}).sort('created_at', -1).limit(limit)
+        files = await cursor.to_list(length=limit)
+
+        return files
+    except Exception as e:
+        logger.error(f"Error getting recent files: {e}")
+        return []
+
+async def get_random_files(limit=10, clone_id=None):
+    """Get random files from the database"""
+    try:
+        if clone_id:
+            db_collection = db["clone_files"]
+        else:
+            db_collection = db["files"]  # Mother bot files
+
+        # Use MongoDB aggregation pipeline to get random documents
         pipeline = [
-            {"$match": match_criteria},
-            {
-                "$addFields": {
-                    "recency_score": {
-                        "$add": [
-                            # Primary: Days since indexed (more recent = higher score)
-                            {"$divide": [
-                                {"$subtract": [datetime.utcnow(), "$indexed_at"]},
-                                86400000  # Convert to days
-                            ]},
-                            # Bonus for larger files
-                            {"$cond": [
-                                {"$gte": ["$file_size", 10485760]},  # 10MB+
-                                2,
-                                1
-                            ]}
-                        ]
-                    }
-                }
-            },
-            {"$sort": {"indexed_at": -1, "recency_score": 1}},  # Most recent first
-            {"$skip": offset},
-            {"$limit": limit}
+            {'$match': {'clone_id': clone_id} if clone_id else {}},
+            {'$sample': {'size': limit}}
         ]
 
-        try:
-            cursor = collection.aggregate(pipeline)
-            results = await cursor.to_list(length=limit)
-            print(f"DEBUG: Enhanced recent query returned {len(results)} results")
-        except Exception as agg_error:
-            print(f"ERROR: Enhanced recent aggregation failed: {agg_error}")
-            
-            # Fallback to simple sort
-            cursor = collection.find(match_criteria).sort("indexed_at", -1).skip(offset).limit(limit)
-            results = await cursor.to_list(length=limit)
-            print(f"DEBUG: Fallback recent query returned {len(results)} results")
+        cursor = db_collection.aggregate(pipeline)
+        files = await cursor.to_list(length=limit)
 
-        # Validate and enhance results
-        valid_results = []
-        for doc in results:
-            try:
-                if not isinstance(doc, dict):
-                    continue
-
-                file_id = str(doc.get('_id', ''))
-                file_name = doc.get('file_name', 'Unknown')
-                indexed_at = doc.get('indexed_at')
-
-                if not file_id:
-                    continue
-
-                # Calculate age for display
-                if indexed_at:
-                    age = datetime.utcnow() - indexed_at
-                    doc['age_days'] = age.days
-                    doc['age_hours'] = age.seconds // 3600
-                else:
-                    doc['age_days'] = 0
-                    doc['age_hours'] = 0
-
-                # Ensure required fields
-                doc['file_name'] = file_name
-                doc['access_count'] = doc.get('access_count', 0)
-                
-                valid_results.append(doc)
-                print(f"DEBUG: Validated recent file: {file_name} (Age: {doc['age_days']}d {doc['age_hours']}h)")
-
-            except Exception as validation_error:
-                print(f"ERROR: Recent file validation failed: {validation_error}")
-                continue
-
-        print(f"DEBUG: get_recent_files returning {len(valid_results)} validated results")
-        return valid_results
-
+        return files
     except Exception as e:
-        print(f"ERROR: get_recent_files failed: {e}")
+        logger.error(f"Error getting random files: {e}")
         return []
 
 async def increment_access_count(file_id: str):
@@ -402,7 +183,7 @@ async def get_random_files(limit: int = 10, clone_id: str = None) -> List[Dict]:
             "file_size": {"$gt": 1024},  # At least 1KB
             "indexed_at": {"$exists": True}
         }
-        
+
         # Add clone filter if specified
         if clone_id:
             match_criteria["clone_id"] = clone_id
@@ -454,16 +235,16 @@ async def get_random_files(limit: int = 10, clone_id: str = None) -> List[Dict]:
 
         except Exception as agg_error:
             print(f"ERROR: Enhanced aggregation failed: {agg_error}")
-            
+
             # Simple fallback
             try:
                 cursor = collection.find(match_criteria).limit(limit * 2)
                 all_results = await cursor.to_list(length=limit * 2)
-                
+
                 import random
                 results = random.sample(all_results, min(limit, len(all_results))) if all_results else []
                 print(f"DEBUG: Fallback returned {len(results)} random results")
-                
+
             except Exception as fallback_error:
                 print(f"ERROR: Fallback also failed: {fallback_error}")
                 return []
@@ -477,11 +258,11 @@ async def get_random_files(limit: int = 10, clone_id: str = None) -> List[Dict]:
 
                 file_id = str(result.get('_id', ''))
                 file_name = result.get('file_name', '')
-                
+
                 # Validate file_id format
                 if not file_id:
                     continue
-                    
+
                 # Check if it's a valid message ID format
                 is_valid = False
                 if '_' in file_id:
@@ -490,7 +271,7 @@ async def get_random_files(limit: int = 10, clone_id: str = None) -> List[Dict]:
                         is_valid = True
                 elif file_id.isdigit():
                     is_valid = True
-                
+
                 if not is_valid:
                     continue
 
@@ -498,7 +279,7 @@ async def get_random_files(limit: int = 10, clone_id: str = None) -> List[Dict]:
                 result['file_name'] = file_name or f"File_{file_id}"
                 result['file_type'] = result.get('file_type', 'unknown')
                 result['access_count'] = result.get('access_count', 0)
-                
+
                 valid_results.append(result)
                 print(f"DEBUG: Validated random file: {result['file_name']} (Score: {result.get('quality_score', 0):.1f})")
 

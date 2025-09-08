@@ -267,3 +267,66 @@ class MongoDB:
         clone_dbs.clear()
         clone_collections.clear()
         logger.info("All clone MongoDB connections closed.")
+
+# Fallback functions using bot.database.connection
+async def get_random_files_fallback(limit=10, clone_id=None):
+    """Get random files - fallback function"""
+    try:
+        from bot.database.connection import database
+
+        if clone_id:
+            collection = database.clone_files
+            query = {'clone_id': clone_id}
+        else:
+            collection = database.files
+            query = {}
+
+        pipeline = [
+            {'$match': query},
+            {'$sample': {'size': limit}}
+        ]
+
+        cursor = collection.aggregate(pipeline)
+        files = await cursor.to_list(length=limit)
+        return files
+    except Exception as e:
+        logger.error(f"Error getting random files: {e}")
+        return []
+
+async def get_recent_files_fallback(limit=10, clone_id=None):
+    """Get recent files - fallback function"""
+    try:
+        from bot.database.connection import database
+
+        if clone_id:
+            collection = database.clone_files
+            query = {'clone_id': clone_id}
+        else:
+            collection = database.files
+            query = {}
+
+        cursor = collection.find(query).sort('created_at', -1).limit(limit)
+        files = await cursor.to_list(length=limit)
+        return files
+    except Exception as e:
+        logger.error(f"Error getting recent files: {e}")
+        return []
+
+async def get_popular_files_fallback(limit=10, clone_id=None):
+    """Get popular files - fallback function"""
+    try:
+        from bot.database.connection import database
+
+        if clone_id:
+            collection = database.clone_files
+            query = {'clone_id': clone_id}
+        else:
+            collection = database.files
+            query = {}
+
+        cursor = collection.find(query).sort('access_count', -1).limit(limit)
+        files = await cursor.to_list(length=limit)
+        return files
+    except Exception as e:
+        logger.error(f"Error getting popular files: {e}")
+        return []

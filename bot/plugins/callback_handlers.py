@@ -198,15 +198,21 @@ async def emergency_callback_handler(client: Client, query: CallbackQuery):
                 )
                 return
 
-            # Route to clone random files handlers
+            # Route to clone random files handlers with proper callback data mapping
             try:
                 if callback_data == "random_files":
+                    # Create a new query object with the correct callback data
+                    query.data = "clone_random_files"
                     from bot.plugins.clone_random_files import handle_clone_random_files
                     await handle_clone_random_files(client, query)
                 elif callback_data == "recent_files":
+                    # Create a new query object with the correct callback data
+                    query.data = "clone_recent_files"
                     from bot.plugins.clone_random_files import handle_clone_recent_files
                     await handle_clone_recent_files(client, query)
                 elif callback_data == "popular_files":
+                    # Create a new query object with the correct callback data
+                    query.data = "clone_popular_files"
                     from bot.plugins.clone_random_files import handle_clone_popular_files
                     await handle_clone_popular_files(client, query)
             except Exception as handler_error:
@@ -589,6 +595,41 @@ async def feature_toggle_callback(client: Client, query: CallbackQuery):
     # Import from admin panel
     from bot.plugins.admin_panel import toggle_feature_handler
     await toggle_feature_handler(client, query)
+
+# Clone Random Files Callbacks - Higher priority to catch them before catch-all
+@Client.on_callback_query(filters.regex("^(clone_random_files|clone_recent_files|clone_popular_files)$"), group=CALLBACK_PRIORITIES["general"])
+@safe_callback_handler
+async def handle_clone_files_callbacks(client: Client, query: CallbackQuery):
+    """Handle clone-specific file callbacks"""
+    user_id = query.from_user.id
+    callback_data = query.data
+    
+    logger.info(f"🎲 Clone files callback: {callback_data} from user {user_id}")
+    
+    try:
+        await query.answer()
+        
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Ensure this is a clone bot
+        if bot_token == Config.BOT_TOKEN:
+            await query.edit_message_text("❌ This feature is only available in clone bots!")
+            return
+            
+        # Route to appropriate handler
+        if callback_data == "clone_random_files":
+            from bot.plugins.clone_random_files import handle_clone_random_files
+            await handle_clone_random_files(client, query)
+        elif callback_data == "clone_recent_files":
+            from bot.plugins.clone_random_files import handle_clone_recent_files
+            await handle_clone_recent_files(client, query)
+        elif callback_data == "clone_popular_files":
+            from bot.plugins.clone_random_files import handle_clone_popular_files
+            await handle_clone_popular_files(client, query)
+            
+    except Exception as e:
+        logger.error(f"Error in clone files callback handler: {e}")
+        await query.answer("❌ Error processing request", show_alert=True)
 
 # Catch-all handler for unhandled callbacks
 @Client.on_callback_query(group=CALLBACK_PRIORITIES["catchall"])
