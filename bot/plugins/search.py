@@ -99,7 +99,7 @@ async def random_command(client: Client, message: Message):
 
             await message.reply_text(message_text, reply_markup=buttons)
             return
-        await handle_random_files(client, message)
+        await handle_random_files(client, message, is_callback=False, skip_command_check=True)
     except Exception as cmd_error:
         print(f"ERROR: /rand command failed: {cmd_error}")
         try:
@@ -502,297 +502,76 @@ async def random_callback(client: Client, callback_query: CallbackQuery):
             print(f"ERROR: Could not send callback answer: {answer_error}")
 
 async def handle_random_files(client: Client, message, is_callback: bool = False, skip_command_check: bool = False):
-    """Get and display 5 random files using proper MongoDB to Telegram retrieval process"""
-    loading_msg = None
-
+    """Handle random files request for both mother bot and clone bots"""
     try:
-        # Determine clone ID to use the correct database
-        clone_id = getattr(client, 'clone_id', None)
-        if clone_id is None:
-            # If not a clone bot or clone_id not set, try to get from token
-            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-            if bot_token != Config.BOT_TOKEN:
-                from bot.database.clone_db import get_clone_by_bot_token
-                clone_data = await get_clone_by_bot_token(bot_token)
-                if clone_data:
-                    clone_id = clone_data.get('id')
+        print(f"DEBUG: handle_random_files called for user {message.from_user.id}")
 
-        if clone_id is None:
-            await message.reply_text("❌ Error: Cannot determine clone ID. Please ensure this is a valid clone bot.")
-            return
+        # Get bot token and determine if this is a clone
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        bot_id = bot_token.split(':')[0] if ':' in bot_token else bot_token
+        is_clone = bot_token != Config.BOT_TOKEN
 
-        # Initialize loading message
-        if is_callback:
-            loading_msg = await message.edit_text("🎲 Getting random files...")
-        else:
-            loading_msg = await message.reply_text("🎲 Getting random files...")
+        print(f"DEBUG: Bot ID: {bot_id}, Is Clone: {is_clone}")
 
-        print(f"DEBUG: Starting random files retrieval for clone ID: {clone_id}")
-
-        # Step 1: Query MongoDB for file metadata
-        try:
-            # Updated to use clone_id for database selection
-            results = await get_random_files(limit=15, clone_id=clone_id)  # Get more to account for invalid files
-            print(f"DEBUG: Retrieved {len(results)} files from database for clone {clone_id}")
-        except Exception as db_error:
-            error_msg = f"❌ Database query failed: {str(db_error)}"
-            print(f"ERROR: MongoDB query failed for clone {clone_id}: {db_error}")
-            await loading_msg.edit_text(error_msg)
-            return
-
-        if not results:
-            text = "❌ No files found in database."
-            print(f"DEBUG: No files found in database for clone {clone_id}")
-            await loading_msg.edit_text(text)
-            return
-
-        try:
-            await loading_msg.edit_text(f"📁 Processing {len(results)} random files...")
-        except Exception as msg_error:
-            print(f"WARNING: Failed to update loading message: {msg_error}")
-
-        # Step 2: Retrieve files from Telegram via file_id and send to user
-        sent_count = 0
-        target_count = 5  # Target number of files to send
-        errors_encountered = []
-
-        for idx, file_data in enumerate(results):
-            if sent_count >= target_count:
-                print(f"DEBUG: Reached target count of {target_count} files")
-                break
-
-            print(f"DEBUG: Processing file {idx + 1}/{len(results)}")
-
+        if is_clone:
+            # For clone bots, get files from clone-specific database
             try:
-                # Extract metadata from MongoDB document with validation
-                if not isinstance(file_data, dict):
-                    print(f"ERROR: Invalid file_data type: {type(file_data)}")
-                    errors_encountered.append(f"Invalid data structure for file {idx + 1}")
-                    continue
+                files = await get_random_files(limit=5, clone_id=bot_id)
+                print(f"DEBUG: Retrieved {len(files)} random files for clone {bot_id}")
+            except Exception as db_error:
+                print(f"ERROR: Database error for clone {bot_id}: {db_error}")
+                files = []
+        else:
+            # For mother bot (shouldn't reach here due to feature check, but just in case)
+            await message.reply_text("❌ This feature is not available on the mother bot. Please create a clone bot to use this feature.")
+            return
 
-                file_id = str(file_data.get('_id', ''))
-                file_name = file_data.get('file_name', 'Unknown File')
-                file_type = file_data.get('file_type', 'unknown')
-                file_size = file_data.get('file_size', 0)
+        if not files:
+            await message.reply_text(
+                "❌ **No Files Found**\n\n"
+                "No files are available in the database. Please ask the admin to index some files first."
+            )
+            return
 
-                if not file_id:
-                    print(f"ERROR: No file_id found for file: {file_name}")
-                    errors_encountered.append(f"Missing file_id for {file_name}")
-                    continue
+        # Format response
+        text = "🎲 **Random Files**\n\n"
+        buttons = []
 
-                print(f"DEBUG: Processing file: {file_name} with ID: {file_id}, Type: {file_type}")
+        for i, file_data in enumerate(files, 1):
+            try:
+                file_name = file_data.get('file_name', f'File {i}')
+                file_size = get_readable_file_size(file_data.get('file_size', 0))
+                file_type = file_data.get('file_type', 'unknown').upper()
 
-                # Step 3: Parse file_id to extract message_id
-                message_id = None
-                try:
-                    if '_' in file_id:
-                        # Format: "chat_id_message_id" (e.g., "-1002315371279_1767")
-                        parts = file_id.split('_')
-                        if len(parts) >= 2:
-                            message_id = int(parts[-1])  # Get the last part as message ID
-                            print(f"DEBUG: Extracted message_id {message_id} from composite ID: {file_id}")
-                        else:
-                            print(f"ERROR: Invalid composite file_id format: {file_id}")
-                            errors_encountered.append(f"Invalid ID format: {file_id}")
-                            continue
-                    else:
-                        # Format: just "message_id"
-                        message_id = int(file_id)
-                        print(f"DEBUG: Using direct message_id: {message_id}")
+                # Truncate long filenames for display
+                display_name = file_name[:30] + '...' if len(file_name) > 30 else file_name
 
-                except (ValueError, IndexError) as parse_error:
-                    print(f"ERROR: Failed to parse message ID from {file_id}: {parse_error}")
-                    errors_encountered.append(f"Parse error for {file_id}: {str(parse_error)}")
-                    continue
+                text += f"{i}. 📁 **{file_name}**\n"
+                text += f"   📊 Type: {file_type} | 💾 Size: {file_size}\n\n"
 
-                if not message_id or message_id <= 0:
-                    print(f"ERROR: Invalid message_id {message_id} for file: {file_id}")
-                    errors_encountered.append(f"Invalid message_id {message_id}")
-                    continue
+                # Create button for this file
+                file_id = str(file_data.get('_id', file_data.get('file_id', f'unknown_{i}')))
+                buttons.append([
+                    InlineKeyboardButton(f"📥 {display_name}", callback_data=f"file_{file_id}")
+                ])
 
-                # Step 4: Retrieve file from Telegram using the database channel
-                try:
-                    print(f"DEBUG: Fetching message {message_id} from channel {Config.INDEX_CHANNEL_ID}")
-
-                    # Validate channel access first
-                    try:
-                        # Check if bot has access to the channel
-                        await client.get_chat(Config.INDEX_CHANNEL_ID)
-                    except Exception as channel_error:
-                        print(f"ERROR: Cannot access channel {Config.INDEX_CHANNEL_ID}: {channel_error}")
-                        errors_encountered.append(f"Channel access denied: {Config.INDEX_CHANNEL_ID}")
-                        continue
-
-                    # Get the message from the index channel (where files are stored)
-                    db_message = await client.get_messages(Config.INDEX_CHANNEL_ID, message_id)
-
-                    if not db_message:
-                        print(f"ERROR: Message {message_id} returned None")
-                        errors_encountered.append(f"Message {message_id} not found")
-                        continue
-
-                    if db_message.empty:
-                        print(f"ERROR: Message {message_id} is empty")
-                        errors_encountered.append(f"Message {message_id} is empty")
-                        continue
-
-                    # Validate the message has media
-                    if not db_message.media:
-                        print(f"ERROR: Message {message_id} has no media")
-                        errors_encountered.append(f"Message {message_id} has no media")
-                        continue
-
-                    print(f"DEBUG: Successfully retrieved message {message_id} with media type: {type(db_message.media)}")
-
-                except Exception as telegram_get_error:
-                    print(f"ERROR: Telegram get_messages failed for message {message_id}: {telegram_get_error}")
-                    errors_encountered.append(f"Get message {message_id}: {str(telegram_get_error)}")
-                    continue
-
-                # Step 5: Send the file to user without caption/title but with custom keyboard
-                try:
-                    print(f"DEBUG: Sending media from message {message_id} to user {message.chat.id}")
-
-                    # Create custom keyboard with the requested buttons
-                    custom_keyboard = ReplyKeyboardMarkup([
-                        [
-                            KeyboardButton("🎲 Random"),
-                            KeyboardButton("🆕 Recent Added")
-                        ],
-                        [
-                            KeyboardButton("💎 Buy Premium"),
-                            KeyboardButton("🔥 Most Popular")
-                        ]
-                    ], resize_keyboard=True, one_time_keyboard=False)
-
-                    # Send media based on type without any caption but with custom keyboard
-                    copied_msg = None
-                    if db_message.photo:
-                        copied_msg = await client.send_photo(
-                            chat_id=message.chat.id,
-                            photo=db_message.photo.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    elif db_message.video:
-                        copied_msg = await client.send_video(
-                            chat_id=message.chat.id,
-                            video=db_message.video.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    elif db_message.document:
-                        copied_msg = await client.send_document(
-                            chat_id=message.chat.id,
-                            document=db_message.document.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    elif db_message.audio:
-                        copied_msg = await client.send_audio(
-                            chat_id=message.chat.id,
-                            audio=db_message.audio.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    elif db_message.voice:
-                        copied_msg = await client.send_voice(
-                            chat_id=message.chat.id,
-                            voice=db_message.voice.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    elif db_message.animation:
-                        copied_msg = await client.send_animation(
-                            chat_id=message.chat.id,
-                            animation=db_message.animation.file_id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-                    else:
-                        # Fallback to copy method without caption but with custom keyboard
-                        copied_msg = await db_message.copy(
-                            chat_id=message.chat.id,
-                            reply_markup=custom_keyboard,
-                            protect_content=Config.PROTECT_CONTENT
-                        )
-
-                    if copied_msg:
-                        sent_count += 1
-                        print(f"SUCCESS: Sent file #{sent_count}: {file_name}")
-
-                        # Increment access count in database
-                        try:
-                            await increment_access_count(file_id)
-                            print(f"DEBUG: Incremented access count for {file_id}")
-                        except Exception as count_error:
-                            print(f"WARNING: Failed to increment access count for {file_id}: {count_error}")
-
-                        # Small delay to avoid flooding
-                        await asyncio.sleep(1.0)
-                    else:
-                        print(f"ERROR: Send operation returned None for message {message_id}")
-                        errors_encountered.append(f"Send failed for message {message_id}")
-
-                except Exception as send_error:
-                    print(f"ERROR: Failed to send message {message_id}: {send_error}")
-                    errors_encountered.append(f"Send error for {message_id}: {str(send_error)}")
-                    continue
-
-            except Exception as processing_error:
-                print(f"ERROR: General processing error for file {idx + 1}: {processing_error}")
-                errors_encountered.append(f"Processing error: {str(processing_error)}")
+            except Exception as file_error:
+                print(f"ERROR: Error processing file {i}: {file_error}")
                 continue
 
-        # Step 6: Send final status with navigation buttons
-        try:
-            if sent_count > 0:
-                final_text = f"✅ Successfully sent {sent_count} random files!"
-                if errors_encountered:
-                    final_text += f"\n\n⚠️ {len(errors_encountered)} files had issues (check logs)"
-            else:
-                final_text = "❌ No valid files could be sent."
-                if errors_encountered:
-                    final_text += f"\n\nErrors encountered:\n• " + "\n• ".join(errors_encountered[:3])
-                    if len(errors_encountered) > 3:
-                        final_text += f"\n• ... and {len(errors_encountered) - 3} more"
+        # Add refresh button
+        buttons.append([
+            InlineKeyboardButton("🔄 New Random Files", callback_data="get_random_files")
+        ])
 
-            nav_buttons = [
-                InlineKeyboardButton("🎲 More Random", callback_data="rand_new"),
-                InlineKeyboardButton("🔥 Popular", callback_data="rand_popular")
-            ]
-            more_buttons = [
-                InlineKeyboardButton("🆕 Recent", callback_data="rand_recent"),
-                InlineKeyboardButton("📊 Stats", callback_data="rand_stats")
-            ]
+        reply_markup = InlineKeyboardMarkup(buttons)
 
-            buttons = [nav_buttons, more_buttons]
-
-            await loading_msg.edit_text(
-                final_text,
-                reply_markup=InlineKeyboardMarkup(buttons)
-            )
-
-            print(f"DEBUG: Final status - Sent: {sent_count}, Errors: {len(errors_encountered)}")
-
-        except Exception as final_error:
-            print(f"ERROR: Failed to send final status message: {final_error}")
-            try:
-                await loading_msg.edit_text(f"⚠️ Process completed but status update failed: {str(final_error)}")
-            except:
-                pass
+        await message.reply_text(text, reply_markup=reply_markup)
 
     except Exception as main_error:
-        error_text = f"❌ Critical error in random files process: {str(main_error)}"
-        print(f"CRITICAL ERROR: Main process failed: {main_error}")
-
-        try:
-            if loading_msg:
-                await loading_msg.edit_text(error_text)
-            else:
-                await message.reply_text(error_text)
-        except Exception as msg_error:
-            print(f"ERROR: Could not send error message: {msg_error}")
+        print(f"ERROR in handle_random_files: {main_error}")
+        print(f"Traceback: {traceback.format_exc()}")
+        await message.reply_text("❌ An error occurred while fetching random files. Please try again.")
 
 async def show_popular_files(client: Client, callback_query: CallbackQuery):
     """Show popular files"""
@@ -953,7 +732,7 @@ async def show_index_stats(client: Client, callback_query: CallbackQuery):
 # Store user offset for recent files to ensure different files each time
 user_recent_offsets = {}
 
-async def handle_recent_files_direct(client: Client, message, is_callback: bool = False):
+async def handle_recent_files_direct(client: Client, message: Message, is_callback: bool = False):
     """Enhanced recent files handler with better sorting and presentation"""
     loading_msg = None
 
@@ -1202,7 +981,7 @@ async def handle_recent_files_direct(client: Client, message, is_callback: bool 
         except:
             pass
 
-async def handle_popular_files_direct(client: Client, message, is_callback: bool = False):
+async def handle_popular_files_direct(client: Client, message: Message, is_callback: bool = False):
     """Enhanced popular files handler with advanced popularity scoring"""
     loading_msg = None
 

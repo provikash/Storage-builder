@@ -1,3 +1,34 @@
+
+from pyrogram import Client, filters
+from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
+
+# Import the search handler
+try:
+    from bot.plugins.search import handle_random_files
+except ImportError:
+    print("WARNING: Could not import search handlers")
+    handle_random_files = None
+
+@Client.on_callback_query(filters.regex("^get_random_files$"))
+async def callback_random_files(client: Client, query: CallbackQuery):
+    """Handle random files callback"""
+    try:
+        await query.answer()
+        
+        if handle_random_files:
+            # Create a fake message object for the handler
+            fake_message = type('obj', (object,), {
+                'from_user': query.from_user,
+                'reply_text': lambda text, **kwargs: query.edit_message_text(text, **kwargs)
+            })
+            await handle_random_files(client, fake_message, is_callback=True)
+        else:
+            await query.answer("❌ Random files feature not available", show_alert=True)
+    except Exception as e:
+        print(f"ERROR in callback_random_files: {e}")
+        await query.answer("❌ Error occurred", show_alert=True)
+
+
 import asyncio
 from datetime import datetime, timedelta
 from pyrogram import Client, filters
