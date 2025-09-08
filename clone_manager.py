@@ -17,12 +17,21 @@ class CloneManager:
         self.clone_tasks = {}
 
     async def start_clone(self, bot_id: str):
-        """Start a specific clone bot"""
+        """Start a specific clone bot with enhanced error handling"""
         from bot.logging import get_context_logger
         from bot.utils.debug_helper import create_execution_tracker
 
         context_logger = get_context_logger(__name__).add_context(bot_id=bot_id, operation="start_clone")
         tracker = create_execution_tracker(f"start_clone_{bot_id}")
+        
+        # Prevent multiple simultaneous starts
+        if bot_id in getattr(self, '_starting_clones', set()):
+            return False, "Clone startup already in progress"
+        
+        if not hasattr(self, '_starting_clones'):
+            self._starting_clones = set()
+        
+        self._starting_clones.add(bot_id)
 
         try:
             tracker.add_step("fetching_clone_data")
@@ -37,7 +46,7 @@ class CloneManager:
 
             tracker.add_step("clone_data_retrieved", {"clone_exists": True})
 
-            # Check subscription - be more flexible with status check
+            # Enhanced subscription validation
             tracker.add_step("checking_subscription")
             subscription = await get_subscription(bot_id)
             if not subscription:
@@ -46,170 +55,288 @@ class CloneManager:
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
 
-            # Allow active subscriptions or payment verified subscriptions
-            is_active_status = subscription['status'] == 'active'
-            is_payment_verified = subscription.get('payment_verified', False)
-
-            context_logger.debug(
-                "Subscription status checked",
-                status=subscription['status'],
-                payment_verified=is_payment_verified,
-                is_active=is_active_status
-            )
-
-            tracker.add_step("subscription_validated", {
-                "status": subscription['status'],
-                "payment_verified": is_payment_verified
-            })
-
-            if not is_active_status and not is_payment_verified:
-                # Only fail if both conditions are false
-                if subscription['status'] in ['expired', 'cancelled']:
-                    return False, f"Subscription {subscription['status']}"
-                # For pending status, allow if payment is verified
-                if subscription['status'] == 'pending' and not is_payment_verified:
-                    logger.info(f"⏳ Clone {bot_id} subscription pending - will retry later")
-                    # Schedule retry after 5 minutes
-                    asyncio.create_task(self._retry_pending_clone(bot_id, 300))
-                    # Update database to reflect pending status
-                    from bot.database.clone_db import clones_collection
-                    await clones_collection.update_one(
-                        {"_id": bot_id},
-                        {"$set": {"status": "pending_subscription", "last_check": datetime.now()}}
-                    )
-                    return True, f"Clone {bot_id} subscription pending - retry scheduled"
-
-
+            # Validate subscription status
+            subscription_valid, subscription_msg = await self._validate_subscription(subscription, bot_id)
+            if not subscription_valid:
+                return False, subscription_msg
 
             if bot_id in self.active_clones:
-                return True, "Clone already running"
+                # Check if clone is actually running
+                if await self._verify_clone_health(bot_id):
+                    return True, "Clone already running"
+                else:
+                    # Clean up stale entry
+                    await self._cleanup_stale_clone(bot_id)
 
-            # Create bot instance with simple file sharing plugins
+            # Validate bot token
             bot_token = clone.get('bot_token') or clone.get('token')
-
-            # Define plugin list for clone bots (exclude clone management)
-            clone_plugins = {
-                "root": "bot.plugins",
-                "include": [
-                    "start_handler",
-                    "missing_commands",
-                    "admin",
-                    "channel",
-                    "clone_admin", 
-                    "clone_admin_commands",
-                    "clone_force_commands",
-                    "clone_token_commands",
-                    "debug_callbacks",
-                    "debug_commands",
-                    "enhanced_about",
-                    "force_sub_commands",
-                    "genlink",
-                    "index",
-                    "missing_callbacks",
-                    "referral_program",
-                    "simple_file_sharing",
-                    "token",
-                    "auto_post",
-                    "clone_random_files"
-                ],
-                "exclude": [
-                    "clone_management",
-                    "step_clone_creation", 
-                    "mother_admin",
-                    "admin_commands",
-                    "balance_management",
-                    "admin_panel"
-                ]
-            }
-
-            bot_token = clone.get('bot_token') or clone.get('token')
-            if not bot_token:
-                error_msg = "Bot token not found for clone"
+            if not bot_token or not await self._validate_bot_token(bot_token):
+                error_msg = "Invalid or missing bot token"
                 context_logger.error(error_msg)
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
 
-            tracker.add_step("bot_token_retrieved")
+            tracker.add_step("bot_token_validated")
 
-            # Define plugin list for clone bots (exclude clone management)
-            clone_plugins = {
-                "root": "bot.plugins",
-                "include": [
-                    "start_handler",
-                    "missing_commands",
-                    "admin",
-                    "channel",
-                    "clone_admin", 
-                    "clone_admin_commands",
-                    "clone_force_commands",
-                    "clone_token_commands",
-                    "debug_callbacks",
-                    "debug_commands",
-                    "enhanced_about",
-                    "force_sub_commands",
-                    "genlink",
-                    "index",
-                    "missing_callbacks",
-                    "referral_program",
-                    "simple_file_sharing",
-                    "token",
-                    "auto_post",
-                    "clone_random_files"
-                ],
-                "exclude": [
-                    "clone_management",
-                    "step_clone_creation", 
-                    "mother_admin",
-                    "admin_commands",
-                    "balance_management",
-                    "admin_panel"
-                ]
-            }
+            # Create bot instance with proper error handling
+            clone_bot = await self._create_clone_client(bot_id, bot_token)
+            if not clone_bot:
+                return False, "Failed to create clone client"
 
-            clone_bot = Client(
-                f"clone_{bot_id}",
-                api_id=Config.API_ID,
-                api_hash=Config.API_HASH,
-                bot_token=bot_token,
-                plugins=clone_plugins
-            )
+            # Start the bot with timeout and retry
+            start_success = await self._start_clone_client(clone_bot, bot_id)
+            if not start_success:
+                return False, "Failed to start clone client"
 
-            # Start the bot
-            await clone_bot.start()
+            # Verify bot is working
+            try:
+                bot_info = await asyncio.wait_for(clone_bot.get_me(), timeout=10.0)
+                context_logger.info(f"Clone bot started: @{bot_info.username}")
+            except asyncio.TimeoutError:
+                await self._safe_stop_client(clone_bot)
+                return False, "Bot startup verification timeout"
+            except Exception as e:
+                await self._safe_stop_client(clone_bot)
+                return False, f"Bot verification failed: {str(e)}"
 
-            # Store in active clones
+            # Store in active clones with enhanced metadata
             self.active_clones[bot_id] = {
                 'client': clone_bot,
                 'data': clone,
                 'status': 'running',
-                'started_at': datetime.now()
+                'started_at': datetime.now(),
+                'last_health_check': datetime.now(),
+                'restart_count': getattr(clone.get('metadata', {}), 'restart_count', 0),
+                'username': bot_info.username if 'bot_info' in locals() else 'unknown'
             }
 
             # Update database status
             await start_clone_in_db(bot_id)
 
-            # Create background task to keep it running
-            task = asyncio.create_task(self._keep_clone_running(bot_id))
+            # Create enhanced monitoring task
+            task = asyncio.create_task(self._monitor_clone(bot_id))
             self.clone_tasks[bot_id] = task
 
             logger.info(f"✅ Clone {bot_id} started successfully")
-            return True, f"Clone @{clone_bot.me.username} started successfully"
+            tracker.complete(success=True)
+            return True, f"Clone @{bot_info.username} started successfully"
 
         except AuthKeyUnregistered:
             logger.error(f"❌ AuthKeyUnregistered for clone {bot_id}. Deactivating.")
-            await deactivate_clone(bot_id)
+            await self._handle_clone_auth_error(bot_id, "auth_key_unregistered")
             return False, "Authentication key unregistered"
         except AccessTokenExpired:
             logger.error(f"❌ AccessTokenExpired for clone {bot_id}. Deactivating.")
-            await deactivate_clone(bot_id)
+            await self._handle_clone_auth_error(bot_id, "access_token_expired")
             return False, "Access token expired"
         except AccessTokenInvalid:
             logger.error(f"❌ AccessTokenInvalid for clone {bot_id}. Deactivating.")
-            await deactivate_clone(bot_id)
+            await self._handle_clone_auth_error(bot_id, "access_token_invalid")
             return False, "Access token invalid"
         except Exception as e:
-            logger.error(f"❌ Error starting clone {bot_id}: {e}")
-            return False, str(e)
+            logger.error(f"❌ Unexpected error starting clone {bot_id}: {e}", exc_info=True)
+            tracker.complete(success=False, error=str(e))
+            return False, f"Startup failed: {str(e)}"
+        finally:
+            self._starting_clones.discard(bot_id)
+
+    async def _validate_subscription(self, subscription: dict, bot_id: str) -> tuple[bool, str]:
+        """Enhanced subscription validation"""
+        status = subscription['status']
+        is_payment_verified = subscription.get('payment_verified', False)
+        expires_at = subscription.get('expires_at')
+        
+        # Check if subscription is expired
+        if expires_at and expires_at < datetime.now():
+            await self._update_subscription_status(bot_id, 'expired')
+            return False, "Subscription expired"
+        
+        # Handle different subscription statuses
+        if status == 'active':
+            return True, "Active subscription"
+        elif status == 'pending' and is_payment_verified:
+            return True, "Payment verified"
+        elif status == 'pending':
+            # Schedule retry for pending subscription
+            asyncio.create_task(self._retry_pending_clone(bot_id, 300))
+            await self._update_clone_status(bot_id, "pending_subscription")
+            return True, "Subscription pending - retry scheduled"
+        elif status in ['expired', 'cancelled']:
+            return False, f"Subscription {status}"
+        else:
+            return False, f"Invalid subscription status: {status}"
+    
+    async def _validate_bot_token(self, token: str) -> bool:
+        """Validate bot token format"""
+        import re
+        # Basic bot token format validation
+        pattern = r'^\d+:[A-Za-z0-9_-]+$'
+        return bool(re.match(pattern, token))
+    
+    async def _create_clone_client(self, bot_id: str, bot_token: str) -> Optional[Client]:
+        """Create clone client with proper configuration"""
+        try:
+            clone_plugins = {
+                "root": "bot.plugins",
+                "include": [
+                    "start_handler", "missing_commands", "admin", "channel",
+                    "clone_admin", "clone_admin_commands", "clone_force_commands",
+                    "clone_token_commands", "debug_callbacks", "debug_commands",
+                    "enhanced_about", "force_sub_commands", "genlink", "index",
+                    "missing_callbacks", "referral_program", "simple_file_sharing",
+                    "token", "auto_post", "clone_random_files"
+                ],
+                "exclude": [
+                    "clone_management", "step_clone_creation", "mother_admin",
+                    "admin_commands", "balance_management", "admin_panel"
+                ]
+            }
+
+            return Client(
+                f"clone_{bot_id}",
+                api_id=Config.API_ID,
+                api_hash=Config.API_HASH,
+                bot_token=bot_token,
+                plugins=clone_plugins,
+                workdir="temp_sessions"
+            )
+        except Exception as e:
+            logger.error(f"Error creating clone client {bot_id}: {e}")
+            return None
+    
+    async def _start_clone_client(self, client: Client, bot_id: str, max_retries: int = 3) -> bool:
+        """Start clone client with retry logic"""
+        for attempt in range(max_retries):
+            try:
+                await asyncio.wait_for(client.start(), timeout=30.0)
+                return True
+            except asyncio.TimeoutError:
+                logger.warning(f"Clone {bot_id} start timeout (attempt {attempt + 1}/{max_retries})")
+            except Exception as e:
+                logger.error(f"Clone {bot_id} start error (attempt {attempt + 1}/{max_retries}): {e}")
+            
+            if attempt < max_retries - 1:
+                await asyncio.sleep(min(2 ** attempt, 10))  # Exponential backoff
+        
+        return False
+    
+    async def _verify_clone_health(self, bot_id: str) -> bool:
+        """Verify clone is actually healthy"""
+        if bot_id not in self.active_clones:
+            return False
+        
+        try:
+            clone_info = self.active_clones[bot_id]
+            client = clone_info['client']
+            
+            if not client.is_connected:
+                return False
+            
+            # Try to get bot info with timeout
+            await asyncio.wait_for(client.get_me(), timeout=5.0)
+            return True
+        except:
+            return False
+    
+    async def _cleanup_stale_clone(self, bot_id: str):
+        """Clean up stale clone entry"""
+        try:
+            if bot_id in self.active_clones:
+                clone_info = self.active_clones[bot_id]
+                client = clone_info.get('client')
+                if client:
+                    await self._safe_stop_client(client)
+                del self.active_clones[bot_id]
+            
+            if bot_id in self.clone_tasks:
+                self.clone_tasks[bot_id].cancel()
+                del self.clone_tasks[bot_id]
+                
+        except Exception as e:
+            logger.error(f"Error cleaning up stale clone {bot_id}: {e}")
+    
+    async def _safe_stop_client(self, client: Client):
+        """Safely stop a client"""
+        try:
+            if client.is_connected:
+                await asyncio.wait_for(client.stop(), timeout=10.0)
+        except:
+            pass  # Ignore errors during shutdown
+    
+    async def _handle_clone_auth_error(self, bot_id: str, error_type: str):
+        """Handle authentication errors for clones"""
+        try:
+            # Deactivate clone
+            await deactivate_clone(bot_id)
+            
+            # Update clone status with error info
+            await self._update_clone_status(bot_id, "auth_error", {
+                'error_type': error_type,
+                'error_time': datetime.now()
+            })
+            
+            # Clean up active clone
+            if bot_id in self.active_clones:
+                await self._cleanup_stale_clone(bot_id)
+                
+        except Exception as e:
+            logger.error(f"Error handling auth error for clone {bot_id}: {e}")
+    
+    async def _monitor_clone(self, bot_id: str):
+        """Enhanced clone monitoring with health checks"""
+        try:
+            while bot_id in self.active_clones:
+                clone_info = self.active_clones[bot_id]
+                client = clone_info['client']
+
+                # Health check with timeout
+                try:
+                    if not client.is_connected:
+                        logger.warning(f"Clone {bot_id} disconnected, attempting reconnect...")
+                        if await self._reconnect_clone(client, bot_id):
+                            logger.info(f"✅ Clone {bot_id} reconnected")
+                        else:
+                            logger.error(f"❌ Failed to reconnect clone {bot_id}")
+                            break
+                    else:
+                        # Verify connection with ping
+                        await asyncio.wait_for(client.get_me(), timeout=10.0)
+                    
+                    # Update health check time
+                    clone_info['last_health_check'] = datetime.now()
+                    
+                except asyncio.TimeoutError:
+                    logger.warning(f"Health check timeout for clone {bot_id}")
+                except Exception as e:
+                    logger.error(f"Health check failed for clone {bot_id}: {e}")
+                    break
+
+                # Update last seen
+                await update_clone_last_seen(bot_id)
+
+                # Sleep before next check
+                await asyncio.sleep(60)  # Check every minute
+
+        except asyncio.CancelledError:
+            logger.info(f"🛑 Monitoring task for clone {bot_id} cancelled")
+        except Exception as e:
+            logger.error(f"❌ Error in monitoring task for clone {bot_id}: {e}")
+        finally:
+            # Clean up on exit
+            if bot_id in self.active_clones:
+                await self._cleanup_stale_clone(bot_id)
+    
+    async def _reconnect_clone(self, client: Client, bot_id: str, max_attempts: int = 3) -> bool:
+        """Attempt to reconnect a clone"""
+        for attempt in range(max_attempts):
+            try:
+                await asyncio.wait_for(client.start(), timeout=20.0)
+                return True
+            except Exception as e:
+                logger.warning(f"Reconnect attempt {attempt + 1} failed for clone {bot_id}: {e}")
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(min(2 ** attempt, 30))
+        return False
 
     async def stop_clone(self, bot_id: str):
         """Stop a clone bot"""

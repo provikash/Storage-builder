@@ -1,270 +1,368 @@
-from flask import Flask, jsonify, render_template_string
+
 import asyncio
-from datetime import datetime
-import threading
+import json
+from datetime import datetime, timedelta
+from threading import Thread
+from flask import Flask, render_template_string, jsonify, request, session, redirect, url_for
+from info import Config
+from bot.database.connection_manager import get_database
+from clone_manager import clone_manager
 
 app = Flask(__name__)
+app.secret_key = Config.WEBHOOK_SECRET or "default_secret_key"
 
-# HTML template for the monitoring dashboard
-DASHBOARD_HTML = """
+# HTML Templates
+DASHBOARD_TEMPLATE = """
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Mother Bot System Dashboard</title>
-    <meta http-equiv="refresh" content="30">
+    <title>Storage Builder Dashboard</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; }
         .container { max-width: 1200px; margin: 0 auto; }
-        .card { background: white; padding: 20px; margin: 20px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-        .status-healthy { color: #28a745; }
-        .status-degraded { color: #ffc107; }
-        .status-critical { color: #dc3545; }
-        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
-        .metric { display: flex; justify-content: space-between; margin: 10px 0; }
-        h1, h2 { color: #333; }
-        .refresh-note { text-align: center; color: #666; font-size: 14px; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .stat-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .stat-value { font-size: 2em; font-weight: bold; color: #667eea; }
+        .stat-label { color: #666; margin-top: 5px; }
+        .clones-section { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .clone-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: between; align-items: center; }
+        .clone-status { padding: 4px 8px; border-radius: 4px; color: white; font-size: 0.8em; }
+        .status-running { background-color: #28a745; }
+        .status-stopped { background-color: #dc3545; }
+        .status-pending { background-color: #ffc107; color: #000; }
+        .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; margin: 2px; }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-danger { background-color: #dc3545; color: white; }
+        .btn-warning { background-color: #ffc107; color: black; }
+        .refresh-btn { float: right; }
+        .log-section { background: #1e1e1e; color: #00ff00; padding: 15px; border-radius: 8px; max-height: 300px; overflow-y: auto; font-family: 'Courier New', monospace; font-size: 12px; }
+        .system-info { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 20px; }
+        .info-card { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
     </style>
+    <script>
+        function refreshDashboard() {
+            location.reload();
+        }
+        
+        function manageClone(botId, action) {
+            fetch(`/api/clone/${botId}/${action}`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.message);
+                    if (data.success) refreshDashboard();
+                })
+                .catch(error => alert('Error: ' + error));
+        }
+        
+        // Auto-refresh every 30 seconds
+        setInterval(refreshDashboard, 30000);
+    </script>
 </head>
 <body>
     <div class="container">
-        <h1>🤖 Mother Bot System Dashboard</h1>
-        <p class="refresh-note">Auto-refreshes every 30 seconds</p>
-
-        <div class="grid">
-            <div class="card">
-                <h2>System Health</h2>
-                <div class="metric">
-                    <span>Status:</span>
-                    <span class="status-{{ health_status }}">{{ health_status|title }}</span>
-                </div>
-                <div class="metric">
-                    <span>Last Check:</span>
-                    <span>{{ last_health_check }}</span>
-                </div>
+        <div class="header">
+            <h1>🚀 Storage Builder Dashboard</h1>
+            <p>Real-time monitoring and management</p>
+            <button class="btn btn-primary refresh-btn" onclick="refreshDashboard()">🔄 Refresh</button>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.total_clones }}</div>
+                <div class="stat-label">Total Clones</div>
             </div>
-
-            <div class="card">
-                <h2>Clone Statistics</h2>
-                <div class="metric">
-                    <span>Total Clones:</span>
-                    <span>{{ clone_stats.total }}</span>
-                </div>
-                <div class="metric">
-                    <span>Active Clones:</span>
-                    <span>{{ clone_stats.active }}</span>
-                </div>
-                <div class="metric">
-                    <span>Running Now:</span>
-                    <span>{{ running_clones }}</span>
-                </div>
-                <div class="metric">
-                    <span>Pending Requests:</span>
-                    <span>{{ clone_stats.pending }}</span>
-                </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.running_clones }}</div>
+                <div class="stat-label">Running Clones</div>
             </div>
-
-            <div class="card">
-                <h2>Subscription Stats</h2>
-                <div class="metric">
-                    <span>Total Subscriptions:</span>
-                    <span>{{ sub_stats.total }}</span>
-                </div>
-                <div class="metric">
-                    <span>Active:</span>
-                    <span>{{ sub_stats.active }}</span>
-                </div>
-                <div class="metric">
-                    <span>Expired:</span>
-                    <span>{{ sub_stats.expired }}</span>
-                </div>
-                <div class="metric">
-                    <span>Total Revenue:</span>
-                    <span>${{ "%.2f"|format(sub_stats.total_revenue) }}</span>
-                </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.total_users }}</div>
+                <div class="stat-label">Total Users</div>
             </div>
-
-            <div class="card">
-                <h2>System Resources</h2>
-                <div class="metric">
-                    <span>Memory Usage:</span>
-                    <span>{{ "%.1f"|format(system_stats.memory_percent) }}%</span>
-                </div>
-                <div class="metric">
-                    <span>CPU Usage:</span>
-                    <span>{{ "%.1f"|format(system_stats.cpu_percent) }}%</span>
-                </div>
-                <div class="metric">
-                    <span>Uptime:</span>
-                    <span>{{ "%.1f"|format(system_stats.uptime_seconds/3600) }} hours</span>
-                </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ stats.total_files }}</div>
+                <div class="stat-label">Stored Files</div>
             </div>
         </div>
-
-        <div class="card">
-            <h2>Recent Activity</h2>
-            <p>Last updated: {{ current_time }}</p>
-            <p>Dashboard URL: <code>/dashboard</code></p>
-            <p>API Health: <code>/health</code></p>
+        
+        <div class="clones-section">
+            <h2>🤖 Clone Management</h2>
+            {% for clone in clones %}
+            <div class="clone-item">
+                <div>
+                    <strong>{{ clone.name or clone.id }}</strong>
+                    <br>
+                    <small>Owner: {{ clone.owner_id }} | Created: {{ clone.created_at.strftime('%Y-%m-%d %H:%M') if clone.created_at else 'Unknown' }}</small>
+                </div>
+                <div>
+                    <span class="clone-status status-{{ clone.status }}">{{ clone.status.upper() }}</span>
+                    {% if clone.status == 'running' %}
+                        <button class="btn btn-warning" onclick="manageClone('{{ clone.id }}', 'restart')">🔄 Restart</button>
+                        <button class="btn btn-danger" onclick="manageClone('{{ clone.id }}', 'stop')">⏹️ Stop</button>
+                    {% else %}
+                        <button class="btn btn-primary" onclick="manageClone('{{ clone.id }}', 'start')">▶️ Start</button>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <div class="system-info">
+            <div class="info-card">
+                <h3>💾 Storage Information</h3>
+                <p><strong>Total Files:</strong> {{ storage_stats.total_files }}</p>
+                <p><strong>Storage Used:</strong> {{ storage_stats.total_size_mb }} MB</p>
+                <p><strong>Storage Path:</strong> {{ storage_stats.storage_path }}</p>
+            </div>
+            
+            <div class="info-card">
+                <h3>🖥️ System Health</h3>
+                <p><strong>Database:</strong> <span style="color: {{ 'green' if system_health.database else 'red' }}">{{ '✅ Connected' if system_health.database else '❌ Disconnected' }}</span></p>
+                <p><strong>Uptime:</strong> {{ system_health.uptime }}</p>
+                <p><strong>Last Updated:</strong> {{ datetime.now().strftime('%Y-%m-%d %H:%M:%S') }}</p>
+            </div>
+        </div>
+        
+        <div class="log-section" style="margin-top: 20px;">
+            <h3>📋 Recent Activity</h3>
+            <div id="logs">
+                {% for log in recent_logs %}
+                <div>[{{ log.timestamp }}] {{ log.message }}</div>
+                {% endfor %}
+            </div>
         </div>
     </div>
 </body>
 </html>
 """
 
+LOGIN_TEMPLATE = """
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Storage Builder - Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .login-form { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .form-group { margin-bottom: 20px; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; }
+        .btn { width: 100%; padding: 12px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .error { color: red; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <form class="login-form" method="post">
+        <h2>🔐 Dashboard Login</h2>
+        <div class="form-group">
+            <input type="password" name="password" placeholder="Admin Password" required>
+        </div>
+        <button type="submit" class="btn">Login</button>
+        {% if error %}
+        <div class="error">{{ error }}</div>
+        {% endif %}
+    </form>
+</body>
+</html>
+"""
+
+# Dashboard data collection functions
+async def get_dashboard_stats():
+    """Collect dashboard statistics"""
+    try:
+        db = get_database()
+        if not db:
+            return {}
+        
+        # Get clone statistics
+        total_clones = await db.clones.count_documents({})
+        running_clones = len(clone_manager.get_running_clones())
+        
+        # Get user statistics
+        total_users = await db.users.count_documents({})
+        
+        # Get file statistics
+        total_files = await db.files.count_documents({}) if 'files' in await db.list_collection_names() else 0
+        
+        return {
+            'total_clones': total_clones,
+            'running_clones': running_clones,
+            'total_users': total_users,
+            'total_files': total_files
+        }
+    except Exception as e:
+        print(f"Error getting dashboard stats: {e}")
+        return {}
+
+async def get_clones_data():
+    """Get clones data for dashboard"""
+    try:
+        db = get_database()
+        if not db:
+            return []
+        
+        clones_cursor = db.clones.find().sort("created_at", -1)
+        clones = await clones_cursor.to_list(None)
+        
+        # Enhance with runtime status
+        running_clones = clone_manager.get_running_clones()
+        
+        for clone in clones:
+            clone['status'] = 'running' if clone['_id'] in running_clones else clone.get('status', 'stopped')
+            clone['id'] = clone['_id']
+        
+        return clones
+    except Exception as e:
+        print(f"Error getting clones data: {e}")
+        return []
+
+async def get_storage_stats():
+    """Get storage statistics"""
+    try:
+        from bot.utils.file_manager import file_manager
+        return await file_manager.get_storage_stats()
+    except Exception as e:
+        print(f"Error getting storage stats: {e}")
+        return {}
+
+async def get_system_health():
+    """Get system health information"""
+    try:
+        db = get_database()
+        database_connected = db is not None
+        
+        # Calculate uptime (simplified)
+        uptime = "Running"  # You can implement actual uptime calculation
+        
+        return {
+            'database': database_connected,
+            'uptime': uptime
+        }
+    except Exception as e:
+        print(f"Error getting system health: {e}")
+        return {}
+
+async def get_recent_logs():
+    """Get recent logs for dashboard"""
+    try:
+        db = get_database()
+        if not db:
+            return []
+        
+        logs_cursor = db.logs.find().sort("timestamp", -1).limit(10)
+        logs = await logs_cursor.to_list(10)
+        
+        return [
+            {
+                'timestamp': log['timestamp'].strftime('%H:%M:%S'),
+                'message': log['message']
+            }
+            for log in logs
+        ]
+    except Exception as e:
+        print(f"Error getting recent logs: {e}")
+        return []
+
+# Flask routes
 @app.route('/')
-def index():
-    # Redirect to dashboard for better user experience
-    from flask import redirect
-    return redirect('/dashboard')
-
-@app.route('/health')
-def health():
-    try:
-        # Import here to avoid circular imports
-        from bot.utils.health_check import health_checker
-        from bot.utils.system_monitor import system_monitor
-        from clone_manager import clone_manager
-
-        health_status = health_checker.get_status()
-        system_stats = system_monitor.get_stats()
-
-        return jsonify({
-            "status": "ok",
-            "health": health_status,
-            "system": system_stats,
-            "running_clones": len(clone_manager.get_running_clones()),
-            "timestamp": datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({
-            "status": "error",
-            "error": str(e),
-            "timestamp": datetime.now().isoformat()
-        }), 500
-
-@app.route('/dashboard')
 def dashboard():
+    """Main dashboard route"""
+    if not session.get('authenticated'):
+        return redirect(url_for('login'))
+    
+    # Run async functions in event loop
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     try:
-        # Import here to avoid circular imports
-        from bot.utils.health_check import health_checker
-        from bot.utils.system_monitor import system_monitor
-        from clone_manager import clone_manager
-        from bot.database.clone_db import get_clone_statistics
-        from bot.database.subscription_db import get_subscription_stats
-
-        # Get current stats (simplified for demo)
-        health_status = health_checker.status or "unknown"
-        last_health_check = health_checker.last_check or "Never"
-
-        # Mock stats (replace with actual async calls in production)
-        clone_stats = {"total": 0, "active": 0, "pending": 0}
-        sub_stats = {"total": 0, "active": 0, "expired": 0, "total_revenue": 0}
-        system_stats = system_monitor.get_stats()
-
-        return render_template_string(DASHBOARD_HTML,
-            health_status=health_status,
-            last_health_check=last_health_check,
-            clone_stats=clone_stats,
-            sub_stats=sub_stats,
-            system_stats=system_stats,
-            running_clones=len(clone_manager.get_running_clones()),
-            current_time=datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        stats = loop.run_until_complete(get_dashboard_stats())
+        clones = loop.run_until_complete(get_clones_data())
+        storage_stats = loop.run_until_complete(get_storage_stats())
+        system_health = loop.run_until_complete(get_system_health())
+        recent_logs = loop.run_until_complete(get_recent_logs())
+        
+        return render_template_string(
+            DASHBOARD_TEMPLATE,
+            stats=stats,
+            clones=clones,
+            storage_stats=storage_stats,
+            system_health=system_health,
+            recent_logs=recent_logs,
+            datetime=datetime
         )
+    finally:
+        loop.close()
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Login route"""
+    if request.method == 'POST':
+        password = request.form.get('password')
+        # Simple password check (in production, use proper authentication)
+        if password == Config.WEBHOOK_SECRET or password == "admin123":
+            session['authenticated'] = True
+            return redirect(url_for('dashboard'))
+        else:
+            return render_template_string(LOGIN_TEMPLATE, error="Invalid password")
+    
+    return render_template_string(LOGIN_TEMPLATE)
+
+@app.route('/api/clone/<bot_id>/<action>', methods=['POST'])
+def manage_clone(bot_id, action):
+    """API endpoint for clone management"""
+    if not session.get('authenticated'):
+        return jsonify({'success': False, 'message': 'Authentication required'})
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        if action == 'start':
+            success, message = loop.run_until_complete(clone_manager.start_clone(bot_id))
+        elif action == 'stop':
+            success, message = loop.run_until_complete(clone_manager.stop_clone(bot_id))
+        elif action == 'restart':
+            success, message = loop.run_until_complete(clone_manager.restart_clone(bot_id))
+        else:
+            return jsonify({'success': False, 'message': 'Invalid action'})
+        
+        return jsonify({'success': success, 'message': message})
     except Exception as e:
-        return f"Dashboard Error: {e}", 500
+        return jsonify({'success': False, 'message': str(e)})
+    finally:
+        loop.close()
 
 @app.route('/api/stats')
 def api_stats():
+    """API endpoint for statistics"""
+    if not session.get('authenticated'):
+        return jsonify({'error': 'Authentication required'})
+    
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     try:
-        from clone_manager import clone_manager
-        return jsonify({
-            "running_clones": len(clone_manager.get_running_clones()),
-            "timestamp": datetime.now().isoformat()
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-def run_server():
-    """Run the web monitoring dashboard"""
-    from flask import Flask, jsonify, render_template_string
-    import threading
-
-    app = Flask(__name__)
-
-    @app.route('/')
-    def index():
-        from flask import redirect
-        return redirect('/dashboard')
-
-    @app.route('/dashboard')
-    def dashboard():
-        try:
-            from clone_manager import clone_manager
-            running_clones = len(clone_manager.get_running_clones())
-
-            html = """
-            <!DOCTYPE html>
-            <html>
-            <head><title>Mother Bot Dashboard</title></head>
-            <body>
-                <h1>🤖 Mother Bot Dashboard</h1>
-                <div>
-                    <h2>System Status</h2>
-                    <p>Running Clones: {{ clones }}</p>
-                    <p>Status: ✅ Operational</p>
-                </div>
-            </body>
-            </html>
-            """
-            return render_template_string(html, clones=running_clones)
-        except Exception as e:
-            return f"Dashboard Error: {str(e)}", 500
-
-    @app.route('/health')
-    def health():
-        try:
-            from clone_manager import clone_manager
-            return jsonify({
-                "status": "ok",
-                "health": "healthy",
-                "running_clones": len(clone_manager.get_running_clones()),
-                "timestamp": datetime.now().isoformat()
-            })
-        except Exception as e:
-            return jsonify({
-                "status": "error",
-                "error": str(e),
-                "timestamp": datetime.now().isoformat()
-            }), 500
-
-    @app.route('/api/status')
-    def api_status():
-        try:
-            from clone_manager import clone_manager
-            return jsonify({
-                "status": "operational",
-                "running_clones": len(clone_manager.get_running_clones()),
-                "timestamp": datetime.now().isoformat()
-            })
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-
-    try:
-        # Always use port 5000 for Replit
-        app.run(host='0.0.0.0', port=5000, debug=False, use_reloader=False)
-    except Exception as e:
-        print(f"Web server error: {e}")
+        stats = loop.run_until_complete(get_dashboard_stats())
+        return jsonify(stats)
+    finally:
+        loop.close()
 
 def start_webserver():
-    """Start web server in background thread"""
-    server_thread = threading.Thread(target=run_server, daemon=True)
+    """Start the web server in a separate thread"""
+    def run_server():
+        try:
+            app.run(
+                host=Config.WEB_HOST,
+                port=Config.WEB_PORT,
+                debug=False,
+                use_reloader=False,
+                threaded=True
+            )
+        except Exception as e:
+            print(f"Web server error: {e}")
+    
+    server_thread = Thread(target=run_server, daemon=True)
     server_thread.start()
     return server_thread
-
-if __name__ == '__main__':
-    # Always use port 5000 for Replit
-    port = 5000
-    try:
-        app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
-    except OSError as e:
-        print(f"Web server error on port {port}: {e}")

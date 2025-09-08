@@ -249,19 +249,16 @@ async def start_command(client: Client, message: Message):
 
     # Create main menu buttons based on bot type
     if is_clone_bot:
-        # Clone bot start message - standardized version
-        text = f"🤖 **Welcome to Your Personal File Bot**\n"
-        text += f"Hello {message.from_user.first_name}! 👋\n\n"
-        text += f"📁 **Instant File Access & Management**\n"
-        text += f"Browse, search, and download files with lightning speed.\n\n"
-        text += f"✨ **Available Features:**\n"
+        # Clone bot start message - simplified version
+        text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
+        text += f"📁 **Your Personal File Bot** - Browse, search, and download files instantly.\n\n"
+        text += f"🌟 **Features Available:**\n"
         text += f"• 🎲 Random file discovery\n"
         text += f"• 🆕 Latest uploaded content\n"
         text += f"• 🔥 Most popular downloads\n"
         text += f"• 🔍 Advanced search functionality\n\n"
-        text += f"**📊 Your Status:**\n"
-        text += f"• Account: {'💎 Premium' if user_premium else '🆓 Free'}\n\n"
-        text += f"🎯 **Select an option to continue:**"
+        text += f"💎 Status: {'Premium' if user_premium else 'Free'}\n\n"
+        text += f"🎯 **Choose an option below:**"
 
         # Clone bot menu - check admin vs user
         if is_admin_user:
@@ -335,21 +332,18 @@ async def start_command(client: Client, message: Message):
                 InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
             ])
     else:
-        # Mother bot start message - as specified in requirements
-        text = f"🚀 **Welcome to Advanced Bot Creator**\n"
-        text += f"Hello {message.from_user.first_name}! 👋\n\n"
+        # Mother bot start message - simplified version
+        text = f"🚀 **Welcome back to Advanced Bot Creator, {message.from_user.first_name}!**\n\n"
         text += f"🤖 **Create & Manage Personal Clone Bots**\n"
         text += f"Build your own file-sharing bot network with advanced features.\n\n"
-        text += f"✨ **Platform Features:**\n"
+        text += f"🌟 **What You Can Do:**\n"
         text += f"• 🤖 Create unlimited clone bots\n"
         text += f"• 📁 Advanced file management system\n"
         text += f"• 👥 User management & analytics\n"
         text += f"• 💎 Premium features & monetization\n"
         text += f"• 🔧 Complete customization control\n\n"
-        text += f"**📊 Your Account:**\n"
-        text += f"• Status: {'💎 Premium' if user_premium else '🆓 Free'}\n" 
-        text += f"• Balance: ${balance:.2f}\n\n"
-        text += f"🎯 **Choose an option below to get started:**"
+        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+        text += f"🎯 **Get Started:**"
 
         # Mother bot buttons - as specified in requirements
         buttons = []
