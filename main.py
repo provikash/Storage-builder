@@ -120,8 +120,6 @@ async def start_mother_bot():
                 "admin_commands",
                 "admin_panel",
                 "balance_management",
-                "search",
-                "callback_handlers",
                 "premium",
                 "stats",
                 "broadcast",
