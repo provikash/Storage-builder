@@ -1713,3 +1713,44 @@ async def redirect_keyboard_handlers(client: Client, message: Message):
             [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")]
         ])
         await message.reply_text(text, reply_markup=buttons)
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
+
+@Client.on_message(filters.command("search") & filters.private)
+async def search_command(client: Client, message: Message):
+    """Handle search command"""
+    try:
+        if len(message.command) < 2:
+            await message.reply_text("❌ **Usage:** `/search <query>`\n\nExample: `/search funny videos`")
+            return
+        
+        query = " ".join(message.command[1:])
+        
+        text = f"🔍 **Search Results for:** `{query}`\n\n"
+        text += f"⚠️ Search functionality is currently under development.\n"
+        text += f"Please try again later!"
+        
+        await message.reply_text(text)
+        logger.info(f"Search query '{query}' from user {message.from_user.id}")
+        
+    except Exception as e:
+        logger.error(f"Error in search command: {e}")
+        await message.reply_text("❌ Search error occurred. Please try again.")
+
+async def handle_random_files(client, message, is_callback=False, skip_command_check=False):
+    """Handle random files request"""
+    try:
+        text = "🎲 **Random Files**\n\n"
+        text += "⚠️ Random file feature is currently under development.\n"
+        text += "Please check back later!"
+        
+        if is_callback:
+            await message.edit_text(text)
+        else:
+            await message.reply_text(text)
+            
+    except Exception as e:
+        logger.error(f"Error in handle_random_files: {e}")

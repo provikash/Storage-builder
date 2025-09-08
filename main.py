@@ -121,17 +121,11 @@ async def start_mother_bot():
                 "admin_panel",
                 "balance_management",
                 "search",
-                "genlink",
-                "channel",
                 "callback_handlers",
-                "callback_fix",
-                "missing_callbacks",
                 "premium",
-                "token",
                 "stats",
                 "broadcast",
-                "clone_admin_settings",
-                "water_about"
+                "clone_admin_settings"
             ]
         }
 

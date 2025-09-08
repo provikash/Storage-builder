@@ -886,3 +886,100 @@ async def placeholder_callbacks(client: Client, query: CallbackQuery):
     except Exception as e:
         logger.error(f"❌ Error in placeholder callback: {e}")
         await query.answer("❌ Feature under development.", show_alert=True)
+from pyrogram import Client, filters
+from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from info import Config
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
+
+@Client.on_callback_query(filters.regex("^(back_to_start|restart)$"))
+async def back_to_start_callback(client: Client, query: CallbackQuery):
+    """Handle back to start callback"""
+    try:
+        await query.answer()
+        
+        # Simulate start command
+        user = query.from_user
+        user_id = user.id
+        
+        # Check if this is mother bot or clone bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        is_clone_bot = bot_token != Config.BOT_TOKEN
+        
+        if is_clone_bot:
+            text = f"🤖 **Welcome back {user.first_name}!**\n\n"
+            text += f"📁 **Your Personal File Bot**\n\n"
+            
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                    InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+                ],
+                [InlineKeyboardButton("🔥 Popular Files", callback_data="popular_files")],
+                [
+                    InlineKeyboardButton("👤 My Profile", callback_data="user_profile"),
+                    InlineKeyboardButton("❓ Help", callback_data="help_menu")
+                ]
+            ])
+        else:
+            text = f"🚀 **Welcome back {user.first_name}!**\n\n"
+            text += f"🤖 **Advanced Bot Creator**\n\n"
+            
+            buttons = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
+                    InlineKeyboardButton("👤 My Profile", callback_data="user_profile")
+                ],
+                [
+                    InlineKeyboardButton("📋 My Clones", callback_data="manage_my_clone"),
+                    InlineKeyboardButton("💎 Premium", callback_data="premium_info")
+                ],
+                [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
+            ])
+
+        await query.edit_message_text(text, reply_markup=buttons)
+        
+    except Exception as e:
+        logger.error(f"Error in back_to_start_callback: {e}")
+        await query.answer("❌ Error occurred. Please try /start command.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^help_menu$"))
+async def help_callback(client: Client, query: CallbackQuery):
+    """Show help menu"""
+    await query.answer()
+    
+    text = f"❓ **Help & Support**\n\n"
+    text += f"**Available Commands:**\n"
+    text += f"• `/start` - Main menu\n"
+    text += f"• `/help` - Show this help\n\n"
+    text += f"**Need assistance?**\n"
+    text += f"Contact support for help!"
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^about_"))
+async def about_callback(client: Client, query: CallbackQuery):
+    """Handle about callbacks"""
+    await query.answer()
+    
+    text = f"ℹ️ **About This Bot**\n\n"
+    text += f"Advanced Telegram bot with file sharing capabilities.\n\n"
+    text += f"🔧 **Version:** 3.0.0\n"
+    text += f"👨‍💻 **Developer:** @admin"
+
+    buttons = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+    ])
+
+    await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query()
+async def catch_all_callback(client: Client, query: CallbackQuery):
+    """Handle unhandled callbacks"""
+    logger.warning(f"Unhandled callback: {query.data} from user {query.from_user.id}")
+    await query.answer("⚠️ This feature is not available yet.", show_alert=True)

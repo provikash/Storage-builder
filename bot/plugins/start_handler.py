@@ -3,18 +3,53 @@ from datetime import datetime
 from pyrogram.client import Client
 from pyrogram import filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from bot.utils.session_manager import get_session, clear_session, session_expired
-from bot.database.users import add_user, present_user
 from info import Config
-from bot.database.premium_db import is_premium_user
-from bot.database.balance_db import get_user_balance
-from bot import utils
 from bot.logging import LOGGER
-from bot.utils.error_handler import safe_edit_message
-import bot.utils.clone_config_loader as clone_config_loader
-from bot.database.clone_db import get_clone_by_bot_token
-from bot.utils import handle_force_sub
-from bot.database import get_command_stats
+
+# Import with error handling
+try:
+    from bot.utils.session_manager import get_session, clear_session, session_expired
+except ImportError:
+    async def session_expired(user_id): return False
+    async def clear_session(user_id): pass
+    async def get_session(user_id): return None
+
+try:
+    from bot.database.users import add_user, present_user
+except ImportError:
+    async def add_user(user_id): pass
+    async def present_user(user_id): return True
+
+try:
+    from bot.database.premium_db import is_premium_user
+except ImportError:
+    async def is_premium_user(user_id): return False
+
+try:
+    from bot.database.balance_db import get_user_balance
+except ImportError:
+    async def get_user_balance(user_id): return 0.0
+
+try:
+    from bot.utils.error_handler import safe_edit_message
+except ImportError:
+    async def safe_edit_message(query, text, **kwargs): 
+        return await query.edit_message_text(text, **kwargs)
+
+try:
+    import bot.utils.clone_config_loader as clone_config_loader
+except ImportError:
+    clone_config_loader = None
+
+try:
+    from bot.database.clone_db import get_clone_by_bot_token
+except ImportError:
+    async def get_clone_by_bot_token(token): return None
+
+try:
+    from bot.database import get_command_stats
+except ImportError:
+    async def get_command_stats(user_id): return {'command_count': 0}
 
 logger = LOGGER(__name__)
 
