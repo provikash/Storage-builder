@@ -203,7 +203,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     # Create a fake message to reuse start_command logic
     fake_message = type('obj', (object,), {
         'from_user': query.from_user,
-        'reply_text': lambda text, **kwargs: query.edit_message_text(text, **kwargs)
+        'reply_text': lambda text, reply_markup=None: query.edit_message_text(text, reply_markup=reply_markup)
     })()
     
     await start_command(client, fake_message)

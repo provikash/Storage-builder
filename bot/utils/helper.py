@@ -72,3 +72,9 @@ def get_collection_name(channel_id=None):
     """Get collection name for database operations"""
     # Return default collection name for file indexing
     return "file_index"
+
+async def handle_force_sub(client, message):
+    """Handle force subscription check - simplified version"""
+    # For now, return True to allow all users
+    # This can be enhanced later with actual subscription logic
+    return True
