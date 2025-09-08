@@ -227,33 +227,3 @@ async def handle_callbacks(client: Client, query):
 
     if is_clone:
         # Clone bot callbacks - only file sharing related
-        if data == "search_files":
-            await query.edit_message_text(
-                "🔍 **Search Files**\n\n"
-                "Use the command: `/search <filename>`\n\n"
-                "Example: `/search movie.mp4`"
-            )
-        elif data == "my_stats":
-            await query.edit_message_text(
-                f"📊 **Your Statistics**\n\n"
-                f"👤 **User ID:** `{user_id}`\n"
-                f"🕐 **Member Since:** Today\n"
-                f"📁 **Files Shared:** 0\n"
-                f"🔍 **Searches:** 0"
-            )
-        elif data == "help_info":
-            await help_command(client, query.message)
-        elif data.startswith("get_link_"):
-            file_id = data.split("_")[2]
-            share_link = f"https://t.me/{client.me.username}?start=file_{file_id}"
-            await query.answer(f"📎 Link: {share_link}", show_alert=True)
-        elif data == "random_files":
-            await query.answer("🎲 Random files feature is not yet implemented.", show_alert=True)
-        elif data == "recent_files":
-            await query.answer("⏰ Recent files feature is not yet implemented.", show_alert=True)
-        else:
-            await query.answer("⚠️ Feature not available", show_alert=True)
-    else:
-        # Mother bot callbacks - includes clone management
-        # Keep existing mother bot callback logic
-        pass
