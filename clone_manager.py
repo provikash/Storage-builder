@@ -94,7 +94,6 @@ class CloneManager:
                     "start_handler",
                     "missing_commands",
                     "admin",
-                    "callback_handlers",
                     "channel",
                     "clone_admin", 
                     "clone_admin_commands",
@@ -119,8 +118,7 @@ class CloneManager:
                     "mother_admin",
                     "admin_commands",
                     "balance_management",
-                    "admin_panel",
-                    "search"
+                    "admin_panel"
                 ]
             }
 
@@ -140,7 +138,6 @@ class CloneManager:
                     "start_handler",
                     "missing_commands",
                     "admin",
-                    "callback_handlers",
                     "channel",
                     "clone_admin", 
                     "clone_admin_commands",
@@ -165,8 +162,7 @@ class CloneManager:
                     "mother_admin",
                     "admin_commands",
                     "balance_management",
-                    "admin_panel",
-                    "search"
+                    "admin_panel"
                 ]
             }
 
