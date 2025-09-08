@@ -244,3 +244,63 @@ class SystemMonitor:
 
 # Global instance
 system_monitor = SystemMonitor()
+"""
+System monitoring utilities
+"""
+
+import psutil
+import logging
+import time
+from datetime import datetime, timedelta
+
+logger = logging.getLogger(__name__)
+
+start_time = time.time()
+
+def get_uptime():
+    """Get bot uptime"""
+    try:
+        uptime_seconds = time.time() - start_time
+        uptime_timedelta = timedelta(seconds=uptime_seconds)
+        
+        days = uptime_timedelta.days
+        hours, remainder = divmod(uptime_timedelta.seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        
+        if days > 0:
+            return f"{days}d {hours}h {minutes}m"
+        elif hours > 0:
+            return f"{hours}h {minutes}m {seconds}s"
+        elif minutes > 0:
+            return f"{minutes}m {seconds}s"
+        else:
+            return f"{seconds}s"
+    except Exception as e:
+        logger.error(f"Error getting uptime: {e}")
+        return "Unknown"
+
+def get_system_info():
+    """Get system information"""
+    try:
+        cpu_percent = psutil.cpu_percent(interval=1)
+        memory = psutil.virtual_memory()
+        disk = psutil.disk_usage('/')
+        
+        return {
+            'cpu': cpu_percent,
+            'memory': memory.percent,
+            'disk': disk.percent,
+            'memory_total': memory.total,
+            'memory_used': memory.used,
+            'disk_total': disk.total,
+            'disk_used': disk.used
+        }
+    except Exception as e:
+        logger.error(f"Error getting system info: {e}")
+        return None
+
+async def start_monitoring():
+    """Start system monitoring"""
+    logger.info("📊 System monitoring started")
+    # Add monitoring logic here
+    pass

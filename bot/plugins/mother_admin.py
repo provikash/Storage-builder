@@ -875,3 +875,229 @@ async def edit_global_about_callback(client: Client, query: CallbackQuery):
     ])
 
     await query.edit_message_text(about_text, reply_markup=buttons)
+"""
+Mother admin plugin for advanced administration
+"""
+
+import asyncio
+import logging
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from info import Config
+from bot.utils.admin_verification import is_admin
+
+logger = logging.getLogger(__name__)
+
+@Client.on_message(filters.command("motheradmin") & filters.private)
+async def mother_admin_panel(client: Client, message: Message):
+    """Show mother admin panel"""
+    try:
+        if not await is_admin(message.from_user.id):
+            await message.reply_text("❌ You don't have permission to use this command.")
+            return
+            
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🤖 Clone Management", callback_data="mother_clones"),
+                InlineKeyboardButton("👥 User Management", callback_data="mother_users")
+            ],
+            [
+                InlineKeyboardButton("💰 Subscription Management", callback_data="mother_subs"),
+                InlineKeyboardButton("📊 Advanced Stats", callback_data="mother_stats")
+            ],
+            [
+                InlineKeyboardButton("⚙️ System Settings", callback_data="mother_settings"),
+                InlineKeyboardButton("🔧 System Control", callback_data="mother_system")
+            ],
+            [
+                InlineKeyboardButton("📢 Global Broadcast", callback_data="mother_broadcast"),
+                InlineKeyboardButton("🗂️ Database Tools", callback_data="mother_database")
+            ]
+        ])
+        
+        await message.reply_text(
+            "🎛️ **Mother Bot Admin Panel**\n\n"
+            "Welcome to the advanced administration panel.\n"
+            "Choose an option below to manage the system:",
+            reply_markup=keyboard
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in mother admin panel: {e}")
+        await message.reply_text("❌ An error occurred.")
+
+@Client.on_callback_query(filters.regex("mother_clones"))
+async def clone_management(client: Client, query):
+    """Clone management panel"""
+    try:
+        if not await is_admin(query.from_user.id):
+            await query.answer("❌ Access denied!", show_alert=True)
+            return
+            
+        from bot.database.clone_db import get_all_clones, get_active_clones_count, get_clones_by_status
+        
+        total_clones = len(await get_all_clones())
+        active_clones = await get_active_clones_count()
+        pending_clones = len(await get_clones_by_status('pending'))
+        expired_clones = len(await get_clones_by_status('expired'))
+        
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("✅ Active Clones", callback_data="manage_active_clones"),
+                InlineKeyboardButton("⏳ Pending Clones", callback_data="manage_pending_clones")
+            ],
+            [
+                InlineKeyboardButton("❌ Expired Clones", callback_data="manage_expired_clones"),
+                InlineKeyboardButton("🔄 Restart All", callback_data="restart_all_clones")
+            ],
+            [
+                InlineKeyboardButton("📊 Clone Analytics", callback_data="clone_analytics"),
+                InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_global_settings")
+            ],
+            [
+                InlineKeyboardButton("🔙 Back", callback_data="back_to_mother_admin")
+            ]
+        ])
+        
+        text = f"🤖 **Clone Management**\n\n"
+        text += f"📊 **Statistics:**\n"
+        text += f"   • Total: `{total_clones}`\n"
+        text += f"   • Active: `{active_clones}`\n"
+        text += f"   • Pending: `{pending_clones}`\n"
+        text += f"   • Expired: `{expired_clones}`\n\n"
+        text += f"Choose a management option:"
+        
+        await query.edit_message_text(text, reply_markup=keyboard)
+        
+    except Exception as e:
+        logger.error(f"Error in clone management: {e}")
+        await query.answer("❌ Error loading clone management!")
+
+@Client.on_callback_query(filters.regex("mother_users"))
+async def user_management(client: Client, query):
+    """User management panel"""
+    try:
+        if not await is_admin(query.from_user.id):
+            await query.answer("❌ Access denied!", show_alert=True)
+            return
+            
+        from bot.database.users import get_total_users, get_users_by_date
+        from datetime import datetime, timedelta
+        
+        total_users = await get_total_users()
+        today_users = len(await get_users_by_date(datetime.now().date()))
+        week_users = len(await get_users_by_date(datetime.now().date() - timedelta(days=7)))
+        
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("👥 All Users", callback_data="list_all_users"),
+                InlineKeyboardButton("🆕 New Users", callback_data="list_new_users")
+            ],
+            [
+                InlineKeyboardButton("🚫 Ban User", callback_data="ban_user_prompt"),
+                InlineKeyboardButton("✅ Unban User", callback_data="unban_user_prompt")
+            ],
+            [
+                InlineKeyboardButton("📊 User Analytics", callback_data="user_analytics"),
+                InlineKeyboardButton("💰 Premium Users", callback_data="premium_users")
+            ],
+            [
+                InlineKeyboardButton("🔙 Back", callback_data="back_to_mother_admin")
+            ]
+        ])
+        
+        text = f"👥 **User Management**\n\n"
+        text += f"📊 **Statistics:**\n"
+        text += f"   • Total Users: `{total_users}`\n"
+        text += f"   • Today: `{today_users}`\n"
+        text += f"   • This Week: `{week_users}`\n\n"
+        text += f"Choose a management option:"
+        
+        await query.edit_message_text(text, reply_markup=keyboard)
+        
+    except Exception as e:
+        logger.error(f"Error in user management: {e}")
+        await query.answer("❌ Error loading user management!")
+
+@Client.on_callback_query(filters.regex("mother_system"))
+async def system_control(client: Client, query):
+    """System control panel"""
+    try:
+        if not await is_admin(query.from_user.id):
+            await query.answer("❌ Access denied!", show_alert=True)
+            return
+            
+        # Get system info
+        try:
+            import psutil
+            cpu_percent = psutil.cpu_percent()
+            memory = psutil.virtual_memory()
+            disk = psutil.disk_usage('/')
+            
+            system_info = f"🖥️ **System Status:**\n"
+            system_info += f"   • CPU: `{cpu_percent}%`\n"
+            system_info += f"   • RAM: `{memory.percent}%`\n"
+            system_info += f"   • Disk: `{disk.percent}%`\n"
+        except:
+            system_info = f"🖥️ **System Status:** Not available\n"
+            
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Restart Bot", callback_data="restart_bot_confirm"),
+                InlineKeyboardButton("🛑 Shutdown", callback_data="shutdown_bot_confirm")
+            ],
+            [
+                InlineKeyboardButton("🧹 Clear Cache", callback_data="clear_cache"),
+                InlineKeyboardButton("🗂️ Clean Database", callback_data="clean_database")
+            ],
+            [
+                InlineKeyboardButton("📊 System Logs", callback_data="view_system_logs"),
+                InlineKeyboardButton("⚙️ Config", callback_data="system_config")
+            ],
+            [
+                InlineKeyboardButton("🔙 Back", callback_data="back_to_mother_admin")
+            ]
+        ])
+        
+        text = f"🔧 **System Control**\n\n"
+        text += system_info
+        text += f"\n⚠️ **Warning:** Use these controls carefully!"
+        
+        await query.edit_message_text(text, reply_markup=keyboard)
+        
+    except Exception as e:
+        logger.error(f"Error in system control: {e}")
+        await query.answer("❌ Error loading system control!")
+
+@Client.on_callback_query(filters.regex("back_to_mother_admin"))
+async def back_to_mother_admin(client: Client, query):
+    """Return to mother admin main panel"""
+    try:
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🤖 Clone Management", callback_data="mother_clones"),
+                InlineKeyboardButton("👥 User Management", callback_data="mother_users")
+            ],
+            [
+                InlineKeyboardButton("💰 Subscription Management", callback_data="mother_subs"),
+                InlineKeyboardButton("📊 Advanced Stats", callback_data="mother_stats")
+            ],
+            [
+                InlineKeyboardButton("⚙️ System Settings", callback_data="mother_settings"),
+                InlineKeyboardButton("🔧 System Control", callback_data="mother_system")
+            ],
+            [
+                InlineKeyboardButton("📢 Global Broadcast", callback_data="mother_broadcast"),
+                InlineKeyboardButton("🗂️ Database Tools", callback_data="mother_database")
+            ]
+        ])
+        
+        await query.edit_message_text(
+            "🎛️ **Mother Bot Admin Panel**\n\n"
+            "Welcome to the advanced administration panel.\n"
+            "Choose an option below to manage the system:",
+            reply_markup=keyboard
+        )
+        
+    except Exception as e:
+        logger.error(f"Error returning to mother admin: {e}")
