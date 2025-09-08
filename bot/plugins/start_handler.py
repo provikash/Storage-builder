@@ -133,20 +133,28 @@ async def is_clone_admin(client: Client, user_id: int) -> bool:
         logger.error(f"Error checking clone admin: {e}")
         return False
 
-@Client.on_message(filters.command("start") & filters.private)
+@Client.on_message(filters.command("start") & filters.private, group=1)
 async def start_command(client: Client, message: Message):
     user = message.from_user
     user_id = user.id
 
-    print(f"🚀 DEBUG COMMAND: /start command from user {user_id}")
-    print(f"👤 DEBUG COMMAND: User details - ID: {user_id}, Username: @{user.username}, First: {user.first_name}")
+    try:
+        print(f"🚀 DEBUG COMMAND: /start command from user {user_id}")
+        print(f"👤 DEBUG COMMAND: User details - ID: {user_id}, Username: @{user.username}, First: {user.first_name}")
+        logger.info(f"Start command received from user {user_id}")
 
-    # Handle force subscription first (with admin exemption)
-    if not await utils.handle_force_sub(client, message):
-        print(f"🔒 DEBUG: User {user_id} blocked by force subscription")
+        # Handle force subscription first (with admin exemption)
+        if not await utils.handle_force_sub(client, message):
+            print(f"🔒 DEBUG: User {user_id} blocked by force subscription")
+            logger.info(f"User {user_id} blocked by force subscription")
+            return
+
+        print(f"✅ DEBUG: User {user_id} passed force subscription check")
+        logger.info(f"User {user_id} passed force subscription check")
+    except Exception as e:
+        logger.error(f"Error in start command for user {user_id}: {e}")
+        await message.reply_text("❌ An error occurred. Please try again later.")
         return
-
-    print(f"✅ DEBUG: User {user_id} passed force subscription check")
 
     # Check if session has expired for the user
     if await session_expired(user.id):
@@ -213,19 +221,19 @@ async def start_command(client: Client, message: Message):
             # Clone admin gets settings access AND file access
             logger.info(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
             print(f"🎛️ ADMIN ACCESS: Showing settings button to clone admin {user_id}")
-            
+
             buttons = []
-            
+
             # Settings button for admin
             buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")])
-            
+
             # File access buttons (ALWAYS show for admin)
             buttons.append([
                 InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
                 InlineKeyboardButton("🆕 Recent Upload", callback_data="recent_files")
             ])
             buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
-            
+
             # Admin info buttons
             buttons.append([
                 InlineKeyboardButton("📊 My Stats", callback_data="my_stats"),
@@ -239,14 +247,14 @@ async def start_command(client: Client, message: Message):
         else:
             # Normal clone bot users - as specified in the requirements
             buttons = []
-            
+
             # File browsing buttons for regular users
             buttons.append([
                 InlineKeyboardButton("🎲 Random Upload", callback_data="random_files"),
                 InlineKeyboardButton("🆕 Recent Upload", callback_data="recent_files")
             ])
             buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
-            
+
             # User action buttons as specified in requirements
             buttons.append([
                 InlineKeyboardButton("📊 My Stats", callback_data="my_stats"),
@@ -816,35 +824,35 @@ async def start_command(client: Client, message: Message):
     try:
         user = message.from_user
         user_id = user.id
-        
+
         logger.info(f"🚀 /start command from user {user_id} (@{user.username})")
-        
+
         # Add user to database
         await add_user(user_id)
-        
+
         # Check if user is premium
         try:
             user_premium = await is_premium_user(user_id)
         except:
             user_premium = False
-            
+
         # Get user balance
         try:
             balance = await get_user_balance(user_id)
         except:
             balance = 0.0
-        
+
         # Check if this is mother bot or clone bot
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         is_clone_bot = bot_token != Config.BOT_TOKEN
-        
+
         if is_clone_bot:
             # Clone bot welcome message
             text = f"🤖 **Welcome {user.first_name}!**\n\n"
             text += f"📁 **Your Personal File Bot** with secure sharing.\n\n"
             text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
             text += f"🎯 Choose an option below:"
-            
+
             buttons = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
@@ -866,7 +874,7 @@ async def start_command(client: Client, message: Message):
             text += f"🤖 **Advanced Bot Creator** - Create personal clone bots with file sharing.\n\n" 
             text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
             text += f"🎯 Choose an option below:"
-            
+
             buttons = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
@@ -883,16 +891,16 @@ async def start_command(client: Client, message: Message):
                 [InlineKeyboardButton("💧 About", callback_data="about_water")],
                 [InlineKeyboardButton("❓ Help", callback_data="help_menu")]
             ])
-            
+
             # Add admin panel for admins
             is_admin = user_id == Config.OWNER_ID or user_id in Config.ADMINS
             if is_admin:
                 admin_row = [InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel")]
                 buttons.inline_keyboard.append(admin_row)
-        
+
         await message.reply_text(text, reply_markup=buttons)
         logger.info(f"✅ Start message sent to user {user_id}")
-        
+
     except Exception as e:
         logger.error(f"❌ Error in start command: {e}")
         await message.reply_text(
@@ -918,13 +926,13 @@ async def help_command(client: Client, message: Message):
 **Need Support?**
 Contact the bot administrator for assistance.
         """
-        
+
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🏠 Back to Start", callback_data="back_to_start")]
         ])
-        
+
         await message.reply_text(help_text, reply_markup=buttons)
-        
+
     except Exception as e:
         logger.error(f"❌ Error in help command: {e}")
         await message.reply_text("⚠️ Error loading help. Please try /start")
