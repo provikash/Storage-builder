@@ -94,13 +94,12 @@ class CloneManager:
                     "start_handler",
                     "missing_commands",
                     "admin",
-                    "callback", 
+                    "callback_handlers",
                     "channel",
                     "clone_admin", 
                     "clone_admin_commands",
                     "clone_force_commands",
                     "clone_token_commands",
-                    "command_stats",
                     "debug_callbacks",
                     "debug_commands",
                     "enhanced_about",
@@ -111,10 +110,7 @@ class CloneManager:
                     "referral_program",
                     "simple_file_sharing",
                     "token",
-                    "water_about",
                     "auto_post",
-                    "callback_fix",
-                    "clone_index",
                     "clone_random_files"
                 ],
                 "exclude": [
@@ -124,7 +120,6 @@ class CloneManager:
                     "admin_commands",
                     "balance_management",
                     "admin_panel",
-                    "channel",
                     "search"
                 ]
             }
@@ -145,13 +140,12 @@ class CloneManager:
                     "start_handler",
                     "missing_commands",
                     "admin",
-                    "callback", 
+                    "callback_handlers",
                     "channel",
                     "clone_admin", 
                     "clone_admin_commands",
                     "clone_force_commands",
                     "clone_token_commands",
-                    "command_stats",
                     "debug_callbacks",
                     "debug_commands",
                     "enhanced_about",
@@ -162,10 +156,7 @@ class CloneManager:
                     "referral_program",
                     "simple_file_sharing",
                     "token",
-                    "water_about",
                     "auto_post",
-                    "callback_fix",
-                    "clone_index",
                     "clone_random_files"
                 ],
                 "exclude": [
@@ -175,7 +166,6 @@ class CloneManager:
                     "admin_commands",
                     "balance_management",
                     "admin_panel",
-                    "channel",
                     "search"
                 ]
             }
