@@ -6,7 +6,7 @@ channel = "stable-25_05"
 packages = ["cacert", "cargo", "gh", "libiconv", "libuv", "libxcrypt", "magma", "openssl", "pkg-config", "rustc"]
 
 [deployment]
-run = ["bash", "-c", "export DATABASE_URI=\"$DATABASE_URL\" && python3 main.py"]
+run = ["python3", "main.py"]
 deploymentTarget = "vm"
 
 [workflows]
@@ -35,11 +35,12 @@ name = "Telegram Bot"
 author = "agent"
 
 [workflows.workflow.metadata]
-outputType = "console"
+outputType = "webview"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "export DATABASE_URI=\"$DATABASE_URL\" && python3 main.py"
+waitForPort = 5000
 
 [[ports]]
 localPort = 5000
