@@ -1,4 +1,4 @@
-modules = ["python-3.11"]
+modules = ["python-3.12", "c-clang14", "nodejs-20", "web"]
 run = "python3 main.py"
 
 [nix]
@@ -6,7 +6,7 @@ channel = "stable-25_05"
 packages = ["cacert", "cargo", "gh", "libiconv", "libuv", "libxcrypt", "magma", "openssl", "pkg-config", "rustc"]
 
 [deployment]
-run = ["python3", "main.py"]
+run = ["bash", "-c", "export DATABASE_URI=\"$DATABASE_URL\" && python3 main.py"]
 deploymentTarget = "vm"
 
 [workflows]
