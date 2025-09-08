@@ -249,7 +249,7 @@ async def start_command(client: Client, message: Message):
 
     # Create main menu buttons based on bot type
     if is_clone_bot:
-        # Clone bot start message - as requested in the specification
+        # Clone bot start message - standardized version
         text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
         text += f"📁 **Your Personal File Bot** - Browse, search, and download files instantly.\n\n"
         text += f"🌟 **Features Available:**\n"
@@ -257,7 +257,7 @@ async def start_command(client: Client, message: Message):
         text += f"• 🆕 Latest uploaded content\n"
         text += f"• 🔥 Most popular downloads\n"
         text += f"• 🔍 Advanced search functionality\n\n"
-        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+        text += f"💎 Status: {'Premium' if user_premium else 'Free'}\n\n"
         text += f"🎯 **Choose an option below:**"
 
         # Clone bot menu - check admin vs user
@@ -508,15 +508,15 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     is_clone_bot, _ = await is_clone_bot_instance_async(client)
 
     if is_clone_bot:
-        # Clone bot start message
-        text = f"🤖 **Welcome back {user.first_name}!**\n\n"
+        # Clone bot start message - standardized version
+        text = f"🤖 **Welcome {user.first_name}!**\n\n"
         text += f"📁 **Your Personal File Bot** - Browse, search, and download files instantly.\n\n"
         text += f"🌟 **Features Available:**\n"
         text += f"• 🎲 Random file discovery\n"
         text += f"• 🆕 Latest uploaded content\n"
         text += f"• 🔥 Most popular downloads\n"
         text += f"• 🔍 Advanced search functionality\n\n"
-        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+        text += f"💎 Status: {'Premium' if user_premium else 'Free'}\n\n"
         text += f"🎯 **Choose an option below:**"
 
         # Check if user is clone admin
