@@ -1522,3 +1522,58 @@ async def handle_random_files(client, message, is_callback=False, skip_command_c
 
     except Exception as e:
         logger.error(f"Error in handle_random_files: {e}")
+# Search functionality for the bot
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from bot.logging import LOGGER
+from info import Config
+import asyncio
+
+logger = LOGGER(__name__)
+
+@Client.on_message(filters.command("search") & filters.private)
+async def search_command(client: Client, message: Message):
+    """Handle search command"""
+    try:
+        if len(message.text.split()) < 2:
+            await message.reply_text(
+                "🔍 **Search Usage:**\n\n"
+                "Use: `/search <query>`\n"
+                "Example: `/search movies`"
+            )
+            return
+        
+        query = message.text.split(maxsplit=1)[1]
+        
+        # Placeholder search functionality
+        await message.reply_text(
+            f"🔍 **Search Results for:** `{query}`\n\n"
+            "⚠️ Search functionality is currently under development.\n"
+            "Please check back later for full search capabilities.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("« Back to Menu", callback_data="back_to_start")]
+            ])
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in search command: {e}")
+        await message.reply_text("❌ Error processing search. Please try again.")
+
+@Client.on_message(filters.text & filters.private & ~filters.command(["start", "help", "search"]))
+async def handle_search_query(client: Client, message: Message):
+    """Handle direct text queries as search"""
+    try:
+        query = message.text
+        
+        # Simple search response
+        await message.reply_text(
+            f"🔍 **Searching for:** `{query}`\n\n"
+            "⚠️ Direct search is under development.\n"
+            "Use `/search {query}` command instead.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("« Back to Menu", callback_data="back_to_start")]
+            ])
+        )
+        
+    except Exception as e:
+        logger.error(f"Error handling search query: {e}")

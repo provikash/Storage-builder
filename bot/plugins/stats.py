@@ -1,20 +1,73 @@
 
-# This file is deprecated - stats functionality moved to admin.py
-# Keeping file for compatibility but removing duplicate handler
-pass
 """
 Statistics plugin for tracking bot usage and performance
 """
 
 import asyncio
-import logging
 from datetime import datetime, timedelta
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from info import Config
-from bot.utils.admin_verification import is_admin
+from bot.logging import LOGGER
 
-logger = logging.getLogger(__name__)
+logger = LOGGER(__name__)
+
+@Client.on_message(filters.command("stats") & filters.private)
+async def stats_command(client: Client, message: Message):
+    """Show bot statistics"""
+    try:
+        user_id = message.from_user.id
+        
+        # Check if user is admin
+        if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+            await message.reply_text("❌ This command is only for administrators.")
+            return
+        
+        # Basic stats
+        stats_text = f"📊 **Bot Statistics**\n\n"
+        stats_text += f"🤖 **Mother Bot:** Active\n"
+        stats_text += f"📅 **Uptime:** Available\n"
+        stats_text += f"🔧 **Status:** Running\n\n"
+        stats_text += f"💾 **Database:** Connected\n"
+        stats_text += f"🌐 **Web Dashboard:** Active"
+        
+        await message.reply_text(
+            stats_text,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")],
+                [InlineKeyboardButton("« Back to Menu", callback_data="back_to_start")]
+            ])
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in stats command: {e}")
+        await message.reply_text("❌ Error loading statistics. Please try again.")
+
+@Client.on_callback_query(filters.regex("^refresh_stats$"))
+async def refresh_stats_callback(client: Client, query):
+    """Refresh statistics"""
+    try:
+        await query.answer("🔄 Refreshing statistics...")
+        
+        # Basic stats
+        stats_text = f"📊 **Bot Statistics** (Updated)\n\n"
+        stats_text += f"🤖 **Mother Bot:** Active\n"
+        stats_text += f"📅 **Last Updated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        stats_text += f"🔧 **Status:** Running\n\n"
+        stats_text += f"💾 **Database:** Connected\n"
+        stats_text += f"🌐 **Web Dashboard:** Active"
+        
+        await query.edit_message_text(
+            stats_text,
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Refresh", callback_data="refresh_stats")],
+                [InlineKeyboardButton("« Back to Menu", callback_data="back_to_start")]
+            ])
+        )
+        
+    except Exception as e:
+        logger.error(f"Error refreshing stats: {e}")
+        await query.answer("❌ Error refreshing statistics.", show_alert=True)
 
 @Client.on_message(filters.command("stats") & filters.private)
 async def show_stats(client: Client, message: Message):

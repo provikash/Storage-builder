@@ -15,6 +15,8 @@ from . import stats
 from . import broadcast
 from . import mother_admin
 from . import enhanced_about
+from . import search
+from . import genlink
 
 # Set plugin loading order
 __all__ = [
@@ -28,5 +30,7 @@ __all__ = [
     "stats", 
     "broadcast",
     "mother_admin",
-    "enhanced_about"
+    "enhanced_about",
+    "search",
+    "genlink"
 ]
