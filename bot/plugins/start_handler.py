@@ -177,7 +177,7 @@ async def is_clone_admin(client: Client, user_id: int) -> bool:
         logger.error(f"Error checking clone admin: {e}")
         return False
 
-@Client.on_message(filters.command("start") & filters.private, group=1)
+@Client.on_message(filters.command("start") & filters.private, group=0)
 async def start_command(client: Client, message: Message):
     user = message.from_user
     user_id = user.id

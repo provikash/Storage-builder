@@ -177,11 +177,7 @@ async def clonestatus_command(client: Client, message: Message):
         logger.error(f"Error in clonestatus command: {e}")
         await message.reply_text("❌ Error loading clone status. Please try /start")
 
-@Client.on_message(filters.command("help") & filters.private)
-async def help_command(client: Client, message: Message):
-    """Handle /help command"""
-    try:
-        # Route to help from start_handler
+# Removed duplicate help command handler - handled in start_handler.pydler
         from bot.plugins.start_handler import help_callback
 
         # Create fake callback query

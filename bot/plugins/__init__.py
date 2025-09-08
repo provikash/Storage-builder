@@ -2,36 +2,38 @@
 # Bot plugins package
 """Bot plugins initialization"""
 
-# Import all plugins to ensure they register their handlers
+# Import plugins in specific order to prevent handler conflicts
+# Core handlers first, then specialized handlers
 try:
     from . import (
-        start_handler,
+        start_handler,          # MUST be first - core /start command
+        callback_handlers,      # Core callback system
+        admin_commands,         # Admin commands
+        clone_admin_commands,   # Clone admin commands
         genlink,
-        admin,
-        admin_commands,
         admin_panel,
         balance_management,
         premium,
         stats,
         broadcast,
         enhanced_about,
-        debug_commands,
-        callback_handlers,
         channel,
         clone_admin,
-        clone_admin_commands,
         clone_force_commands,
         clone_token_commands,
-        debug_callbacks,
         force_sub_commands,
         index,
-        missing_callbacks,
-        missing_commands,
         referral_program,
         simple_file_sharing,
         token,
         auto_post,
-        clone_random_files
+        clone_random_files,
+        # Debug and fallback handlers LAST to avoid conflicts
+        debug_commands,
+        debug_callbacks,
+        missing_callbacks,
+        missing_commands
     )
+    print("✅ All plugins imported successfully in correct order")
 except ImportError as e:
-    print(f"Warning: Could not import some plugins: {e}")
+    print(f"⚠️  Warning: Could not import some plugins: {e}")
