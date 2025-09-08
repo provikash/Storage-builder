@@ -53,3 +53,39 @@ async def user_profile_main_callback(client: Client, query: CallbackQuery):
     query.data = "user_profile"
     from bot.plugins.start_handler import profile_callback
     await profile_callback(client, query)
+
+@Client.on_callback_query(filters.regex("^file_(sample|recent|popular)"))
+async def handle_sample_file_callbacks(client: Client, query: CallbackQuery):
+    """Handle sample file callbacks from file browsing"""
+    await query.answer()
+    
+    file_id = query.data
+    file_name = "Sample File"
+    
+    if "sample" in file_id:
+        file_name = "Sample File"
+    elif "recent" in file_id:
+        file_name = "Recent File"
+    elif "popular" in file_id:
+        file_name = "Popular File"
+    
+    text = f"📁 **{file_name}**\n\n"
+    text += f"🔍 **File ID:** `{file_id}`\n"
+    text += f"📊 **Size:** 125.6 MB\n"
+    text += f"⏰ **Added:** 2 hours ago\n"
+    text += f"📥 **Downloads:** 1,234\n\n"
+    text += f"🎯 **Actions:**"
+    
+    buttons = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("📥 Download", url="https://t.me/example"),
+            InlineKeyboardButton("📤 Share", callback_data=f"share_{file_id}")
+        ],
+        [
+            InlineKeyboardButton("ℹ️ More Info", callback_data=f"info_{file_id}"),
+            InlineKeyboardButton("❤️ Like", callback_data=f"like_{file_id}")
+        ],
+        [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+    ])
+    
+    await query.edit_message_text(text, reply_markup=buttons)

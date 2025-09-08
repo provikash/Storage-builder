@@ -269,12 +269,12 @@ async def start_command(client: Client, message: Message):
             buttons = []
 
             # Settings button for admin
-            buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")])
+            buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="settings")])
 
             # File access buttons (ALWAYS show for admin)
             buttons.append([
                 InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
-                InlineKeyboardButton("🆕 Recent Upload", callback_data="recent_files")
+                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
             ])
             buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
 
@@ -294,8 +294,8 @@ async def start_command(client: Client, message: Message):
 
             # File browsing buttons for regular users
             buttons.append([
-                InlineKeyboardButton("🎲 Random Upload", callback_data="random_files"),
-                InlineKeyboardButton("🆕 Recent Upload", callback_data="recent_files")
+                InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
             ])
             buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
 

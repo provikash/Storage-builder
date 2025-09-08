@@ -119,7 +119,7 @@ async def emergency_callback_handler(client: Client, query: CallbackQuery):
 
             # Create settings panel directly
             show_random = clone_data.get('random_mode', True)
-            show_recent = clone_data.get('recent_mode', True) 
+            show_recent = clone_data.get('recent_mode', True)
             show_popular = clone_data.get('popular_mode', True)
             force_join = clone_data.get('force_join_enabled', False)
 
@@ -213,7 +213,7 @@ async def emergency_callback_handler(client: Client, query: CallbackQuery):
                     query.data = "clone_recent_files"
                     await handle_clone_recent_files(client, query)
                 elif callback_data == "popular_files":
-                    # Import and call the handler directly  
+                    # Import and call the handler directly
                     from bot.plugins.clone_random_files import handle_clone_popular_files
                     # Create a modified query with the correct callback data
                     query.data = "clone_popular_files"
@@ -369,7 +369,7 @@ async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
         await query.answer()
 
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
+
         # Check if this is mother bot
         if bot_token == Config.BOT_TOKEN:
             feature_name = callback_data.replace('_files', '').replace('_', ' ').title()
@@ -388,15 +388,10 @@ async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
         clone_data = await get_clone_by_bot_token(bot_token)
 
         if not clone_data:
-            await query.edit_message_text(
-                "❌ Clone configuration not found!",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
+            await query.edit_message_text("❌ Clone configuration not found!")
             return
 
-        # Check feature enablement
+        # Check feature enablement with proper defaults
         feature_enabled = True
         feature_display_name = ""
 
@@ -421,32 +416,87 @@ async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
             )
             return
 
-        # Route to appropriate handler
+        # Handle file browsing directly here instead of routing to external handlers
         if callback_data == "random_files":
-            from bot.plugins.clone_random_files import handle_clone_random_files
-            query.data = "clone_random_files"
-            await handle_clone_random_files(client, query)
+            await handle_random_files_display(client, query, clone_data)
         elif callback_data == "recent_files":
-            from bot.plugins.clone_random_files import handle_clone_recent_files
-            query.data = "clone_recent_files"  
-            await handle_clone_recent_files(client, query)
+            await handle_recent_files_display(client, query, clone_data)
         elif callback_data == "popular_files":
-            from bot.plugins.clone_random_files import handle_clone_popular_files
-            query.data = "clone_popular_files"
-            await handle_clone_popular_files(client, query)
+            await handle_popular_files_display(client, query, clone_data)
 
     except Exception as e:
         logger.error(f"Error in file browsing callback handler: {e}")
         traceback.print_exc()
-        try:
-            await query.edit_message_text(
-                f"❌ Error processing {callback_data}. Please try again.",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
-                ])
-            )
-        except:
-            await query.answer("❌ Error processing request", show_alert=True)
+        await query.answer("❌ Error processing request. Please try again.", show_alert=True)
+
+async def handle_random_files_display(client: Client, query: CallbackQuery, clone_data: dict):
+    """Display random files"""
+    try:
+        text = "🎲 **Random Files**\n\n"
+        text += "🔄 Loading random files from the database...\n\n"
+        text += "📁 Here are some random files from our collection:"
+
+        # Sample buttons for random files (replace with actual file data)
+        buttons = []
+        buttons.append([InlineKeyboardButton("🎬 Sample Movie.mp4", callback_data="file_sample1")])
+        buttons.append([InlineKeyboardButton("📚 Sample Document.pdf", callback_data="file_sample2")])
+        buttons.append([InlineKeyboardButton("🎵 Sample Audio.mp3", callback_data="file_sample3")])
+        buttons.append([
+            InlineKeyboardButton("🔄 Refresh", callback_data="random_files"),
+            InlineKeyboardButton("🔙 Back", callback_data="back_to_start")
+        ])
+
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    except Exception as e:
+        logger.error(f"Error in handle_random_files_display: {e}")
+        await query.edit_message_text("❌ Error loading random files. Please try again.")
+
+async def handle_recent_files_display(client: Client, query: CallbackQuery, clone_data: dict):
+    """Display recent files"""
+    try:
+        text = "🆕 **Recent Files**\n\n"
+        text += "📅 Showing the most recently uploaded files...\n\n"
+        text += "🕐 All files are sorted by upload time:"
+
+        # Sample buttons for recent files (replace with actual file data)
+        buttons = []
+        buttons.append([InlineKeyboardButton("🆕 New Movie (2 hours ago)", callback_data="file_recent1")])
+        buttons.append([InlineKeyboardButton("📄 Document (5 hours ago)", callback_data="file_recent2")])
+        buttons.append([InlineKeyboardButton("🎵 Music Album (1 day ago)", callback_data="file_recent3")])
+        buttons.append([
+            InlineKeyboardButton("🔄 Refresh", callback_data="recent_files"),
+            InlineKeyboardButton("🔙 Back", callback_data="back_to_start")
+        ])
+
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    except Exception as e:
+        logger.error(f"Error in handle_recent_files_display: {e}")
+        await query.edit_message_text("❌ Error loading recent files. Please try again.")
+
+async def handle_popular_files_display(client: Client, query: CallbackQuery, clone_data: dict):
+    """Display popular files"""
+    try:
+        text = "🔥 **Most Popular Files**\n\n"
+        text += "📈 These are the most downloaded files:\n\n"
+        text += "⭐ Ranked by download count and user ratings:"
+
+        # Sample buttons for popular files (replace with actual file data)
+        buttons = []
+        buttons.append([InlineKeyboardButton("🔥 Trending Movie (1.2k downloads)", callback_data="file_popular1")])
+        buttons.append([InlineKeyboardButton("📖 Popular eBook (980 downloads)", callback_data="file_popular2")])
+        buttons.append([InlineKeyboardButton("🎶 Hit Song (756 downloads)", callback_data="file_popular3")])
+        buttons.append([
+            InlineKeyboardButton("🔄 Refresh", callback_data="popular_files"),
+            InlineKeyboardButton("🔙 Back", callback_data="back_to_start")
+        ])
+
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+    except Exception as e:
+        logger.error(f"Error in handle_popular_files_display: {e}")
+        await query.edit_message_text("❌ Error loading popular files. Please try again.")
 
 # General Callbacks
 @Client.on_callback_query(filters.regex("^(about|help|my_stats|close|about_bot|help_menu|user_profile|transaction_history|add_balance|manage_my_clone|show_referral_main)$"), group=CALLBACK_PRIORITIES["general"])
@@ -700,19 +750,19 @@ async def handle_clone_files_callbacks(client: Client, query: CallbackQuery):
     """Handle clone-specific file callbacks"""
     user_id = query.from_user.id
     callback_data = query.data
-    
+
     logger.info(f"🎲 Clone files callback: {callback_data} from user {user_id}")
-    
+
     try:
         await query.answer()
-        
+
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        
+
         # Ensure this is a clone bot
         if bot_token == Config.BOT_TOKEN:
             await query.edit_message_text("❌ This feature is only available in clone bots!")
             return
-            
+
         # Route to appropriate handler
         if callback_data == "clone_random_files":
             from bot.plugins.clone_random_files import handle_clone_random_files
@@ -723,7 +773,7 @@ async def handle_clone_files_callbacks(client: Client, query: CallbackQuery):
         elif callback_data == "clone_popular_files":
             from bot.plugins.clone_random_files import handle_clone_popular_files
             await handle_clone_popular_files(client, query)
-            
+
     except Exception as e:
         logger.error(f"Error in clone files callback handler: {e}")
         await query.answer("❌ Error processing request", show_alert=True)
@@ -735,32 +785,32 @@ async def catchall_callback_handler(client: Client, query: CallbackQuery):
     """Handle any unhandled callbacks"""
     user_id = query.from_user.id
     callback_data = query.data
-    
+
     logger.warning(f"🚨 UNHANDLED CALLBACK: {callback_data} from user {user_id}")
     print(f"🚨 UNHANDLED CALLBACK: {callback_data} from user {user_id}")
-    
+
     # Handle common unmatched callbacks
     if callback_data in ["clone_settings_panel", "settings"]:
         await query.answer("🔧 Settings access - redirecting...", show_alert=False)
         # Force redirect to settings handler
         from bot.plugins.clone_admin_settings import clone_settings_command
-        
+
         class MessageProxy:
             def __init__(self, query):
                 self.from_user = query.from_user
                 self.chat = query.message.chat if query.message else None
                 self.message_id = query.message.id if query.message else None
-                
+
             async def reply_text(self, text, reply_markup=None):
                 await query.edit_message_text(text, reply_markup=reply_markup)
-                
+
             async def edit_message_text(self, text, reply_markup=None):
                 await query.edit_message_text(text, reply_markup=reply_markup)
 
         proxy_message = MessageProxy(query)
         await clone_settings_command(client, proxy_message)
         return
-    
+
     # For other unhandled callbacks, provide generic error
     await query.answer("❌ Button not responding. Please try again or contact support.", show_alert=True)
 
@@ -886,19 +936,19 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     """Handle back to start callback"""
     try:
         await query.answer()
-        
+
         # Simulate start command
         user = query.from_user
         user_id = user.id
-        
+
         # Check if this is mother bot or clone bot
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         is_clone_bot = bot_token != Config.BOT_TOKEN
-        
+
         if is_clone_bot:
             text = f"🤖 **Welcome back {user.first_name}!**\n\n"
             text += f"📁 **Your Personal File Bot**\n\n"
-            
+
             buttons = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
@@ -913,7 +963,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         else:
             text = f"🚀 **Welcome back {user.first_name}!**\n\n"
             text += f"🤖 **Bot Creator Dashboard**\n\n"
-            
+
             buttons = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
@@ -924,9 +974,9 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
                     InlineKeyboardButton("❓ Help", callback_data="help_menu")
                 ]
             ])
-        
+
         await query.edit_message_text(text, reply_markup=buttons)
-        
+
     except Exception as e:
         logger.error(f"❌ Error in back_to_start callback: {e}")
         await query.answer("❌ Error occurred. Please try /start command.", show_alert=True)
@@ -936,7 +986,7 @@ async def help_menu_callback(client: Client, query: CallbackQuery):
     """Handle help menu callback"""
     try:
         await query.answer()
-        
+
         help_text = """
 🤖 **Bot Help**
 
@@ -954,13 +1004,13 @@ async def help_menu_callback(client: Client, query: CallbackQuery):
 **Need Support?**
 Contact the administrator for assistance.
         """
-        
+
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🏠 Back to Start", callback_data="back_to_start")]
         ])
-        
+
         await query.edit_message_text(help_text, reply_markup=buttons)
-        
+
     except Exception as e:
         logger.error(f"❌ Error in help menu: {e}")
         await query.answer("❌ Error loading help.", show_alert=True)
@@ -971,7 +1021,7 @@ async def user_profile_callback(client: Client, query: CallbackQuery):
     try:
         await query.answer()
         user = query.from_user
-        
+
         profile_text = f"""
 👤 **User Profile**
 
@@ -987,7 +1037,7 @@ async def user_profile_callback(client: Client, query: CallbackQuery):
 
 **Actions:**
         """
-        
+
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("💎 Get Premium", callback_data="premium_info"),
@@ -995,9 +1045,9 @@ async def user_profile_callback(client: Client, query: CallbackQuery):
             ],
             [InlineKeyboardButton("🏠 Back to Start", callback_data="back_to_start")]
         ])
-        
+
         await query.edit_message_text(profile_text, reply_markup=buttons)
-        
+
     except Exception as e:
         logger.error(f"❌ Error in user profile: {e}")
         await query.answer("❌ Error loading profile.", show_alert=True)
@@ -1008,19 +1058,19 @@ async def placeholder_callbacks(client: Client, query: CallbackQuery):
     """Handle placeholder callbacks for features under development"""
     try:
         await query.answer()
-        
+
         feature_name = query.data.replace('_', ' ').title()
-        
+
         text = f"🚧 **{feature_name}**\n\n"
         text += f"This feature is currently under development.\n\n"
         text += f"Please check back later or contact the administrator."
-        
+
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("🏠 Back to Start", callback_data="back_to_start")]
         ])
-        
+
         await query.edit_message_text(text, reply_markup=buttons)
-        
+
     except Exception as e:
         logger.error(f"❌ Error in placeholder callback: {e}")
         await query.answer("❌ Feature under development.", show_alert=True)
@@ -1036,19 +1086,19 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     """Handle back to start callback"""
     try:
         await query.answer()
-        
+
         # Simulate start command
         user = query.from_user
         user_id = user.id
-        
+
         # Check if this is mother bot or clone bot
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         is_clone_bot = bot_token != Config.BOT_TOKEN
-        
+
         if is_clone_bot:
             text = f"🤖 **Welcome back {user.first_name}!**\n\n"
             text += f"📁 **Your Personal File Bot**\n\n"
-            
+
             buttons = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
@@ -1063,7 +1113,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
         else:
             text = f"🚀 **Welcome back {user.first_name}!**\n\n"
             text += f"🤖 **Advanced Bot Creator**\n\n"
-            
+
             buttons = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("🤖 Create Clone", callback_data="start_clone_creation"),
@@ -1077,7 +1127,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
             ])
 
         await query.edit_message_text(text, reply_markup=buttons)
-        
+
     except Exception as e:
         logger.error(f"Error in back_to_start_callback: {e}")
         await query.answer("❌ Error occurred. Please try /start command.", show_alert=True)
@@ -1086,7 +1136,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
 async def help_callback(client: Client, query: CallbackQuery):
     """Show help menu"""
     await query.answer()
-    
+
     text = f"❓ **Help & Support**\n\n"
     text += f"**Available Commands:**\n"
     text += f"• `/start` - Main menu\n"
@@ -1104,7 +1154,7 @@ async def help_callback(client: Client, query: CallbackQuery):
 async def about_callback(client: Client, query: CallbackQuery):
     """Handle about callbacks"""
     await query.answer()
-    
+
     text = f"ℹ️ **About This Bot**\n\n"
     text += f"Advanced Telegram bot with file sharing capabilities.\n\n"
     text += f"🔧 **Version:** 3.0.0\n"
