@@ -1,103 +1,183 @@
+import re
 import os
-from pathlib import Path
-from typing import Optional, List
-import logging
+from dotenv import load_dotenv
 
-class Config:
-    """Enhanced configuration management with validation"""
+load_dotenv()
 
-    # Core Bot Configuration
-    API_ID: int = int(os.getenv("API_ID", "0"))
-    API_HASH: str = os.getenv("API_HASH", "")
-    BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
+id_pattern = re.compile(r'^.\d+$')
 
-    # Database Configuration
-    DATABASE_URL: str = os.getenv("DATABASE_URL", os.getenv("DATABASE_URI", ""))
-    DATABASE_NAME: str = os.getenv("DATABASE_NAME", "storage_builder")
+class Config(object):
+    _PROTECTED_ATTRS = frozenset(['ADMINS', 'OWNER_ID', 'API_ID', 'API_HASH', 'BOT_TOKEN'])
 
-    # Admin Configuration
-    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
-    OWNER_ID: int = int(os.getenv("OWNER_ID", "0"))
-    ADMIN_IDS: List[int] = []
+    def __setattr__(self, name, value):
+        if name in self._PROTECTED_ATTRS and hasattr(self, name):
+            raise AttributeError(f"Cannot modify {name} at runtime for security reasons")
+        super().__setattr__(name, value)
 
-    # Security Configuration
-    WEBHOOK_SECRET: str = os.getenv("WEBHOOK_SECRET", "")
-    ENCRYPTION_KEY: str = os.getenv("ENCRYPTION_KEY", "")
-    MAX_FILE_SIZE: int = int(os.getenv("MAX_FILE_SIZE", "2000"))  # MB
+    def __delattr__(self, name):
+        if name in self._PROTECTED_ATTRS:
+            raise AttributeError(f"Cannot delete {name} for security reasons")
+        super().__delattr__(name)
+
+    # Bot Configuration - REQUIRED
+    API_ID = int(os.environ.get("API_ID", "0"))
+    API_HASH = os.environ.get("API_HASH", "")
+    BOT_TOKEN = os.environ.get("BOT_TOKEN", "")
+
+    # Database Configuration - REQUIRED
+    DATABASE_URI = os.environ.get("DATABASE_URL", "")
+    DATABASE_NAME = os.environ.get("DATABASE_NAME", "mother_bot")
+
+    # Admin Configuration - REQUIRED
+    ADMINS = [int(x) for x in os.environ.get("ADMINS", "").split() if x.isdigit()]
+
+    # Optional Configurations
+    CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "0"))
+    FORCE_SUB_CHANNELS = [int(x) for x in os.environ.get("FORCE_SUB_CHANNELS", "").split() if x.isdigit()]
+
+    # Security Settings
+    MAX_CLONE_REQUESTS_PER_DAY = int(os.environ.get("MAX_CLONE_REQUESTS_PER_DAY", "5"))
+    CLONE_REQUEST_COOLDOWN_HOURS = int(os.environ.get("CLONE_REQUEST_COOLDOWN_HOURS", "24"))
+
+    # Production Settings
+    LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO")
+    ENVIRONMENT = os.environ.get("ENVIRONMENT", "production")
 
     # Rate Limiting
-    MAX_REQUESTS_PER_MINUTE: int = int(os.getenv("MAX_REQUESTS_PER_MINUTE", "30"))
-    MAX_CLONES_PER_USER: int = int(os.getenv("MAX_CLONES_PER_USER", "5"))
+    RATE_LIMIT_ENABLED = os.environ.get("RATE_LIMIT_ENABLED", "true").lower() == "true"
+    MAX_REQUESTS_PER_MINUTE = int(os.environ.get("MAX_REQUESTS_PER_MINUTE", "20"))
 
-    # File Storage
-    STORAGE_PATH: Path = Path(os.getenv("STORAGE_PATH", "storage"))
-    TEMP_PATH: Path = Path(os.getenv("TEMP_PATH", "temp"))
+    # Monitoring
+    HEALTH_CHECK_ENABLED = os.environ.get("HEALTH_CHECK_ENABLED", "true").lower() == "true"
+    SYSTEM_MONITORING_ENABLED = os.environ.get("SYSTEM_MONITORING_ENABLED", "true").lower() == "true"
 
-    # Subscription Configuration
-    DEFAULT_SUBSCRIPTION_DAYS: int = int(os.getenv("DEFAULT_SUBSCRIPTION_DAYS", "30"))
-    PREMIUM_FEATURES_ENABLED: bool = os.getenv("PREMIUM_FEATURES_ENABLED", "true").lower() == "true"
+    # Web Interface
+    WEB_SERVER_ENABLED = os.environ.get("WEB_SERVER_ENABLED", "true").lower() == "true"
+    WEB_SERVER_PORT = int(os.environ.get("WEB_SERVER_PORT", "5000"))
 
-    # Clone Configuration
-    CLONE_PREFIX: str = os.getenv("CLONE_PREFIX", "clone_")
-    MAX_CONCURRENT_DOWNLOADS: int = int(os.getenv("MAX_CONCURRENT_DOWNLOADS", "5"))
+    # Error Handling
+    DETAILED_ERRORS = os.environ.get("DETAILED_ERRORS", "false").lower() == "true"
+    ERROR_LOGS_ENABLED = os.environ.get("ERROR_LOGS_ENABLED", "true").lower() == "true"
 
-    # Logging Configuration
-    LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
-    LOG_FILE: str = os.getenv("LOG_FILE", "logs/bot.log")
+    # Additional Configuration - moved inside Config class
+    WEB_MODE = os.environ.get("WEB_MODE", "False").lower() in ("true", "1", "yes")
+    PORT = int(os.environ.get("PORT", "5000"))
+    HOST = os.environ.get("HOST", "0.0.0.0")
+    
+    # Web Configuration
+    WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
 
-    # Web Dashboard
-    WEB_PORT: int = int(os.getenv("WEB_PORT", "5000"))
-    WEB_HOST: str = os.getenv("WEB_HOST", "0.0.0.0")
+    # Channel Configuration with defaults for missing vars  
+    INDEX_CHANNEL_ID = int(os.environ.get("INDEX_CHANNEL_ID", "0"))
+    OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
+    
+    # Update ADMINS to include OWNER_ID if it's set
+    if OWNER_ID != 0 and OWNER_ID not in ADMINS:
+        ADMINS = list(ADMINS) + [OWNER_ID]
 
+    # Force Subscription - Handle both channel IDs and usernames
+    FORCE_SUB_CHANNEL_RAW = os.environ.get("FORCE_SUB_CHANNEL", "").strip()
+    FORCE_SUB_CHANNEL = []
+    if FORCE_SUB_CHANNEL_RAW:
+        for ch in FORCE_SUB_CHANNEL_RAW.split():
+            ch = ch.strip()
+            if ch and ch != "...":
+                if ch.lstrip('-').isdigit():
+                    FORCE_SUB_CHANNEL.append(int(ch))
+                else:
+                    FORCE_SUB_CHANNEL.append(ch)
+
+    # Request channels
+    REQUEST_CHANNEL_RAW = os.environ.get("REQUEST_CHANNEL", "").strip()
+    REQUEST_CHANNEL = []
+    if REQUEST_CHANNEL_RAW:
+        for ch in REQUEST_CHANNEL_RAW.split():
+            ch = ch.strip()
+            if ch and ch != "...":
+                if ch.lstrip('-').isdigit():
+                    REQUEST_CHANNEL.append(int(ch))
+                else:
+                    REQUEST_CHANNEL.append(ch)
+
+    # Messages
+    START_PIC = os.environ.get("START_PIC", "")
+    START_MSG = os.environ.get("START_MESSAGE", "👋 Hello {mention},\n\nThis bot helps you store private files in a secure channel and generate special access links for sharing. 🔐📁\n\n Only admins can upload files and generate links. Just send the file here to get started.")
+    FORCE_MSG = os.environ.get("FORCE_SUB_MESSAGE", "👋 Hello {mention}, \n\n <b>You need to join our updates channel before using this bot.</b>\n\n 📢 Please join the required channel, then try again.")
+    CUSTOM_CAPTION = os.environ.get("CUSTOM_CAPTION", None)
+
+    # Security Configuration
+    PROTECT_CONTENT = os.environ.get("PROTECT_CONTENT", "False") == "True"
+    DISABLE_CHANNEL_BUTTON = os.environ.get("DISABLE_CHANNEL_BUTTON", "False") == "True"
+
+    # Auto Delete Configuration
+    AUTO_DELETE_TIME = int(os.environ.get("AUTO_DELETE_TIME", "600"))
+    AUTO_DELETE_MSG = os.environ.get("AUTO_DELETE_MSG", "This file will be automatically deleted in {time}.")
+    AUTO_DEL_SUCCESS_MSG = os.environ.get("AUTO_DEL_SUCCESS_MSG", "✅ File deleted successfully.")
+
+    # Token Verification (Shortlink)
+    VERIFY_MODE = os.environ.get("VERIFY_MODE", "True").lower() in ("true", "1", "yes")
+    SHORTLINK_API = os.environ.get("SHORTLINK_API")
+    SHORTLINK_URL = os.environ.get("SHORTLINK_URL", "https://teraboxlinks.com/")
+    TUTORIAL = os.environ.get("TUTORIAL","https://t.me/alfhamovies/13")
+
+    # Bot Messages
+    BOT_STATS_TEXT = os.environ.get("BOT_STATS_TEXT", "<b>BOT UPTIME</b>\n{uptime}")
+    USER_REPLY_TEXT = os.environ.get("USER_REPLY_TEXT", "❌ I'm a bot — please don't DM me!")
+
+    # Premium Settings
+    PREMIUM_ENABLED = os.environ.get("PREMIUM_ENABLED", "True").lower() in ("true", "1", "yes")
+    PAYMENT_UPI = os.environ.get("PAYMENT_UPI", "your_actual_upi@paytm")
+    PAYMENT_PHONE = os.environ.get("PAYMENT_PHONE", "+911234567890")
+    ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "termuxro")
+
+    # Cryptocurrency Payment Options
+    CRYPTO_ENABLED = os.environ.get("CRYPTO_ENABLED", "True").lower() in ("true", "1", "yes")
+    BITCOIN_ADDRESS = os.environ.get("BITCOIN_ADDRESS", "")
+    ETHEREUM_ADDRESS = os.environ.get("ETHEREUM_ADDRESS", "")
+    USDT_TRC20_ADDRESS = os.environ.get("USDT_TRC20_ADDRESS", "")
+    USDT_ERC20_ADDRESS = os.environ.get("USDT_ERC20_ADDRESS", "")
+
+    # Validate critical configuration
     @classmethod
-    def validate(cls) -> bool:
-        """Validate required configuration"""
-        required_fields = [
-            ("API_ID", cls.API_ID),
-            ("API_HASH", cls.API_HASH),
-            ("BOT_TOKEN", cls.BOT_TOKEN),
-            ("DATABASE_URL", cls.DATABASE_URL),
-            ("OWNER_ID", cls.OWNER_ID)
-        ]
+    def validate(cls):
+        """Validate critical configuration"""
+        errors = []
 
-        missing_fields = []
-        for field_name, field_value in required_fields:
-            if not field_value or (isinstance(field_value, int) and field_value == 0):
-                missing_fields.append(field_name)
+        if not cls.API_ID or cls.API_ID == 0:
+            errors.append("API_ID is required")
 
-        if missing_fields:
-            logging.error(f"Missing required configuration: {', '.join(missing_fields)}")
-            return False
+        if not cls.API_HASH:
+            errors.append("API_HASH is required")
 
-        # Parse admin IDs
-        admin_ids_str = os.getenv("ADMIN_IDS", "")
-        if admin_ids_str:
-            try:
-                cls.ADMIN_IDS = [int(x.strip()) for x in admin_ids_str.split(",") if x.strip()]
-            except ValueError:
-                logging.error("Invalid ADMIN_IDS format")
+        if not cls.BOT_TOKEN:
+            errors.append("BOT_TOKEN is required")
 
-        # Add owner to admin list
-        if cls.OWNER_ID not in cls.ADMIN_IDS:
-            cls.ADMIN_IDS.append(cls.OWNER_ID)
+        if not cls.DATABASE_URI:
+            errors.append("DATABASE_URI is required")
 
-        # Create directories
-        cls.STORAGE_PATH.mkdir(exist_ok=True)
-        cls.TEMP_PATH.mkdir(exist_ok=True)
-        Path(cls.LOG_FILE).parent.mkdir(exist_ok=True)
+        if not cls.ADMINS:
+            errors.append("At least one ADMIN is required")
+
+        if errors:
+            raise ValueError(f"Configuration errors: {', '.join(errors)}")
 
         return True
 
-    @classmethod
-    def get_admin_ids(cls) -> List[int]:
-        """Get list of admin user IDs"""
-        return cls.ADMIN_IDS.copy()
+    # Additional config variables that might be missing
+    FORCE_SUB_MESSAGE = os.environ.get("FORCE_SUB_MESSAGE", "Please join our channel to use this bot.")
+    START_MESSAGE = os.environ.get("START_MESSAGE", "Welcome! I'm your file sharing bot.")
 
+    # Validate configuration on import
     @classmethod
-    def is_admin(cls, user_id: int) -> bool:
-        """Check if user is admin"""
-        return user_id in cls.ADMIN_IDS or user_id == cls.OWNER_ID
+    def validate_extended(cls):
+        """Extended validation including additional configs"""
+        cls.validate()  # Run basic validation first
+        return True
 
 # Validate configuration on import
-if not Config.validate():
-    raise ValueError("Invalid configuration. Please check your environment variables.")
+if __name__ != "__main__":
+    try:
+        Config.validate()
+    except ValueError as e:
+        print(f"❌ Configuration Error: {e}")
+        print("Please check your environment variables!")

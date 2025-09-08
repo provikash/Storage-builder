@@ -29,7 +29,7 @@ class DatabaseManager:
                 
                 # Create client with proper configuration
                 self.client = AsyncIOMotorClient(
-                    Config.DATABASE_URL,
+                    Config.DATABASE_URI,
                     serverSelectionTimeoutMS=5000,
                     connectTimeoutMS=10000,
                     socketTimeoutMS=10000,

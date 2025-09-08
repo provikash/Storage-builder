@@ -1,6 +1,7 @@
 import asyncio
 import os
 from datetime import datetime
+from typing import Optional
 from pyrogram import Client
 from pyrogram.errors import AuthKeyUnregistered, AccessTokenExpired, AccessTokenInvalid
 from info import Config
