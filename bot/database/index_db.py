@@ -4,7 +4,7 @@ from typing import List, Dict, Optional
 import re
 from info import Config
 from ..utils.helper import get_collection_name, get_readable_file_size
-from ..utils.security import SecurityValidator
+from ..utils.security import security_manager
 import logging
 
 logger = logging.getLogger(__name__)
@@ -15,10 +15,10 @@ async def add_to_index(file_id: str, file_name: str, file_type: str, file_size: 
     """Add a file to the search index"""
 
     # Sanitize and validate inputs
-    file_name = SecurityValidator.sanitize_filename(file_name)
-    caption = SecurityValidator.sanitize_filename(caption) if caption else ""
-    user_id = SecurityValidator.validate_user_id(user_id)
-    file_size = SecurityValidator.validate_file_size(file_size)
+    file_name = security_manager.sanitize_filename(file_name)
+    caption = security_manager.sanitize_filename(caption) if caption else ""
+    user_id = int(user_id) if user_id and str(user_id).isdigit() else None
+    file_size = max(0, int(file_size)) if file_size and str(file_size).isdigit() else 0
 
     # Sanitize file_id and file_type
     file_id = str(file_id)[:100]  # Limit length
@@ -47,7 +47,7 @@ async def search_files(query: str, limit: int = 50) -> List[Dict]:
         return []
 
     # Sanitize search query
-    sanitized_query = SecurityValidator.sanitize_search_query(query)
+    sanitized_query = query.strip()[:100]  # Basic sanitization - limit length
 
     # Create search pattern
     search_terms = sanitized_query.strip().split()
@@ -298,10 +298,10 @@ async def add_file_to_index(file_id, file_name, file_size, file_type, message_id
     """Add file to index with all required parameters"""
     try:
         # Sanitize and validate inputs for add_file_to_index
-        file_name = SecurityValidator.sanitize_filename(file_name)
-        caption = SecurityValidator.sanitize_filename(caption) if caption else ""
-        user_id = SecurityValidator.validate_user_id(user_id)
-        file_size = SecurityValidator.validate_file_size(file_size)
+        file_name = security_manager.sanitize_filename(file_name)
+        caption = security_manager.sanitize_filename(caption) if caption else ""
+        user_id = int(user_id) if user_id and str(user_id).isdigit() else None
+        file_size = max(0, int(file_size)) if file_size and str(file_size).isdigit() else 0
 
         # Sanitize file_id, file_type, message_id, channel_id
         file_id = str(file_id)[:100] if file_id else ""
