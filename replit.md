@@ -1,62 +1,51 @@
-# Mother Bot + Clone System
+# Telegram Bot Project - File Sharing & Clone Management System
 
 ## Overview
-This is a sophisticated Telegram bot system that functions as a "Mother Bot" with clone creation capabilities. The system includes file sharing, subscription management, admin panels, and a web dashboard.
+This is a sophisticated Telegram bot system for file sharing with clone creation capabilities. It features a Mother Bot that can create and manage multiple clone bots, along with a web dashboard for monitoring and management.
 
-## Project Architecture
-- **Main Application**: `main.py` - Mother Bot + Clone System launcher
-- **Bot Logic**: `bot/` directory containing plugins and database modules  
-- **Web Dashboard**: `web/server.py` - Flask-based monitoring dashboard
-- **Database**: MongoDB for bot data, PostgreSQL available for extensions
+## Project Status
+**Import Status:** ✅ Successfully configured and running in Replit environment
+
+## Architecture
+- **Main Bot (Mother Bot):** Handles admin functions, clone creation, and premium subscriptions
+- **Clone System:** Manages multiple child bots for different users
+- **Web Dashboard:** Flask-based monitoring interface on port 5000
+- **Database:** MongoDB (configured with external MongoDB Atlas cluster)
 
 ## Key Features
-- 🤖 Mother Bot (@Hd_File_Sharing_bot) with admin capabilities
-- 🔄 Clone bot creation and management system  
-- 💰 Premium subscription system with crypto payments
-- 📊 Web dashboard for monitoring (port 5000)
-- 🔍 File search and sharing capabilities
-- 🏥 Health monitoring and system stats
-- 🔐 Token verification and security features
+- File sharing with secure access links
+- Clone bot creation and management
+- Premium subscription system
+- Token verification system  
+- Admin panel and statistics
+- Real-time monitoring dashboard
+- Automatic subscription checking
 
-## Recent Changes (2025-09-08)
-- ✅ Set up Python 3.11 environment with all dependencies
-- ✅ Configured clean requirements.txt 
-- ✅ Fixed web server to use port 5000 for Replit
-- ✅ Set up deployment configuration for VM deployment
-- ✅ Verified MongoDB connection and database setup
-- ✅ Fixed configuration issues (DATABASE_URI/DATABASE_URL mapping)
-- ✅ Added missing imports and configuration attributes
-- ✅ Successfully deployed and tested the complete system
+## Technology Stack
+- **Backend:** Python 3.11 with asyncio
+- **Bot Framework:** Pyrogram (Pyrofork)
+- **Database:** MongoDB with Motor (async driver)
+- **Web Interface:** Flask
+- **Deployment:** Replit VM (persistent)
+
+## Recent Changes (2024-09-09)
+- ✅ Installed all Python dependencies
+- ✅ Fixed web server configuration (WEB_PORT → WEB_SERVER_PORT)
+- ✅ Configured for VM deployment
+- ✅ Bot is running successfully with web dashboard active
+
+## Configuration
+- Environment variables configured through Replit Secrets
+- MongoDB connection established
+- Web server running on port 5000
+- VM deployment configured for persistent operation
 
 ## User Preferences
-- Language: Python 3.11
-- Database: MongoDB (primary), PostgreSQL (available)
-- Web Framework: Flask for dashboard
-- Bot Framework: Pyrogram/Pyrofork for Telegram integration
+- Prefers working with existing project structure
+- MongoDB configuration maintained (user's existing setup)
+- Web dashboard functionality preserved
 
 ## Current State
-- ✅ Bot is running successfully
-- ✅ Web dashboard accessible on port 5000
-- ✅ Clone system operational (1 clone active: @Searchfilefreebot)
-- ✅ All dependencies installed and working
-- ✅ Ready for production deployment
-
-## Environment Setup
-The project is configured for Replit environment with:
-- DATABASE_URL: MongoDB connection
-- BOT_TOKEN: Telegram bot token configured
-- WEB_SERVER_PORT: 5000 (for Replit web view)
-- All required API keys and configurations in place
-
-## Commands
-- Mother Bot: `/motheradmin` - Admin panel
-- Clone Creation: `/createclone` - Create new clone bots
-- Web Dashboard: Available at root URL (redirects to /dashboard)
-
-## Technical Notes
-- Uses Pyrogram/Pyrofork for Telegram API interaction
-- MongoDB integration via Motor (async MongoDB driver)
-- Flask web server for monitoring dashboard
-- Clone system allows multiple bot instances
-- Subscription management with premium features
-- Health monitoring and system statistics
+- Mother Bot: @Hd_File_Sharing_bot
+- Web Dashboard: Available on port 5000
+- Status: Fully operational with monitoring systems active
