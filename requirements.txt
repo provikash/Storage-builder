@@ -55,3 +55,4 @@ python-telegram-bot
 shortzy
 TgCrypto
 uvloop
+aiofiles

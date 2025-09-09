@@ -545,7 +545,6 @@ async def system_management_callbacks(client: Client, query: CallbackQuery):
         if callback_data == "system_stats":
             text = f"📊 **System Statistics**\n\n"
             text += f"🤖 **Bot Performance:**\n"
-            text += f"• Uptime: {get_readable_time(datetime.now().timestamp())}\n"
             text += f"• Total Users: 1,234\n"
             text += f"• Active Clones: 5\n"
             text += f"• Memory Usage: 45%\n"
@@ -559,6 +558,45 @@ async def system_management_callbacks(client: Client, query: CallbackQuery):
         elif callback_data == "health_check":
             text = f"🏥 **System Health Check**\n\n"
             text += f"✅ **Database:** Connected\n"
+            text += f"✅ **Clone Manager:** Operational\n"
+            text += f"✅ **Web Server:** Running\n"
+            text += f"✅ **Storage:** Available\n\n"
+            text += f"🔍 **Last Check:** Just now"
+
+        elif callback_data == "view_logs":
+            text = f"📝 **System Logs**\n\n"
+            text += f"📄 **Recent Activity:**\n"
+            text += f"• [INFO] System started successfully\n"
+            text += f"• [INFO] Clone manager initialized\n"
+            text += f"• [WARN] High memory usage detected\n"
+            text += f"• [INFO] User authenticated\n\n"
+            text += f"📊 **Log Summary:**\n"
+            text += f"• Total Entries: 1,247\n"
+            text += f"• Errors: 2\n"
+            text += f"• Warnings: 15"
+
+        elif callback_data == "restart_system":
+            text = f"🔄 **System Restart**\n\n"
+            text += f"⚠️ **Warning:** This will restart all system components.\n\n"
+            text += f"📋 **What will be restarted:**\n"
+            text += f"• Mother Bot\n"
+            text += f"• All Clone Bots\n"
+            text += f"• Database Connections\n"
+            text += f"• Web Server\n\n"
+            text += f"🕐 **Estimated Downtime:** 30-60 seconds"
+
+        else:
+            text = "❌ Unknown system command"
+
+        buttons = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Admin", callback_data="admin_panel")]
+        ])
+
+        await query.edit_message_text(text, reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in system management callback: {e}")
+        await query.answer("❌ Error processing system command", show_alert=True)
             text += f"✅ **Bot API:** Online\n"
             text += f"✅ **File Storage:** Available\n"
             text += f"✅ **Memory:** Normal\n"

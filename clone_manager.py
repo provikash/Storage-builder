@@ -209,12 +209,25 @@ class CloneManager:
         """Start clone client with retry logic"""
         for attempt in range(max_retries):
             try:
+                # Check if client is already connected before attempting to start
+                if client.is_connected:
+                    logger.info(f"Clone {bot_id} client already connected (attempt {attempt + 1})")
+                    return True
+                
                 await asyncio.wait_for(client.start(), timeout=30.0)
                 return True
             except asyncio.TimeoutError:
                 logger.warning(f"Clone {bot_id} start timeout (attempt {attempt + 1}/{max_retries})")
             except Exception as e:
-                logger.error(f"Clone {bot_id} start error (attempt {attempt + 1}/{max_retries}): {e}")
+                error_msg = str(e)
+                if "Client is already connected" in error_msg:
+                    logger.info(f"Clone {bot_id} already connected (attempt {attempt + 1})")
+                    return True
+                elif "invalid syntax" in error_msg:
+                    logger.error(f"Clone {bot_id} syntax error - stopping retries: {e}")
+                    return False
+                else:
+                    logger.error(f"Clone {bot_id} start error (attempt {attempt + 1}/{max_retries}): {e}")
             
             if attempt < max_retries - 1:
                 await asyncio.sleep(min(2 ** attempt, 10))  # Exponential backoff
