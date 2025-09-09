@@ -146,15 +146,28 @@ class SystemMonitor:
         """Get storage statistics with error handling"""
         try:
             from info import Config
-            storage_path = getattr(Config, 'STORAGE_PATH', '/tmp')
+            # Try multiple path options in order of preference
+            path_options = [
+                getattr(Config, 'TEMP_PATH', None),
+                getattr(Config, 'STORAGE_PATH', None),
+                '/tmp',
+                '.'
+            ]
             
-            if os.path.exists(storage_path):
+            storage_path = None
+            for path in path_options:
+                if path and os.path.exists(path):
+                    storage_path = path
+                    break
+            
+            if storage_path:
                 storage_usage = psutil.disk_usage(storage_path)
                 return {
                     'total': storage_usage.total,
                     'used': storage_usage.used,
                     'free': storage_usage.free,
-                    'percent': (storage_usage.used / storage_usage.total) * 100
+                    'percent': (storage_usage.used / storage_usage.total) * 100,
+                    'path': storage_path
                 }
             else:
                 return {
@@ -162,7 +175,7 @@ class SystemMonitor:
                     'used': 0,
                     'free': 0,
                     'percent': 0,
-                    'error': 'Storage path not found'
+                    'error': 'No valid storage path found'
                 }
         except Exception as e:
             logger.warning(f"Could not get storage stats: {e}")

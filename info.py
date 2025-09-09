@@ -61,6 +61,7 @@ class Config(object):
 
     # Storage Configuration
     STORAGE_PATH = os.environ.get("STORAGE_PATH", "/tmp")
+    TEMP_PATH = os.environ.get("TEMP_PATH", "/tmp")
 
     # Additional Configuration - moved inside Config class
     WEB_MODE = os.environ.get("WEB_MODE", "False").lower() in ("true", "1", "yes")

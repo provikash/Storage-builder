@@ -135,8 +135,10 @@ class CloneManager:
             await self._handle_clone_auth_error(bot_id, "access_token_invalid")
             return False, "Access token invalid"
         except Exception as e:
-            logger.error(f"❌ Unexpected error starting clone {bot_id}: {e}", exc_info=True)
-            tracker.complete(success=False, error=str(e))
+            error_msg = str(e)
+            logger.error(f"❌ Unexpected error starting clone {bot_id}: {error_msg}", exc_info=True)
+            tracker.complete(success=False, error=error_msg)
+            
             # Clean up any partial state
             if bot_id in self.active_clones:
                 try:
@@ -145,9 +147,17 @@ class CloneManager:
                     if client:
                         await self._safe_stop_client(client)
                     del self.active_clones[bot_id]
+                    logger.debug(f"Cleaned up partial state for clone {bot_id}")
                 except Exception as cleanup_error:
-                    logger.error(f"Error during cleanup: {cleanup_error}")
-            return False, f"Startup failed: {str(e)}"
+                    logger.error(f"Error during cleanup for clone {bot_id}: {cleanup_error}")
+            
+            # Return more specific error message based on error type
+            if "unexpected indent" in error_msg:
+                return False, "Code syntax error detected. Please check bot configuration."
+            elif "connection" in error_msg.lower():
+                return False, "Connection error. Please check network and try again."
+            else:
+                return False, f"Startup failed: {error_msg}"
         finally:
             self._starting_clones.discard(bot_id)
 
