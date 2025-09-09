@@ -59,7 +59,7 @@ except ImportError:
     class utils:
         @staticmethod
         async def handle_force_sub(client, message):
-            return True  # Allow all users if force sub is not available
+            return False  # Allow all users if force sub is not available
 
 logger = LOGGER(__name__)
 
