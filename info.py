@@ -59,6 +59,9 @@ class Config(object):
     DETAILED_ERRORS = os.environ.get("DETAILED_ERRORS", "false").lower() == "true"
     ERROR_LOGS_ENABLED = os.environ.get("ERROR_LOGS_ENABLED", "true").lower() == "true"
 
+    # Storage Configuration
+    STORAGE_PATH = os.environ.get("STORAGE_PATH", "/tmp")
+
     # Additional Configuration - moved inside Config class
     WEB_MODE = os.environ.get("WEB_MODE", "False").lower() in ("true", "1", "yes")
     PORT = int(os.environ.get("PORT", "5000"))

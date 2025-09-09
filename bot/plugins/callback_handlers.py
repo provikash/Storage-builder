@@ -249,9 +249,9 @@ async def emergency_callback_handler(client: Client, query: CallbackQuery):
                     query.data = "clone_popular_files"
                     await handle_clone_popular_files(client, query)
             except Exception as handler_error:
-                logger.error(f"Error in {callback_data} handler: {handler_error}")
-                traceback.print_exc()
-                await query.edit_message_text(f"❌ Error loading {feature_display_name.lower()}. Please try again.")
+                    logger.error(f"Error in {callback_data} handler: {handler_error}")
+                    traceback.print_exc()
+                    await query.edit_message_text(f"❌ Error loading {feature_display_name.lower()}. Please try again.")
 
         elif callback_data == "back_to_start":
             # Handle back to start
