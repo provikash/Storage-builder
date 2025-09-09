@@ -597,7 +597,7 @@ async def system_management_callbacks(client: Client, query: CallbackQuery):
     except Exception as e:
         logger.error(f"Error in system management callback: {e}")
         await query.answer("❌ Error processing system command", show_alert=True)
-            text += f"✅ **Bot API:** Online\n"
+text += f"✅ **Bot API:** Online\n"
             text += f"✅ **File Storage:** Available\n"
             text += f"✅ **Memory:** Normal\n"
             text += f"✅ **Network:** Stable\n\n"
