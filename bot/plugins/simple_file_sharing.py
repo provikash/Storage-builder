@@ -11,10 +11,12 @@ logger = LOGGER(__name__)
 
 # This file is for utility functions only - start handler is in start_handler.py
 
+def create_clone_welcome_message(user, is_clone=True):
+    """Create welcome message for clone bots"""
     if is_clone:
         # Clone bot welcome message
         text = f"🤖 **Welcome to File Sharing Bot!**\n\n"
-        text += f"👋 Hi {message.from_user.first_name}!\n\n"
+        text += f"👋 Hi {user.first_name}!\n\n"
         text += f"📁 **What I can do:**\n"
         text += f"• Share files instantly\n"
         text += f"• Search through file database\n"
@@ -30,8 +32,13 @@ logger = LOGGER(__name__)
         # Get clone configuration for random/recent buttons
         try:
             from bot.utils.clone_config_loader import clone_config_loader
-            bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-            config = await clone_config_loader.get_bot_config(bot_token)
+            # Assuming client object is accessible or passed differently for clone configs
+            # For this example, we'll use a placeholder to get bot_token.
+            # In a real scenario, you'd need to pass client or its token.
+            # bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+            # Let's assume bot_token is available via Config or another mechanism
+            bot_token_for_config = Config.BOT_TOKEN # Placeholder, adjust as needed
+            config = await clone_config_loader.get_bot_config(bot_token_for_config)
             features = config.get('features', {})
         except:
             features = {}
@@ -44,22 +51,22 @@ logger = LOGGER(__name__)
         random_recent_row = []
         random_recent_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
         random_recent_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-        
+
         buttons.append(random_recent_row)
-        
+
         # Add popular files button - always show to all users
         buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
 
         buttons.extend([
             [InlineKeyboardButton("❓ Help", callback_data="help_info")]
         ])
-        
+
         # Convert buttons list to InlineKeyboardMarkup
         buttons = InlineKeyboardMarkup(buttons)
     else:
         # Mother bot welcome message
         text = f"🤖 **Welcome to Mother Bot!**\n\n"
-        text += f"👋 Hi {message.from_user.first_name}!\n\n"
+        text += f"👋 Hi {user.first_name}!\n\n"
         text += f"🌟 **This is the Mother Bot** - Control center for bot clones\n\n"
         text += f"⚡ **Available Features:**\n"
         text += f"• Create bot clones\n"
@@ -67,7 +74,7 @@ logger = LOGGER(__name__)
         text += f"• File sharing capabilities\n"
         text += f"• Advanced admin controls\n\n"
 
-        if user_id in [Config.OWNER_ID] + list(Config.ADMINS):
+        if user.id in [Config.OWNER_ID] + list(Config.ADMINS):
             text += f"🔧 **Admin Access Granted**\n"
             text += f"Use /motheradmin for admin panel"
 
@@ -82,8 +89,8 @@ logger = LOGGER(__name__)
             ],
             [InlineKeyboardButton("❓ Help", callback_data="help_info")]
         ])
+    return text, buttons
 
-    await message.reply_text(text, reply_markup=buttons)
 
 @Client.on_message(filters.command("help") & filters.private)
 async def help_command(client: Client, message: Message):

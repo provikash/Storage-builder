@@ -63,7 +63,7 @@ class Config(object):
     WEB_MODE = os.environ.get("WEB_MODE", "False").lower() in ("true", "1", "yes")
     PORT = int(os.environ.get("PORT", "5000"))
     HOST = os.environ.get("HOST", "0.0.0.0")
-    
+
     # Web Configuration
     WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
     WEB_HOST = os.environ.get("WEB_HOST", "0.0.0.0")
@@ -71,7 +71,7 @@ class Config(object):
     # Channel Configuration with defaults for missing vars  
     INDEX_CHANNEL_ID = int(os.environ.get("INDEX_CHANNEL_ID", "0"))
     OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
-    
+
     # Update ADMINS to include OWNER_ID if it's set
     if OWNER_ID != 0 and OWNER_ID not in ADMINS:
         ADMINS = list(ADMINS) + [OWNER_ID]

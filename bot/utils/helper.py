@@ -72,3 +72,56 @@ def get_collection_name(channel_id=None):
     """Get collection name for database operations"""
     # Return default collection name for file indexing
     return "file_index"
+
+async def handle_force_sub(client, message):
+    """
+    Handle force subscription check
+    Returns True if user should be blocked, False if allowed to proceed
+    """
+    try:
+        from info import Config
+        
+        # If no force sub channels configured, allow all users
+        if not hasattr(Config, 'FORCE_SUB_CHANNELS') or not Config.FORCE_SUB_CHANNELS:
+            return False
+            
+        # Allow admins to bypass force subscription
+        user_id = message.from_user.id
+        if user_id in [Config.OWNER_ID] + list(Config.ADMINS):
+            return False
+            
+        # Check if user is subscribed to required channels
+        for channel_id in Config.FORCE_SUB_CHANNELS:
+            try:
+                member = await client.get_chat_member(channel_id, user_id)
+                if member.status in ['left', 'kicked']:
+                    # Send force subscription message
+                    text = "🔒 **Access Restricted**\n\n"
+                    text += "You must join our channel to use this bot.\n\n"
+                    text += "Click the button below to join:"
+                    
+                    try:
+                        chat = await client.get_chat(channel_id)
+                        invite_link = chat.invite_link or f"https://t.me/{chat.username}"
+                        
+                        from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+                        keyboard = InlineKeyboardMarkup([
+                            [InlineKeyboardButton("📢 Join Channel", url=invite_link)],
+                            [InlineKeyboardButton("🔄 Check Again", callback_data="check_sub")]
+                        ])
+                        
+                        await message.reply_text(text, reply_markup=keyboard)
+                    except:
+                        await message.reply_text(text)
+                    
+                    return True  # Block user
+            except Exception as e:
+                # If we can't check membership, allow user to proceed
+                print(f"Error checking force sub for channel {channel_id}: {e}")
+                continue
+                
+        return False  # Allow user to proceed
+        
+    except Exception as e:
+        print(f"Error in handle_force_sub: {e}")
+        return False  # Allow user to proceed on error

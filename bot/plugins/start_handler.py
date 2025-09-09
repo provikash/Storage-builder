@@ -192,12 +192,13 @@ async def start_command(client: Client, message: Message):
         if await handler_registry.is_processing(user_id, "start"):
             logger.info(f"Start command already processing for user {user_id}")
             return
-        
+
         await handler_registry.start_processing(user_id, "start")
 
         try:
             # Handle force subscription first (with admin exemption)
-            if not await utils.handle_force_sub(client, message):
+            force_sub_blocked = await utils.handle_force_sub(client, message)
+            if force_sub_blocked:
                 print(f"🔒 DEBUG: User {user_id} blocked by force subscription")
                 logger.info(f"User {user_id} blocked by force subscription")
                 return
@@ -207,7 +208,7 @@ async def start_command(client: Client, message: Message):
         finally:
             # Remove from processing using registry
             await handler_registry.stop_processing(user_id, "start")
-            
+
     except Exception as e:
         logger.error(f"Error in start command for user {user_id}: {e}")
         await message.reply_text("❌ An error occurred. Please try again later.")
@@ -374,10 +375,7 @@ async def start_command(client: Client, message: Message):
         ])
 
         # Row 2: Help & About
-        buttons.append([
-            InlineKeyboardButton("❓ Help", callback_data="help_menu"),
-            InlineKeyboardButton("ℹ️ About", callback_data="about_water")
-        ])
+        buttons.append([InlineKeyboardButton("❓ Help", callback_data="help_menu"), InlineKeyboardButton("ℹ️ About", callback_data="about_water")])
 
         # Admin panel for admins
         is_mother_admin = user_id in [Config.OWNER_ID] + list(Config.ADMINS)
@@ -938,4 +936,3 @@ from bot.database.balance_db import get_user_balance
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
-

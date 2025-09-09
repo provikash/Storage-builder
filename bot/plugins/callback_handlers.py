@@ -1,4 +1,3 @@
-
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup
 
@@ -14,7 +13,7 @@ async def callback_random_files(client: Client, query: CallbackQuery):
     """Handle random files callback"""
     try:
         await query.answer()
-        
+
         if handle_random_files:
             # Create a fake message object for the handler
             fake_message = type('obj', (object,), {
@@ -1440,7 +1439,7 @@ async def premium_panel_callbacks(client: Client, query: CallbackQuery):
 
     except Exception as e:
         logger.error(f"Error in premium panel callbacks: {e}")
-        await query.answer("❌ Error processing request", show_alert=True)
+        await query.answer("❌ Errorprocessing request", show_alert=True)
 
 # Clone Settings Toggle Handlers
 @Client.on_callback_query(filters.regex("^clone_toggle_(random|recent|popular|force_join)$"), group=CALLBACK_PRIORITIES["settings"])
@@ -1568,3 +1567,30 @@ async def clone_advanced_settings_callbacks(client: Client, query: CallbackQuery
     ])
 
     await query.edit_message_text(text, reply_markup=buttons)
+
+@Client.on_callback_query(filters.regex("^help_menu$"))
+async def help_menu_callback(client: Client, query: CallbackQuery):
+    """Show help menu"""
+    await query.answer()
+
+    text = "❓ **Help & Support**\n\n"
+    text += "Available commands and features will be shown here."
+
+    await query.edit_message_text(text)
+
+@Client.on_callback_query(filters.regex("^check_sub$"))
+async def check_subscription_callback(client: Client, query: CallbackQuery):
+    """Handle force subscription check callback"""
+    await query.answer()
+
+    # Import the helper function
+    from bot.utils.helper import handle_force_sub
+
+    # Check force subscription
+    force_sub_blocked = await handle_force_sub(client, query.message)
+    if not force_sub_blocked:
+        # User is now subscribed, redirect to start
+        from bot.plugins.start_handler import start_command
+        await start_command(client, query.message)
+    # If still blocked, the handle_force_sub function will send the appropriate message
+<replit_final_file>
