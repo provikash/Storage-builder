@@ -9,7 +9,8 @@ from bot.logging import LOGGER
 logger = LOGGER(__name__)
 
 # Import all the focused handlers
-from bot.handlers import emergency, file_browsing, admin
+from bot.handlers import emergency, file_browsing, admin, callback, commands, start, search
+from bot.programs import clone_admin, clone_features, clone_indexing, clone_management, clone_random_files
 
 # Define callback priorities to prevent conflicts
 CALLBACK_PRIORITIES = {
