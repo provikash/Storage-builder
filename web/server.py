@@ -355,7 +355,7 @@ def start_webserver():
         try:
             app.run(
                 host=Config.WEB_HOST,
-                port=Config.WEB_PORT,
+                port=Config.WEB_SERVER_PORT,
                 debug=False,
                 use_reloader=False,
                 threaded=True
