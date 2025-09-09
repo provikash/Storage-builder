@@ -9,22 +9,7 @@ from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
-# DISABLED: Using start_handler.py instead to avoid conflicts
-# @Client.on_message(filters.command("start") & filters.private)
-async def start_command(client: Client, message: Message):
-    """Start command for clone bots - simple file sharing welcome"""
-    user_id = message.from_user.id
-
-    # Add user to database
-    if not await present_user(user_id):
-        try:
-            await add_user(user_id)
-        except Exception as e:
-            logger.error(f"Error adding user {user_id}: {e}")
-
-    # Check if this is a clone bot
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone = bot_token != Config.BOT_TOKEN
+# This file is for utility functions only - start handler is in start_handler.py
 
     if is_clone:
         # Clone bot welcome message

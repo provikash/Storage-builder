@@ -5,6 +5,7 @@ from pyrogram import filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from info import Config
 from bot.logging import LOGGER
+from bot.plugins.handler_registry import handler_registry
 
 # Import with error handling
 try:
@@ -177,7 +178,7 @@ async def is_clone_admin(client: Client, user_id: int) -> bool:
         logger.error(f"Error checking clone admin: {e}")
         return False
 
-@Client.on_message(filters.command("start") & filters.private, group=0)
+@Client.on_message(filters.command("start") & filters.private, group=1)
 async def start_command(client: Client, message: Message):
     user = message.from_user
     user_id = user.id
@@ -187,17 +188,31 @@ async def start_command(client: Client, message: Message):
         print(f"👤 DEBUG COMMAND: User details - ID: {user_id}, Username: @{user.username}, First: {user.first_name}")
         logger.info(f"Start command received from user {user_id}")
 
-        # Handle force subscription first (with admin exemption)
-        if not await utils.handle_force_sub(client, message):
-            print(f"🔒 DEBUG: User {user_id} blocked by force subscription")
-            logger.info(f"User {user_id} blocked by force subscription")
+        # Prevent duplicate processing using registry
+        if await handler_registry.is_processing(user_id, "start"):
+            logger.info(f"Start command already processing for user {user_id}")
             return
+        
+        await handler_registry.start_processing(user_id, "start")
 
-        print(f"✅ DEBUG: User {user_id} passed force subscription check")
-        logger.info(f"User {user_id} passed force subscription check")
+        try:
+            # Handle force subscription first (with admin exemption)
+            if not await utils.handle_force_sub(client, message):
+                print(f"🔒 DEBUG: User {user_id} blocked by force subscription")
+                logger.info(f"User {user_id} blocked by force subscription")
+                return
+
+            print(f"✅ DEBUG: User {user_id} passed force subscription check")
+            logger.info(f"User {user_id} passed force subscription check")
+        finally:
+            # Remove from processing using registry
+            await handler_registry.stop_processing(user_id, "start")
+            
     except Exception as e:
         logger.error(f"Error in start command for user {user_id}: {e}")
         await message.reply_text("❌ An error occurred. Please try again later.")
+        # Ensure cleanup on error using registry
+        await handler_registry.stop_processing(user_id, "start")
         return
 
     # Check if session has expired for the user
@@ -382,8 +397,8 @@ async def start_command(client: Client, message: Message):
 
 # Recent and popular files callbacks are now handled in callback_handlers.py
 
-# Settings handlers
-@Client.on_callback_query(filters.regex("^clone_settings$"))
+# Settings handlers - Unified callback handling
+@Client.on_callback_query(filters.regex("^(clone_settings|settings)$"), group=2)
 async def clone_settings_callback(client: Client, query: CallbackQuery):
     """Handle clone settings callback - redirect to clone admin settings"""
     await query.answer()
@@ -395,11 +410,14 @@ async def clone_settings_callback(client: Client, query: CallbackQuery):
         return
 
     # Import the clone admin settings function and call it
-    from bot.plugins.clone_admin_settings import clone_settings_command
-    await clone_settings_command(client, query.message)
+    try:
+        from bot.plugins.clone_admin_settings import clone_settings_command
+        await clone_settings_command(client, query.message)
+    except ImportError:
+        await query.edit_message_text("❌ Settings module not available.")
 
-# Toggle handlers
-@Client.on_callback_query(filters.regex("^toggle_"))
+# Toggle handlers - Unified toggle handling
+@Client.on_callback_query(filters.regex("^toggle_"), group=3)
 async def toggle_feature_callback(client: Client, query: CallbackQuery):
     """Handle feature toggle callbacks"""
     await query.answer()
@@ -440,8 +458,8 @@ async def toggle_feature_callback(client: Client, query: CallbackQuery):
         # Refresh settings panel
         await clone_settings_callback(client, query)
 
-# Change URL/API handlers
-@Client.on_callback_query(filters.regex("^change_shortener_url$"))
+# Change URL/API handlers - Prevent conflicts
+@Client.on_callback_query(filters.regex("^change_shortener_url$"), group=4)
 async def change_shortener_url_callback(client: Client, query: CallbackQuery):
     """Handle shortener URL change"""
     await query.answer()
@@ -464,7 +482,7 @@ async def change_shortener_url_callback(client: Client, query: CallbackQuery):
     # Set waiting state (you can implement this with a session manager)
     user_settings[user_id]['waiting_for'] = 'shortener_url'
 
-@Client.on_callback_query(filters.regex("^change_api_key$"))
+@Client.on_callback_query(filters.regex("^change_api_key$"), group=5)
 async def change_api_key_callback(client: Client, query: CallbackQuery):
     """Handle API key change"""
     await query.answer()
@@ -484,8 +502,8 @@ async def change_api_key_callback(client: Client, query: CallbackQuery):
     # Set waiting state
     user_settings[user_id]['waiting_for'] = 'api_key'
 
-# Handle text input for URL/API changes
-@Client.on_message(filters.text & filters.private)
+# Handle text input for URL/API changes - Specific to settings
+@Client.on_message(filters.text & filters.private, group=6)
 async def handle_settings_input(client: Client, message: Message):
     """Handle text input for settings changes"""
     user_id = message.from_user.id
@@ -518,7 +536,7 @@ async def handle_settings_input(client: Client, message: Message):
         del user_settings[user_id]['waiting_for']
         await message.reply_text("✅ **API Key Updated**\n\nYour API key has been saved securely.")
 
-@Client.on_callback_query(filters.regex("^back_to_start$"))
+@Client.on_callback_query(filters.regex("^back_to_start$"), group=7)
 async def back_to_start_callback(client: Client, query: CallbackQuery):
     """Return to main start menu"""
     await query.answer()
