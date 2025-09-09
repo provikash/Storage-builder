@@ -486,14 +486,14 @@ async def handle_recent_files_display(client: Client, query: CallbackQuery, clon
     """Display recent files"""
     try:
         text = "🆕 **Recent Files**\n\n"
-        text += "📅 Showing the most recently uploaded files...\n\n"
-        text += "🕐 All files are sorted by upload time:"
+        text += "📅 Loading recently added files from the database...\n\n"
+        text += "📁 Here are some recent files from our collection:"
 
         # Sample buttons for recent files (replace with actual file data)
         buttons = []
-        buttons.append([InlineKeyboardButton("🆕 New Movie (2 hours ago)", callback_data="file_recent1")])
-        buttons.append([InlineKeyboardButton("📄 Document (5 hours ago)", callback_data="file_recent2")])
-        buttons.append([InlineKeyboardButton("🎵 Music Album (1 day ago)", callback_data="file_recent3")])
+        buttons.append([InlineKeyboardButton("🎬 New Movie.mp4", callback_data="file_recent1")])
+        buttons.append([InlineKeyboardButton("📚 Recent Document.pdf", callback_data="file_recent2")])
+        buttons.append([InlineKeyboardButton("🎵 Latest Audio.mp3", callback_data="file_recent3")])
         buttons.append([
             InlineKeyboardButton("🔄 Refresh", callback_data="recent_files"),
             InlineKeyboardButton("🔙 Back", callback_data="back_to_start")
@@ -502,21 +502,21 @@ async def handle_recent_files_display(client: Client, query: CallbackQuery, clon
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
     except Exception as e:
-        logger.error(f"Error in handle_recent_files_display: {e}")
-        await query.edit_message_text("❌ Error loading recent files. Please try again.")
+        logger.error(f"Error in recent files display: {e}")
+        await query.answer("❌ Error loading recent files", show_alert=True)
 
 async def handle_popular_files_display(client: Client, query: CallbackQuery, clone_data: dict):
     """Display popular files"""
     try:
         text = "🔥 **Popular Files**\n\n"
-        text += "📈 Showing the most downloaded files...\n\n"
-        text += "⭐ Files ranked by popularity:"
+        text += "📈 Loading most popular files from the database...\n\n"
+        text += "📁 Here are some popular files from our collection:"
 
         # Sample buttons for popular files (replace with actual file data)
         buttons = []
-        buttons.append([InlineKeyboardButton("🔥 Top Movie (15.2k downloads)", callback_data="file_popular1")])
-        buttons.append([InlineKeyboardButton("📊 Popular Guide (8.7k downloads)", callback_data="file_popular2")])
-        buttons.append([InlineKeyboardButton("🎵 Hit Song (12.3k downloads)", callback_data="file_popular3")])
+        buttons.append([InlineKeyboardButton("🎬 Popular Movie.mp4", callback_data="file_popular1")])
+        buttons.append([InlineKeyboardButton("📚 Trending Document.pdf", callback_data="file_popular2")])
+        buttons.append([InlineKeyboardButton("🎵 Hit Song.mp3", callback_data="file_popular3")])
         buttons.append([
             InlineKeyboardButton("🔄 Refresh", callback_data="popular_files"),
             InlineKeyboardButton("🔙 Back", callback_data="back_to_start")
@@ -525,8 +525,8 @@ async def handle_popular_files_display(client: Client, query: CallbackQuery, clo
         await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
     except Exception as e:
-        logger.error(f"Error in handle_popular_files_display: {e}")
-        await query.edit_message_text("❌ Error loading popular files. Please try again.")
+        logger.error(f"Error in popular files display: {e}")
+        await query.answer("❌ Error loading popular files", show_alert=True)
 
 # Add system management callbacks
 @Client.on_callback_query(filters.regex("^(system_stats|health_check|view_logs|restart_system)$"))
@@ -1477,7 +1477,7 @@ async def premium_panel_callbacks(client: Client, query: CallbackQuery):
 
     except Exception as e:
         logger.error(f"Error in premium panel callbacks: {e}")
-        await query.answer("❌ Errorprocessing request", show_alert=True)
+        await query.answer("❌ Error processing request", show_alert=True)
 
 # Clone Settings Toggle Handlers
 @Client.on_callback_query(filters.regex("^clone_toggle_(random|recent|popular|force_join)$"), group=CALLBACK_PRIORITIES["settings"])
@@ -1631,4 +1631,3 @@ async def check_subscription_callback(client: Client, query: CallbackQuery):
         from bot.plugins.start_handler import start_command
         await start_command(client, query.message)
     # If still blocked, the handle_force_sub function will send the appropriate message
-<replit_final_file>

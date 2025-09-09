@@ -137,6 +137,16 @@ class CloneManager:
         except Exception as e:
             logger.error(f"❌ Unexpected error starting clone {bot_id}: {e}", exc_info=True)
             tracker.complete(success=False, error=str(e))
+            # Clean up any partial state
+            if bot_id in self.active_clones:
+                try:
+                    clone_info = self.active_clones[bot_id]
+                    client = clone_info.get('client')
+                    if client:
+                        await self._safe_stop_client(client)
+                    del self.active_clones[bot_id]
+                except Exception as cleanup_error:
+                    logger.error(f"Error during cleanup: {cleanup_error}")
             return False, f"Startup failed: {str(e)}"
         finally:
             self._starting_clones.discard(bot_id)

@@ -21,7 +21,7 @@ class SystemMonitor:
         }
         self.start_time = time.time()
         self.running = False
-        self.monitor_interval = 30  # seconds
+        self.monitor_interval = 60  # seconds - increased from 30 to reduce CPU usage
 
     async def start_monitoring(self):
         """Start system monitoring"""
@@ -51,9 +51,9 @@ class SystemMonitor:
         try:
             timestamp = time.time()
 
-            # CPU metrics with fallback
+            # CPU metrics with fallback - reduced interval to lower CPU usage
             async def get_cpu_metrics():
-                cpu_percent = psutil.cpu_percent(interval=1)
+                cpu_percent = psutil.cpu_percent(interval=0.1)  # Reduced from 1 second
                 cpu_count = psutil.cpu_count()
                 load_avg = psutil.getloadavg() if hasattr(psutil, 'getloadavg') else (0, 0, 0)
                 return cpu_percent, cpu_count, load_avg
@@ -86,6 +86,9 @@ class SystemMonitor:
             process = psutil.Process()
             process_memory = process.memory_info()
             process_cpu = process.cpu_percent()
+
+            # Get storage stats safely
+            storage_stats = await self.get_storage_stats_safe()
 
             # Store metrics
             cpu_metric = {
@@ -138,6 +141,38 @@ class SystemMonitor:
 
         except Exception as e:
             logger.error(f"Failed to collect metrics: {e}")
+
+    async def get_storage_stats_safe(self) -> Dict[str, Any]:
+        """Get storage statistics with error handling"""
+        try:
+            from info import Config
+            storage_path = getattr(Config, 'STORAGE_PATH', '/tmp')
+            
+            if os.path.exists(storage_path):
+                storage_usage = psutil.disk_usage(storage_path)
+                return {
+                    'total': storage_usage.total,
+                    'used': storage_usage.used,
+                    'free': storage_usage.free,
+                    'percent': (storage_usage.used / storage_usage.total) * 100
+                }
+            else:
+                return {
+                    'total': 0,
+                    'used': 0,
+                    'free': 0,
+                    'percent': 0,
+                    'error': 'Storage path not found'
+                }
+        except Exception as e:
+            logger.warning(f"Could not get storage stats: {e}")
+            return {
+                'total': 0,
+                'used': 0,
+                'free': 0,
+                'percent': 0,
+                'error': str(e)
+            }
 
     def get_stats(self) -> Dict[str, Any]:
         """Get current system statistics"""
