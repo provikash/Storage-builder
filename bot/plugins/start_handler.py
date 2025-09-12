@@ -288,6 +288,9 @@ async def start_command(client: Client, message: Message):
             settings_button = InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")
             buttons.append([settings_button])
             logger.info(f"🎛️ BUTTON CREATED: Added clone settings button with callback_data='clone_settings_panel' for admin {user_id}")
+            
+            # Debug: Log the exact button being created
+            logger.debug(f"Button details: text='{settings_button.text}', callback_data='{settings_button.callback_data}'")
 
             # File access buttons (ALWAYS show for admin)
             buttons.append([

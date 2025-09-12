@@ -283,10 +283,10 @@ async def clone_settings_command(client: Client, message):
         await message.reply_text(text, reply_markup=buttons)
 
 
-# Remove the conflicting handlers - they are now in callback_handlers.py
+# The main callback handlers are now in callback_handlers.py
 
-@Client.on_callback_query(filters.regex("^clone_"))
-async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
+@Client.on_callback_query(filters.regex("^clone_toggle_"), group=0)
+async def handle_clone_toggle_callbacks(client: Client, query: CallbackQuery):
     """Handle clone settings callbacks"""
     user_id = query.from_user.id
     callback_data = query.data
