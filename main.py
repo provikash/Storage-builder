@@ -227,6 +227,16 @@ async def main():
         logger.info("🚀 Starting Mother Bot + Clone System...")
         print("🚀 DEBUG MAIN: Starting Mother Bot + Clone System...")
 
+        # Setup dependency injection container
+        from bot.core.container import setup_container
+        container = setup_container()
+        logger.info("✅ Dependency injection container initialized")
+
+        # Setup event system
+        from bot.core.events.base import event_bus
+        from bot.core.events.clone_events import *
+        logger.info("✅ Event system initialized")
+
         # Check requirements
         if not await check_requirements():
             sys.exit(1)
