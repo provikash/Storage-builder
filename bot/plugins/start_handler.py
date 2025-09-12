@@ -284,8 +284,10 @@ async def start_command(client: Client, message: Message):
 
             buttons = []
 
-            # Settings button for admin
-            buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")])
+            # Settings button for admin - ensure exact match
+            settings_button = InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")
+            buttons.append([settings_button])
+            logger.info(f"🎛️ BUTTON CREATED: Added clone settings button with callback_data='clone_settings_panel' for admin {user_id}")
 
             # File access buttons (ALWAYS show for admin)
             buttons.append([
@@ -395,24 +397,7 @@ async def start_command(client: Client, message: Message):
 
 # Recent and popular files callbacks are now handled in callback_handlers.py
 
-# Settings handlers - Unified callback handling
-@Client.on_callback_query(filters.regex("^(clone_settings|settings)$"), group=2)
-async def clone_settings_callback(client: Client, query: CallbackQuery):
-    """Handle clone settings callback - redirect to clone admin settings"""
-    await query.answer()
-    user_id = query.from_user.id
-
-    # Check if user is clone admin
-    if not await is_clone_admin(client, user_id):
-        await query.edit_message_text("❌ Only clone admin can access settings.")
-        return
-
-    # Import the clone admin settings function and call it
-    try:
-        from bot.plugins.clone_admin_settings import clone_settings_command
-        await clone_settings_command(client, query.message)
-    except ImportError:
-        await query.edit_message_text("❌ Settings module not available.")
+# Settings handlers are now handled in callback_handlers.py
 
 # Toggle handlers - Unified toggle handling
 @Client.on_callback_query(filters.regex("^toggle_"), group=3)
