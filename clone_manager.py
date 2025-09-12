@@ -152,10 +152,14 @@ class CloneManager:
                     logger.error(f"Error during cleanup for clone {bot_id}: {cleanup_error}")
             
             # Return more specific error message based on error type
-            if "unexpected indent" in error_msg:
-                return False, "Code syntax error detected. Please check bot configuration."
+            if "unexpected indent" in error_msg or "await" in error_msg:
+                return False, "Python syntax error detected. Code has syntax issues that need to be fixed."
             elif "connection" in error_msg.lower():
                 return False, "Connection error. Please check network and try again."
+            elif "invalid token" in error_msg.lower():
+                return False, "Invalid bot token. Please check the bot token configuration."
+            elif "memory" in error_msg.lower():
+                return False, "Memory error. System may be under high load."
             else:
                 return False, f"Startup failed: {error_msg}"
         finally:
@@ -244,6 +248,9 @@ class CloneManager:
                     logger.info(f"Clone {bot_id} already connected (attempt {attempt + 1})")
                     return True
                 elif "invalid syntax" in error_msg:
+                    logger.error(f"Clone {bot_id} syntax error - stopping retries: {e}")
+                    return False
+                elif "syntax error" in error_msg.lower() or "unexpected indent" in error_msg.lower():
                     logger.error(f"Clone {bot_id} syntax error - stopping retries: {e}")
                     return False
                 else:

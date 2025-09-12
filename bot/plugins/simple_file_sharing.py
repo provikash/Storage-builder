@@ -26,40 +26,16 @@ def create_clone_welcome_message(user, is_clone=True):
         text += f"Just send me a file or use /search to find files!\n\n"
         text += f"💡 **Need Help?** Use /help for more commands"
 
-        # Create inline keyboard
-        buttons = []
-
-        # Get clone configuration for random/recent buttons
-        try:
-            from bot.utils.clone_config_loader import clone_config_loader
-            # Assuming client object is accessible or passed differently for clone configs
-            # For this example, we'll use a placeholder to get bot_token.
-            # In a real scenario, you'd need to pass client or its token.
-            # bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-            # Let's assume bot_token is available via Config or another mechanism
-            bot_token_for_config = Config.BOT_TOKEN # Placeholder, adjust as needed
-            config = await clone_config_loader.get_bot_config(bot_token_for_config)
-            features = config.get('features', {})
-        except:
-            features = {}
-
-        # Show Search Files button to all users
-        buttons.append([InlineKeyboardButton("🔍 Search Files", callback_data="search_files")])
-
-        # Show random, recent and popular buttons to ALL users
-        # Token verification will handle access control when clicked
-        random_recent_row = []
-        random_recent_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
-        random_recent_row.append(InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files"))
-
-        buttons.append(random_recent_row)
-
-        # Add popular files button - always show to all users
-        buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
-
-        buttons.extend([
+        # Create inline keyboard with standard buttons
+        buttons = [
+            [InlineKeyboardButton("🔍 Search Files", callback_data="search_files")],
+            [
+                InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+            ],
+            [InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")],
             [InlineKeyboardButton("❓ Help", callback_data="help_info")]
-        ])
+        ]
 
         # Convert buttons list to InlineKeyboardMarkup
         buttons = InlineKeyboardMarkup(buttons)
