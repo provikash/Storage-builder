@@ -285,7 +285,7 @@ async def start_command(client: Client, message: Message):
             buttons = []
 
             # Settings button for admin
-            buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="settings")])
+            buttons.append([InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")])
 
             # File access buttons (ALWAYS show for admin)
             buttons.append([

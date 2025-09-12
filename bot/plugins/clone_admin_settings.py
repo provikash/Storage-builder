@@ -192,12 +192,12 @@ async def clone_settings_command(client: Client, message):
         # Debug logging for admin verification
         stored_admin_id = clone_data.get('admin_id')
         logger.info(f"Clone admin verification: user_id={user_id} (type: {type(user_id)}), stored_admin_id={stored_admin_id} (type: {type(stored_admin_id)})")
-        
+
         # Convert both to int for proper comparison, handling MongoDB Int64 type
         try:
             user_id_int = int(user_id)
             stored_admin_id_int = int(stored_admin_id) if stored_admin_id else 0
-            
+
             if user_id_int != stored_admin_id_int:
                 error_msg = f"❌ Only clone admin can access settings! (Debug: user_id={user_id_int}, admin_id={stored_admin_id_int})"
                 logger.warning(f"Access denied - user {user_id_int} tried to access clone admin panel, but admin_id is {stored_admin_id_int}")
@@ -231,12 +231,12 @@ async def clone_settings_command(client: Client, message):
                 return await message.edit_message_text(error_msg)
             else:
                 return await message.reply_text(error_msg)
-        
+
         show_random = clone_data.get('random_mode', False)
         show_recent = clone_data.get('recent_mode', False) 
         show_popular = clone_data.get('popular_mode', False)
         force_join = clone_data.get('force_join_enabled', False)
-        
+
         bot_id = clone_data.get('bot_id')
         logger.info(f"Current settings for clone {bot_id}: random={show_random}, recent={show_recent}, popular={show_popular}, force_join={force_join}")
     except Exception as e:
@@ -289,10 +289,10 @@ async def handle_clone_settings_panel_direct(client: Client, query: CallbackQuer
     user_id = query.from_user.id
     logger.info(f"🎛️ DIRECT SETTINGS: Clone settings panel accessed by user {user_id}")
     print(f"🎛️ DIRECT SETTINGS: Clone settings panel accessed by user {user_id}")
-    
+
     try:
         await query.answer()
-        
+
         # Verify this is a clone bot
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         if bot_token == Config.BOT_TOKEN:
@@ -308,26 +308,61 @@ async def handle_clone_settings_panel_direct(client: Client, query: CallbackQuer
         if int(user_id) != int(clone_data.get('admin_id', 0)):
             await query.edit_message_text("❌ Only clone admin can access settings!")
             return
-        
+
         # Create message proxy and call settings command
         class MessageProxy:
             def __init__(self, query):
                 self.from_user = query.from_user
                 self.chat = query.message.chat if query.message else None
                 self.message_id = query.message.id if query.message else None
-                
+
             async def reply_text(self, text, reply_markup=None):
                 await query.edit_message_text(text, reply_markup=reply_markup)
-                
+
             async def edit_message_text(self, text, reply_markup=None):
                 await query.edit_message_text(text, reply_markup=reply_markup)
 
         proxy_message = MessageProxy(query)
         await clone_settings_command(client, proxy_message)
-        
+
     except Exception as e:
         logger.error(f"Error in direct settings handler: {e}")
         await query.edit_message_text("❌ Error loading settings. Please try again.")
+
+@Client.on_callback_query(filters.regex("^(clone_settings|settings)$"), group=2)
+async def clone_settings_callback(client: Client, query: CallbackQuery):
+    """Handle clone settings callback - redirect to clone admin settings"""
+    await query.answer()
+    user_id = query.from_user.id if query.from_user else None
+
+    if not user_id:
+        await query.edit_message_text("❌ Unable to identify user!")
+        return
+
+    # Check if user is clone admin
+    if not await is_clone_admin(client, user_id):
+        await query.edit_message_text("❌ Only clone admin can access settings.")
+        return
+
+    # Create message proxy and call settings command directly
+    try:
+        class MessageProxy:
+            def __init__(self, query):
+                self.from_user = query.from_user
+                self.chat = query.message.chat if query.message else None
+                self.message_id = query.message.id if query.message else None
+
+            async def reply_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+
+            async def edit_message_text(self, text, reply_markup=None):
+                await query.edit_message_text(text, reply_markup=reply_markup)
+
+        proxy_message = MessageProxy(query)
+        await clone_settings_command(client, proxy_message)
+    except Exception as e:
+        logger.error(f"Error in settings callback: {e}")
+        await query.edit_message_text("❌ Settings module not available.")
 
 @Client.on_callback_query(filters.regex("^clone_"))
 async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
@@ -378,7 +413,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
             # Update both collections to ensure synchronization
             from bot.database.clone_db import clones_collection, clone_configs_collection
-            
+
             # Update clones collection (PRIMARY - where get_clone_by_bot_token reads from)
             await clones_collection.update_one(
                 {"bot_id": bot_id},
@@ -387,7 +422,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     "updated_at": datetime.now()
                 }}
             )
-            
+
             # Also try updating by _id field in case bot_id doesn't match
             await clones_collection.update_one(
                 {"_id": str(bot_id)},
@@ -407,7 +442,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
-            
+
             # Also update using string bot_id format
             await clone_configs_collection.update_one(
                 {"_id": bot_id},
@@ -418,7 +453,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
-            
+
             # Force cache clear and immediate verification
             logger.info(f"Updated random_mode to {new_state} in both collections for bot {bot_id}")
 
@@ -440,7 +475,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             logger.info(f"Verified random_mode state in DB: {actual_state}")
 
             await query.answer(f"🎲 Random mode {'enabled' if new_state else 'disabled'}")
-            
+
             # Clear any cached configs to force fresh database reads
             try:
                 import bot.utils.clone_config_loader as clone_config_loader
@@ -448,7 +483,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     clone_config_loader._config_cache.clear()
             except:
                 pass
-            
+
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
             return
@@ -462,7 +497,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
             # Update both collections to ensure synchronization
             from bot.database.clone_db import clones_collection, clone_configs_collection
-            
+
             # Update clones collection (PRIMARY - where get_clone_by_bot_token reads from)
             await clones_collection.update_one(
                 {"bot_id": bot_id},
@@ -471,7 +506,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     "updated_at": datetime.now()
                 }}
             )
-            
+
             # Also try updating by _id field in case bot_id doesn't match
             await clones_collection.update_one(
                 {"_id": str(bot_id)},
@@ -491,7 +526,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
-            
+
             # Also update using string bot_id format
             await clone_configs_collection.update_one(
                 {"_id": bot_id},
@@ -502,7 +537,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
-            
+
             # Force cache clear and immediate verification
             logger.info(f"Updated recent_mode to {new_state} in both collections for bot {bot_id}")
 
@@ -524,7 +559,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             logger.info(f"Verified recent_mode state in DB: {actual_state}")
 
             await query.answer(f"📊 Recent mode {'enabled' if new_state else 'disabled'}")
-            
+
             # Clear any cached configs to force fresh database reads
             try:
                 import bot.utils.clone_config_loader as clone_config_loader
@@ -532,7 +567,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     clone_config_loader._config_cache.clear()
             except:
                 pass
-                
+
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
             return
@@ -546,7 +581,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
 
             # Update both collections to ensure synchronization
             from bot.database.clone_db import clones_collection, clone_configs_collection
-            
+
             # Update clones collection (PRIMARY - where get_clone_by_bot_token reads from)
             await clones_collection.update_one(
                 {"bot_id": bot_id},
@@ -555,7 +590,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     "updated_at": datetime.now()
                 }}
             )
-            
+
             # Also try updating by _id field in case bot_id doesn't match
             await clones_collection.update_one(
                 {"_id": str(bot_id)},
@@ -575,7 +610,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
-            
+
             # Also update using string bot_id format
             await clone_configs_collection.update_one(
                 {"_id": bot_id},
@@ -586,7 +621,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                 }},
                 upsert=True
             )
-            
+
             # Force cache clear and immediate verification
             logger.info(f"Updated popular_mode to {new_state} in both collections for bot {bot_id}")
 
@@ -608,7 +643,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             logger.info(f"Verified popular_mode state in DB: {actual_state}")
 
             await query.answer(f"🔥 Popular mode {'enabled' if new_state else 'disabled'}")
-            
+
             # Clear any cached configs to force fresh database reads
             try:
                 import bot.utils.clone_config_loader as clone_config_loader
@@ -616,7 +651,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
                     clone_config_loader._config_cache.clear()
             except:
                 pass
-                
+
             # Refresh the settings panel
             await clone_settings_command(client, query.message)
             return
@@ -754,7 +789,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             # Refresh and show main settings
             await clone_settings_command(client, query.message)
             return
-            
+
         elif callback_data == "clone_debug_settings":
             # Debug function to show exact database values
             debug_text = f"🔍 **Debug Settings Info**\n\n"
@@ -767,7 +802,7 @@ async def handle_clone_settings_callbacks(client: Client, query: CallbackQuery):
             debug_text += f"• force_join_enabled: `{clone_data.get('force_join_enabled')}`\n\n"
             debug_text += f"**All Clone Data Keys:**\n"
             debug_text += f"`{list(clone_data.keys())}`"
-            
+
             await query.edit_message_text(
                 debug_text,
                 reply_markup=InlineKeyboardMarkup([
