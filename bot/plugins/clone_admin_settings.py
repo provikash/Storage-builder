@@ -277,7 +277,14 @@ async def clone_settings_command(client: Client, message):
         ]
     ])
 
+    # Handle both Message and CallbackQuery objects
     if hasattr(message, 'edit_message_text'):
+        await message.edit_message_text(text, reply_markup=buttons)
+    elif hasattr(message, 'message') and hasattr(message.message, 'edit_text'):
+        # CallbackQuery object
+        await message.message.edit_text(text, reply_markup=buttons)
+    elif hasattr(message, '_query'):
+        # MessageProxy object
         await message.edit_message_text(text, reply_markup=buttons)
     else:
         await message.reply_text(text, reply_markup=buttons)

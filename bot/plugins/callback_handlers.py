@@ -24,9 +24,10 @@ CALLBACK_PRIORITIES = {
 }
 
 # High priority clone settings handler - MOST SPECIFIC PATTERN FIRST
-@Client.on_callback_query(filters.regex("^clone_settings_panel$"), group=-10)
+@Client.on_callback_query(filters.regex(r"^clone_settings_panel$"), group=-10)
 async def handle_clone_settings_direct(client: Client, query: CallbackQuery):
     """Direct clone settings handler with highest priority"""
+    logger.info(f"🎛️ CALLBACK RECEIVED: {query.data} from user {query.from_user.id}")
     await query.answer()
     user_id = query.from_user.id
     
@@ -92,6 +93,13 @@ async def handle_clone_settings_alt(client: Client, query: CallbackQuery):
         import traceback
         traceback.print_exc()
         await query.edit_message_text("❌ Error loading settings. Please try again later.")
+
+# Universal debug handler to catch ALL callbacks
+@Client.on_callback_query(group=-20)
+async def universal_debug_callback(client: Client, query: CallbackQuery):
+    """Universal debug handler to log all callbacks"""
+    logger.info(f"🔍 ALL CALLBACKS: data='{query.data}', user={query.from_user.id}, message_id={query.message.id if query.message else 'None'}")
+    # Don't handle it, just log it - let other handlers process it
 
 # Debug handler for any settings-related callbacks
 @Client.on_callback_query(filters.regex("settings"), group=50)
