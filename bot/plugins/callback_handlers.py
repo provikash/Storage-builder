@@ -5,6 +5,7 @@ from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery
 from bot.utils.callback_error_handler import safe_callback_handler
 from bot.logging import LOGGER
+from info import Config
 
 logger = LOGGER(__name__)
 

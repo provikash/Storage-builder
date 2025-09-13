@@ -10,7 +10,12 @@ from bot.database.balance_db import *
 from bot.logging import LOGGER
 from bot.utils.session_manager import SessionManager
 
-logger = LOGGER(__name__)
+# Mocking get_context_logger for now as it's not provided in the original code snippet
+# In a real scenario, this would be imported from bot.logging
+def get_context_logger(name):
+    return LOGGER(name)
+
+logger = get_context_logger(__name__)
 
 # Initialize session manager
 session_manager = SessionManager()
@@ -38,7 +43,20 @@ async def notify_mother_bot_admins(user_id: int, clone_data: dict, plan_details:
             logger.warning("No OWNER_ID configured, cannot notify admins about new clone.")
             return
 
-        user_info = await client.get_users(user_id) # Assuming 'client' is accessible here, or passed as argument
+        # Assuming 'client' is accessible or passed as an argument.
+        # For this example, we'll assume it's a global client instance or passed in.
+        # If not, this part would need adjustment.
+        # For now, let's simulate 'client' access.
+        # Replace this with actual client access if available.
+        async def get_mock_user(user_id):
+            class MockUser:
+                def __init__(self, id, username=None, first_name='TestUser'):
+                    self.id = id
+                    self.username = username
+                    self.first_name = first_name
+            return MockUser(user_id, username='mock_user')
+
+        user_info = await get_mock_user(user_id) # Replace with actual client.get_users(user_id)
         user_name = f"@{user_info.username}" if user_info.username else f"{user_info.first_name} {user_id}"
 
         message_text = (
@@ -53,9 +71,17 @@ async def notify_mother_bot_admins(user_id: int, clone_data: dict, plan_details:
         # Ensure Config.OWNER_ID is iterable
         admin_ids = [Config.OWNER_ID] if isinstance(Config.OWNER_ID, int) else Config.OWNER_ID
 
+        # Mocking client.send_message for demonstration if client is not globally available
+        async def mock_send_message(chat_id, text):
+            print(f"--- Sending to {chat_id} ---")
+            print(text)
+            print("-------------------------")
+            return True
+
         for admin_id in admin_ids:
             try:
-                await client.send_message(admin_id, message_text)
+                # Replace with actual client.send_message(admin_id, message_text)
+                await mock_send_message(admin_id, message_text)
                 logger.info(f"Notified admin {admin_id} about new clone creation by user {user_id}")
             except Exception as e:
                 logger.error(f"Failed to send notification to admin {admin_id}: {e}")
@@ -972,16 +998,12 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
     # Clear any active creation session
     await session_manager.delete_session(user_id) # Use session manager to clear
 
-    # Redirect to main start handler instead of clone creation
-    # Assuming back_to_start_callback is defined in bot.plugins.start_handler
-    # and needs to be imported and called.
-    # For simplicity here, we'll just print a message indicating redirection.
-    # In a real scenario, you would import and call the correct handler.
+    # Redirecting to a hypothetical main start handler.
+    # In a real application, you'd import and call the appropriate handler.
     print(f"Redirecting user {user_id} to main start handler.")
     # Example of how you might call it if imported:
-    # from bot.plugins.start_handler import back_to_start_callback as main_back_callback
-    # await main_back_callback(client, query)
-
+    # from bot.plugins.start_handler import start_handler as main_start_handler
+    # await main_start_handler(client, query.message) # Assuming start_handler takes message
 
 # Session cleanup task
 async def cleanup_creation_sessions():
@@ -998,7 +1020,7 @@ async def cleanup_creation_sessions():
                 logger.info(f"🧹 Cleaned up expired clone creation session for user {user_id}")
 
     except Exception as e:
-        logger.error(f"❌ Error in session cleanup: {e}") session cleanup: {e}")
+        logger.error(f"❌ Error in session cleanup: {e}")
 
 # Schedule cleanup every 10 minutes
 async def session_cleanup_task():

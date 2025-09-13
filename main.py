@@ -255,6 +255,10 @@ async def main():
 
         # Start mother bot
         app = await start_mother_bot()
+        
+        if not app:
+            logger.error("❌ Failed to initialize Mother Bot")
+            sys.exit(1)
 
         # Get bot info with retry logic for FloodWait
         me = None

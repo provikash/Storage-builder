@@ -5,7 +5,9 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timedelta
 import psutil
 
-logger = logging.getLogger(__name__)
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
 
 class HealthChecker:
     """Production health monitoring system"""
