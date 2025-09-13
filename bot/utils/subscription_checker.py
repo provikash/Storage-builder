@@ -34,13 +34,13 @@ class SubscriptionChecker:
             for clone_id in expired_clones:
                 await self.handle_expired_subscription(clone_id)
                 logger.info(f"⚠️ Deactivated expired clone: {clone_id}")
-            
+
             # Check for pending subscriptions that became active
             await self.check_pending_subscriptions()
-            
+
             # Check pending clones that might now be ready
             await clone_manager.check_pending_clones()
-            
+
         except Exception as e:
             logger.error(f"❌ Error checking subscriptions: {e}")
 
@@ -49,15 +49,15 @@ class SubscriptionChecker:
         try:
             from bot.database.subscription_db import subscriptions_collection
             from bot.database.clone_db import get_all_clones
-            
+
             # Find clones that are inactive with active subscriptions
             active_subscriptions = await subscriptions_collection.find({
                 "status": "active"
             }).to_list(None)
-            
+
             for subscription in active_subscriptions:
                 bot_id = subscription['bot_id']
-                
+
                 # Check if clone exists but isn't running
                 clone = await get_clone(bot_id) if 'get_clone' in globals() else None
                 if clone and clone.get('status') != 'active':
@@ -67,7 +67,7 @@ class SubscriptionChecker:
                         logger.info(f"✅ Started previously pending clone {bot_id}")
                     else:
                         logger.warning(f"⚠️ Failed to start clone {bot_id}: {message}")
-                        
+
         except Exception as e:
             logger.error(f"❌ Error checking pending subscriptions: {e}")
 

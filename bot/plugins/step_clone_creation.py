@@ -992,13 +992,13 @@ async def cleanup_creation_sessions():
         current_time = datetime.now()
 
         for user_id, session in all_clone_sessions.items():
-            session_time = session.get('started_at', current_time) # Use started_at for session age
+            session_time = session.get('started_at', current_time)
             if (current_time - session_time).total_seconds() > 1800:  # 30 minutes
                 await session_manager.delete_session(user_id)
                 logger.info(f"🧹 Cleaned up expired clone creation session for user {user_id}")
 
     except Exception as e:
-        logger.error(f"❌ Error in session cleanup: {e}")
+        logger.error(f"❌ Error in session cleanup: {e}") session cleanup: {e}")
 
 # Schedule cleanup every 10 minutes
 async def session_cleanup_task():

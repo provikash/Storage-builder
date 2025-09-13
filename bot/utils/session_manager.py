@@ -1,11 +1,15 @@
+
 import asyncio
+import json
+import os
+import time
 from datetime import datetime, timedelta
 from typing import Dict, Any, Optional
 from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
-# Session timeout (6 hours) - Extended for clone creation process
+# Session timeout (6 hours)
 SESSION_TIMEOUT = timedelta(hours=6)
 
 # In-memory storage for user sessions
@@ -182,6 +186,36 @@ def get_session_count() -> int:
     print(f"📊 DEBUG SESSION: Current active session count: {count}")
     return count
 
+async def get_sessions_by_type(session_type: str) -> Dict[int, Dict[str, Any]]:
+    """Get all sessions of a specific type"""
+    try:
+        filtered_sessions = {}
+        for user_id, session in user_sessions.items():
+            if session.get('type') == session_type:
+                filtered_sessions[user_id] = session
+        print(f"🔍 DEBUG SESSION: Found {len(filtered_sessions)} sessions of type '{session_type}'")
+        return filtered_sessions
+    except Exception as e:
+        logger.error(f"Error getting sessions by type {session_type}: {e}")
+        return {}
+
+async def delete_session(user_id: int) -> bool:
+    """Delete session for a user"""
+    return await clear_session(user_id)
+
+async def update_session(user_id: int, session_data: dict) -> bool:
+    """Update session data for a user"""
+    try:
+        if user_id in user_sessions:
+            user_sessions[user_id].update(session_data)
+            await update_session_activity(user_id)
+            print(f"✅ DEBUG SESSION: Session updated for user {user_id}")
+            return True
+        print(f"❌ DEBUG SESSION: No session found to update for user {user_id}")
+        return False
+    except Exception as e:
+        logger.error(f"Error updating session for user {user_id}: {e}")
+        return False
 
 class SessionManager:
     """Session manager class that wraps the session management functions"""
@@ -237,19 +271,6 @@ class SessionManager:
         return cleanup_expired_sessions()
 
     @staticmethod
-    async def update_session(user_id: int, session_data: dict) -> bool:
-        """Update session data for a user"""
-        try:
-            if user_id in user_sessions:
-                user_sessions[user_id] = session_data
-                await update_session_activity(user_id)
-                return True
-            return False
-        except Exception as e:
-            logger.error(f"Error updating session for user {user_id}: {e}")
-            return False
-
-    @staticmethod
     async def delete_session(user_id: int) -> bool:
         """Delete session for a user"""
         return await clear_session(user_id)
@@ -257,140 +278,12 @@ class SessionManager:
     @staticmethod
     async def update_session(user_id: int, session_data: dict) -> bool:
         """Update session data for a user"""
-        try:
-            if user_id in user_sessions:
-                user_sessions[user_id].update(session_data)
-                await update_session_activity(user_id)
-                print(f"✅ DEBUG SESSION: Session updated for user {user_id}")
-                return True
-            print(f"❌ DEBUG SESSION: No session found to update for user {user_id}")
-            return False
-        except Exception as e:
-            logger.error(f"Error updating session for user {user_id}: {e}")
-            return False
+        return await update_session(user_id, session_data)
+
+    @staticmethod
+    async def get_sessions_by_type(session_type: str) -> Dict[int, Dict[str, Any]]:
+        """Get all sessions of a specific type"""
+        return await get_sessions_by_type(session_type)
 
 # Create module-level session_manager for backward compatibility
 session_manager = SessionManager()
-import json
-import os
-import asyncio
-from typing import Dict, Any, Optional
-from bot.logging import LOGGER
-import time # Import the time module
-
-logger = LOGGER(__name__)
-
-class SessionManager:
-    """Simple session manager using file storage"""
-
-    def __init__(self):
-        self.sessions_dir = "temp_sessions"
-        os.makedirs(self.sessions_dir, exist_ok=True)
-        self.session_timeout = 86400 # 24 hours, assuming this was intended for the file-based session manager
-
-    def _get_session_file(self, user_id: int) -> str:
-        return os.path.join(self.sessions_dir, f"session_{user_id}.json")
-
-    async def create_session(self, user_id: int, session_type: str, data: Dict[str, Any]) -> bool:
-        """Create a new session for user"""
-        try:
-            session_data = {
-                'user_id': user_id,
-                'type': session_type,
-                'data': data,
-                'created_at': str(asyncio.get_event_loop().time())
-            }
-
-            with open(self._get_session_file(user_id), 'w') as f:
-                json.dump(session_data, f)
-
-            logger.info(f"✅ Session created for user {user_id}")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Error creating session for user {user_id}: {e}")
-            return False
-
-    async def get_session(self, user_id: int) -> Optional[Dict[str, Any]]:
-        """Get session data for user"""
-        try:
-            session_file = self._get_session_file(user_id)
-            if not os.path.exists(session_file):
-                return None
-
-            with open(session_file, 'r') as f:
-                session_data = json.load(f)
-
-            return session_data.get('data')
-        except Exception as e:
-            logger.error(f"❌ Error getting session for user {user_id}: {e}")
-            return None
-
-    async def clear_session(self, user_id: int) -> bool:
-        """Clear session for user"""
-        try:
-            session_file = self._get_session_file(user_id)
-            if os.path.exists(session_file):
-                os.remove(session_file)
-            logger.info(f"🧹 Session cleared for user {user_id}")
-            return True
-        except Exception as e:
-            logger.error(f"❌ Error clearing session for user {user_id}: {e}")
-            return False
-
-    async def start_cleanup_task(self):
-        """Start periodic cleanup of old sessions"""
-        while True:
-            try:
-                await asyncio.sleep(3600)  # Clean every hour
-                await self._cleanup_old_sessions()
-            except Exception as e:
-                logger.error(f"❌ Error in session cleanup: {e}")
-                await asyncio.sleep(1800)  # Wait 30 minutes on error
-
-    async def _cleanup_old_sessions(self):
-        """Clean up sessions older than 24 hours"""
-        try:
-            current_time = time.time()
-            for filename in os.listdir(self.sessions_dir):
-                if filename.startswith("session_") and filename.endswith(".json"):
-                    filepath = os.path.join(self.sessions_dir, filename)
-                    try:
-                        with open(filepath, 'r') as f:
-                            session_data = json.load(f)
-
-                        created_at = float(session_data.get('created_at', 0))
-                        if current_time - created_at > self.session_timeout:  # 24 hours
-                            os.remove(filepath)
-                            logger.info(f"🧹 Cleaned old session: {filename}")
-                    except Exception as e:
-                        logger.error(f"❌ Error processing session file {filename}: {e}")
-        except Exception as e:
-            logger.error(f"❌ Error in cleanup task: {e}")
-
-    async def delete_session(self, user_id: int):
-        """Delete a specific user session"""
-        try:
-            if user_id in self.sessions:
-                del self.sessions[user_id]
-                logger.debug(f"🗑️ Deleted session for user {user_id}")
-        except Exception as e:
-            logger.error(f"❌ Error deleting session for user {user_id}: {e}")
-
-    async def cleanup_expired_sessions(self):
-        """Clean up expired sessions"""
-        try:
-            current_time = time.time()
-            expired_sessions = []
-
-            for user_id, session_data in self.sessions.items():
-                if current_time - session_data.get('last_activity', 0) > self.session_timeout:
-                    expired_sessions.append(user_id)
-
-            for user_id in expired_sessions:
-                del self.sessions[user_id]
-
-            if expired_sessions:
-                logger.info(f"🧹 Cleaned up {len(expired_sessions)} expired sessions")
-
-        except Exception as e:
-            logger.error(f"❌ Error cleaning expired sessions: {e}")
