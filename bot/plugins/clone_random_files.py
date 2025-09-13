@@ -158,12 +158,9 @@ async def random_files_command(client: Client, message: Message):
         logger.error(f"Error in random files command: {e}")
         await message.reply_text("❌ Error retrieving random files. Please try again.")
 
-@Client.on_callback_query(filters.regex("^(clone_random_files)$"), group=3)
 async def handle_clone_random_files(client: Client, query):
     """Handle random files callback for clones"""
     try:
-        await query.answer()
-
         # Check if this is a clone and feature is enabled
         if not await check_clone_feature_enabled(client, 'random_button'):
             await query.edit_message_text("❌ Random files feature is not available or disabled.")
@@ -201,12 +198,9 @@ async def handle_clone_random_files(client: Client, query):
         logger.error(f"Error in clone random files callback: {e}")
         await query.answer("❌ Error retrieving random files.", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^(clone_recent_files)$"), group=3)
 async def handle_clone_recent_files(client: Client, query):
     """Handle recent files callback for clones"""
     try:
-        await query.answer()
-
         # Check if this is a clone and feature is enabled
         if not await check_clone_feature_enabled(client, 'recent_button'):
             await query.edit_message_text("❌ Recent files feature is not available or disabled.")
@@ -244,12 +238,9 @@ async def handle_clone_recent_files(client: Client, query):
         logger.error(f"Error in clone recent files callback: {e}")
         await query.answer("❌ Error retrieving recent files.", show_alert=True)
 
-@Client.on_callback_query(filters.regex("^(clone_popular_files)$"), group=3)
 async def handle_clone_popular_files(client: Client, query):
     """Handle popular files callback for clones"""
     try:
-        await query.answer()
-
         # Check if this is a clone and feature is enabled
         if not await check_clone_feature_enabled(client, 'popular_button'):
             await query.edit_message_text("❌ Popular files feature is not available or disabled.")
