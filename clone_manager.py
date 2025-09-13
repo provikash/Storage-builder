@@ -19,11 +19,25 @@ class CloneManager:
 
     async def start_clone(self, bot_id: str):
         """Start a specific clone bot with enhanced error handling"""
-        from bot.logging import get_context_logger
-        from bot.utils.debug_helper import create_execution_tracker
-
-        context_logger = get_context_logger(__name__).add_context(bot_id=bot_id, operation="start_clone")
-        tracker = create_execution_tracker(f"start_clone_{bot_id}")
+        from bot.logging import LOGGER
+        
+        logger = LOGGER(__name__)
+        
+        # Simple execution tracking
+        class SimpleTracker:
+            def __init__(self, name):
+                self.name = name
+                self.steps = []
+            def add_step(self, step, data=None):
+                self.steps.append(step)
+                logger.info(f"Step: {step}")
+            def complete(self, success=True, error=None):
+                if success:
+                    logger.info(f"Completed: {self.name}")
+                else:
+                    logger.error(f"Failed: {self.name} - {error}")
+        
+        tracker = SimpleTracker(f"start_clone_{bot_id}")
         
         # Prevent multiple simultaneous starts
         if bot_id in getattr(self, '_starting_clones', set()):
@@ -36,12 +50,12 @@ class CloneManager:
 
         try:
             tracker.add_step("fetching_clone_data")
-            context_logger.debug("Starting clone startup process")
+            logger.debug("Starting clone startup process")
 
             clone = await get_clone(bot_id)
             if not clone:
                 error_msg = "Clone not found in database"
-                context_logger.error(error_msg)
+                logger.error(error_msg)
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
 
@@ -73,7 +87,7 @@ class CloneManager:
             bot_token = clone.get('bot_token') or clone.get('token')
             if not bot_token or not await self._validate_bot_token(bot_token):
                 error_msg = "Invalid or missing bot token"
-                context_logger.error(error_msg)
+                logger.error(error_msg)
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
 
@@ -92,7 +106,7 @@ class CloneManager:
             # Verify bot is working
             try:
                 bot_info = await asyncio.wait_for(clone_bot.get_me(), timeout=10.0)
-                context_logger.info(f"Clone bot started: @{bot_info.username}")
+                logger.info(f"Clone bot started: @{bot_info.username}")
             except asyncio.TimeoutError:
                 await self._safe_stop_client(clone_bot)
                 return False, "Bot startup verification timeout"

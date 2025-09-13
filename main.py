@@ -185,9 +185,23 @@ async def start_clone_system():
     try:
         logger.info("🔄 Starting Clone Manager...")
         print("🔄 DEBUG CLONE: Starting Clone Manager...")
-        await clone_manager.start_all_clones()
-        logger.info("✅ Clone manager initialized")
-        print("✅ DEBUG CLONE: Clone manager initialized")
+        
+        # Get list of active clones first
+        from bot.database.clone_db import get_all_clones
+        all_clones = await get_all_clones()
+        active_clones = [c for c in all_clones if c.get('status') == 'active']
+        
+        logger.info(f"📊 Found {len(active_clones)} active clones to start")
+        print(f"📊 DEBUG CLONE: Found {len(active_clones)} active clones to start")
+        
+        if not active_clones:
+            logger.warning("⚠️ No active clones found to start")
+            print("⚠️ DEBUG CLONE: No active clones found to start")
+        
+        # Start all clones
+        started_count, total_count = await clone_manager.start_all_clones()
+        logger.info(f"✅ Clone manager initialized: {started_count}/{total_count} clones started")
+        print(f"✅ DEBUG CLONE: Clone manager initialized: {started_count}/{total_count} clones started")
 
         # Start subscription monitoring in background
         logger.info("⏱️ Starting subscription monitoring...")
@@ -200,6 +214,8 @@ async def start_clone_system():
     except Exception as e:
         logger.error(f"❌ Clone manager initialization failed: {e}")
         print(f"❌ DEBUG CLONE: Clone manager initialization failed: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 async def start_subscription_monitoring():
@@ -287,10 +303,17 @@ async def main():
                         raise
                     await asyncio.sleep(5)
 
-        # Start clone system
+        # Start clone system with detailed logging
+        logger.info("🔄 About to start clone system...")
+        print("🔄 DEBUG MAIN: About to start clone system...")
         clone_task = await start_clone_system()
         if clone_task:
             monitoring_tasks.append(clone_task)
+            logger.info("✅ Clone system task added to monitoring")
+            print("✅ DEBUG MAIN: Clone system task added to monitoring")
+        else:
+            logger.error("❌ Clone system task is None")
+            print("❌ DEBUG MAIN: Clone system task is None")
 
         # Start subscription monitoring
         subscription_task = await start_subscription_monitoring()

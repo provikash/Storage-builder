@@ -42,6 +42,23 @@ task = "shell.exec"
 args = "export DATABASE_URI=\"$DATABASE_URL\" && python3 main.py"
 waitForPort = 5000
 
+[[workflows.workflow]]
+name = "Restart Bot"
+author = 47389467
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pkill -f python3"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "sleep 2"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "export DATABASE_URI=\"$DATABASE_URL\" && python3 main.py"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
