@@ -275,6 +275,14 @@ async def main():
         if not app:
             logger.error("❌ Failed to initialize Mother Bot")
             sys.exit(1)
+        
+        # Initialize handlers after bot is ready
+        try:
+            from bot.utils.handler_manager import register_handlers
+            await register_handlers(app)
+        except Exception as e:
+            logger.warning(f"⚠️ Handler registration issues: {e}")
+            # Continue anyway as some handlers might have loaded
 
         # Get bot info with retry logic for FloodWait
         me = None

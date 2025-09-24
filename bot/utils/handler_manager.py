@@ -209,38 +209,32 @@ class HandlerManager:
 handler_manager = HandlerManager()
 
 async def register_handlers(app):
-    """Register all handlers with the app"""
+    """Register all handlers with the app using safe plugin loading"""
     try:
         logger.info("🔄 Starting handler registration...")
 
-        # Don't clear handlers - let Pyrogram manage them
-        # Just import plugins to register their handlers
-
-        # Import core handlers first
-        from bot.plugins import callback_fix  # Emergency handlers first
-        from bot.plugins import start_handler
-        from bot.plugins import callback_handlers
-        from bot.plugins import search
-        from bot.plugins import clone_admin_settings
-
-        # Import other plugin handlers
-        from bot.plugins import (
-            admin_commands,
-            mother_admin,
-            step_clone_creation,
-            premium,
-            balance_management,
-            referral_program,
-            token,
-            index,
-            genlink,
-            stats,
-            broadcast,
-            callback
-        )
-
-        logger.info("✅ All handlers registered successfully")
+        # Use the safe plugin loading from __init__.py
+        from bot.plugins import load_plugins
+        plugins_loaded, plugins_failed = load_plugins()
+        
+        logger.info(f"✅ Handler registration completed")
+        logger.info(f"✅ Successfully loaded: {len(plugins_loaded)} plugins")
+        
+        if plugins_failed:
+            logger.warning(f"⚠️ Failed plugins: {len(plugins_failed)}")
+            for failed in plugins_failed:
+                logger.warning(f"  - {failed}")
 
     except Exception as e:
         logger.error(f"❌ Error registering handlers: {e}")
+        # Don't raise to prevent startup failure
+        logger.error("Continuing with partial handler registration...")
+        
+    # Ensure critical handlers are always available
+    try:
+        from bot.plugins import callback_fix
+        from bot.plugins import start_handler
+        logger.info("✅ Critical handlers loaded successfully")
+    except Exception as e:
+        logger.critical(f"❌ Failed to load critical handlers: {e}")
         raise

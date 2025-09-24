@@ -46,8 +46,12 @@ class SystemMonitor:
 
     async def collect_metrics(self):
         """Collect system metrics with error recovery"""
-        from bot.utils.error_handler import safe_execute_async, ErrorRecoveryConfig
-        # from bot.logging import get_context_logger # This line is removed due to the fix
+        try:
+            from bot.utils.error_handler import safe_execute_async, ErrorRecoveryConfig
+        except ImportError:
+            # Fallback if error_handler is not available
+            safe_execute_async = None
+            ErrorRecoveryConfig = None
 
         context_logger = logger
 

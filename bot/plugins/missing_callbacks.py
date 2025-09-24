@@ -8,6 +8,14 @@ from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
+# Common callback patterns that should be handled
+HANDLED_PATTERNS = [
+    'get_token', 'show_premium_plans', 'rand_new', 'file_',
+    'back_to_start', 'help_', 'about_', 'my_profile',
+    'refresh_balance', 'full_transaction_history',
+    'create_clone', 'manage_clones', 'admin_panel'
+]
+
 # Start menu callback handlers
 @Client.on_callback_query(filters.regex("^(start_clone_creation|manage_my_clone|user_profile|premium_info|help_menu|about_bot|about_water|admin_panel|bot_management)$"), group=95)
 async def handle_start_menu_callbacks(client: Client, query: CallbackQuery):
@@ -405,33 +413,79 @@ async def handle_utility_callbacks(client: Client, query: CallbackQuery):
         await query.answer("❌ An error occurred. Please try again.", show_alert=True)
 
 # Catch-all for unhandled callbacks
-@Client.on_callback_query(filters.regex("^.*$"), group=100)
-async def handle_unhandled_callbacks(client: Client, query: CallbackQuery):
-    """Handle any unhandled callbacks"""
-    callback_data = query.data
-
-    # Skip if already handled by other handlers
-    if callback_data in [
-        "start_clone_creation", "manage_my_clone", "user_profile", "premium_info", 
-        "help_menu", "about_bot", "about_water", "admin_panel", "bot_management",
-        "back_to_start", "random_files", "recent_files", "popular_files",
-        "my_stats", "get_token", "docs", "bot_stats"
-    ]:
-        return
-
+@Client.on_callback_query(filters.regex(r"^(?!(" + "|".join(HANDLED_PATTERNS) + r"))", flags=0), group=99)
+async def handle_missing_callbacks(client: Client, callback_query: CallbackQuery):
+    """Handle unrecognized callback queries gracefully"""
     try:
-        await query.answer()
-        logger.warning(f"Unhandled callback: {callback_data} from user {query.from_user.id}")
+        callback_data = callback_query.data
+        user_id = callback_query.from_user.id
 
-        await query.edit_message_text(
-            "⚠️ **Feature Not Available**\n\n"
-            f"The requested feature `{callback_data}` is currently not available or under development.\n\n"
-            "Please try again later or contact support if this issue persists.",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
-            ])
+        logger.warning(f"Unhandled callback: {callback_data} from user {user_id}")
+
+        # Check if it's a common pattern that might be expected
+        if any(pattern in callback_data for pattern in ['back', 'close', 'cancel', 'home']):
+            await callback_query.answer("🔄 Returning to main menu...")
+            # Try to edit message to show start menu
+            try:
+                from bot.plugins.start_handler import get_start_message, get_start_keyboard
+                message_text, keyboard = await get_start_message(client, callback_query.from_user)
+                await callback_query.edit_message_text(message_text, reply_markup=keyboard)
+                return
+            except Exception:
+                pass
+
+        # Send a user-friendly response for unknown callbacks
+        await callback_query.answer(
+            "⚠️ This action is no longer available or was not recognized.",
+            show_alert=True
         )
 
     except Exception as e:
-        logger.error(f"Error handling unhandled callback {callback_data}: {e}")
-        await query.answer("❌ Feature not available", show_alert=True)
+        logger.error(f"Error in missing callbacks handler: {e}")
+        try:
+            await callback_query.answer("❌ An error occurred. Please try again.")
+        except Exception:
+            pass
+
+@Client.on_callback_query(filters.regex(r"^(help_|about_)"), group=1)
+async def handle_info_callbacks(client: Client, callback_query: CallbackQuery):
+    """Handle help and about callbacks that might be missing"""
+    try:
+        callback_data = callback_query.data
+
+        if callback_data.startswith('help_'):
+            await callback_query.answer("💡 Help information")
+            help_text = (
+                "🤖 **Bot Help**\n\n"
+                "This bot provides file sharing capabilities.\n\n"
+                "**Available Commands:**\n"
+                "• `/start` - Start the bot\n"
+                "• `/help` - Show this help\n"
+                "• `/about` - About this bot\n\n"
+                "**Features:**\n"
+                "• Random file access\n"
+                "• File search\n"
+                "• Premium subscriptions\n"
+                "• Clone bot creation"
+            )
+            await callback_query.edit_message_text(help_text)
+
+        elif callback_data.startswith('about_'):
+            await callback_query.answer("ℹ️ About information")
+            about_text = (
+                "🤖 **About This Bot**\n\n"
+                "This bot is powered by the Mother Bot System - "
+                "an advanced file-sharing platform.\n\n"
+                "**Features:**\n"
+                "• Fast & reliable file sharing\n"
+                "• Advanced search capabilities\n"
+                "• Premium subscriptions\n"
+                "• Clone bot creation\n\n"
+                "**Made by Mother Bot System**\n"
+                "Professional bot hosting & management solutions."
+            )
+            await callback_query.edit_message_text(about_text)
+
+    except Exception as e:
+        logger.error(f"Error in info callbacks handler: {e}")
+        await callback_query.answer("❌ Error loading information")

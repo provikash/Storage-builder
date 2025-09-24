@@ -214,6 +214,75 @@ async def keyboard_random_handler(client: Client, message: Message):
         print(f"Traceback: {traceback.format_exc()}")
         await message.reply_text("❌ An error occurred. Please try again.")
 
+async def handle_random_files_direct(client: Client, message: Message, is_callback: bool = False):
+    """Direct handler for random files without command limit checking"""
+    try:
+        print(f"DEBUG: handle_random_files_direct called for user {message.from_user.id}")
+
+        # Get bot token to identify which clone this is
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # Fetch random files from database
+        random_files = await get_random_files(bot_token, limit=10)
+        
+        if not random_files:
+            await message.reply_text(
+                "📂 **No Files Found**\n\n"
+                "No files are currently available in the database.\n"
+                "Please check back later or contact the admin."
+            )
+            return
+
+        # Create buttons for the files
+        buttons = []
+        for i, file_data in enumerate(random_files[:5], 1):  # Show max 5 files
+            file_name = file_data.get('filename', 'Unknown File')
+            file_size = get_readable_file_size(file_data.get('file_size', 0))
+            file_id = file_data.get('file_id')
+            
+            # Truncate long filenames for button display
+            display_name = file_name[:30] + "..." if len(file_name) > 30 else file_name
+            
+            button_text = f"📄 {display_name} ({file_size})"
+            callback_data = f"file_{file_id}"
+            
+            buttons.append([InlineKeyboardButton(button_text, callback_data=callback_data)])
+
+        # Add refresh button
+        buttons.append([
+            InlineKeyboardButton("🔄 Get More Random Files", callback_data="rand_new")
+        ])
+
+        reply_markup = InlineKeyboardMarkup(buttons)
+
+        # Send response
+        response_text = (
+            "🎲 **Random Files**\n\n"
+            f"Found {len(random_files)} random files. Select one to download:\n\n"
+            "💡 Use the refresh button to get different files!"
+        )
+
+        if is_callback:
+            try:
+                await message.edit_text(response_text, reply_markup=reply_markup)
+            except Exception:
+                await message.reply_text(response_text, reply_markup=reply_markup)
+        else:
+            await message.reply_text(response_text, reply_markup=reply_markup)
+
+    except Exception as e:
+        print(f"ERROR in handle_random_files_direct: {e}")
+        print(f"Traceback: {traceback.format_exc()}")
+        error_text = "❌ An error occurred while fetching random files. Please try again."
+        
+        if is_callback:
+            try:
+                await message.edit_text(error_text)
+            except Exception:
+                await message.reply_text(error_text)
+        else:
+            await message.reply_text(error_text)
+
 @Client.on_message(filters.private & filters.text & filters.regex(r"^🆕 Recent Added$"))
 async def keyboard_recent_handler(client: Client, message: Message):
     """Handle Recent Added button press from custom keyboard"""
