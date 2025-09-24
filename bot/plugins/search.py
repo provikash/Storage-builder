@@ -50,9 +50,25 @@ async def check_feature_enabled(client: Client, feature_name: str) -> bool:
 
 @Client.on_message(filters.command("rand") & filters.private)
 async def random_command(client: Client, message: Message):
-    """Handle random command to show 5 random files"""
+    """Handle /rand command for clone bots only"""
     try:
         print(f"DEBUG: /rand command received from user {message.from_user.id}")
+
+        # Check if this is a clone bot
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        is_clone = bot_token != Config.BOT_TOKEN
+
+        if not is_clone:
+            await message.reply_text(
+                "🤖 **File Features Not Available Here**\n\n"
+                "The `/rand` command is only available in **clone bots**, not in the mother bot.\n\n"
+                "🔧 **How to access file features:**\n"
+                "1. Create your personal clone bot with `/createclone`\n"
+                "2. Use your clone bot to access random files\n\n"
+                "💡 **Why use clones?**\n"
+                "Clone bots provide dedicated file sharing while keeping the mother bot clean."
+            )
+            return
 
         # Check force subscription first
         if await handle_force_sub(client, message):
@@ -65,29 +81,28 @@ async def random_command(client: Client, message: Message):
 
         user_id = message.from_user.id
 
-        # Check command limit and use command if allowed
-        if not await use_command(user_id, client):
-            needs_verification, remaining = await check_command_limit(user_id, client)
+        # Check command limit first
+        needs_verification, remaining = await check_command_limit(user_id, client)
 
+        if needs_verification:
             # Get verification mode for appropriate message
             token_settings = await TokenVerificationManager.get_clone_token_settings(client)
             verification_mode = token_settings.get('verification_mode', 'command_limit')
 
-            # Create verification button
-            buttons = InlineKeyboardMarkup([
+            buttons = [
                 [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
-            ])
+            ]
 
-            if verification_mode == 'time_based':
-                duration = token_settings.get('time_duration', 24)
+            if verification_mode == 'token_required':
                 message_text = (
-                    f"⚠️ **Verification Required!**\n\n"
-                    f"🕐 **Time-Based Access:** Get {duration} hours of unlimited commands!\n\n"
-                    f"🔓 **Get instant access by:**\n"
-                    f"• Getting a verification token ({duration}h unlimited access)\n"
-                    f"• Upgrading to Premium (permanent unlimited access)\n\n"
-                    f"💡 Premium users get unlimited access without verification!"
+                    f"🔐 **Access Token Required!**\n\n"
+                    f"This bot requires token verification to use commands.\n\n"
+                    f"🎯 **Get your token to unlock:**\n"
+                    f"• Random files feature\n"
+                    f"• Search functionality\n"
+                    f"• File downloads\n\n"
+                    f"💡 **Premium users don't need verification!"
                 )
             else:
                 command_limit = token_settings.get('command_limit', 3)
@@ -100,9 +115,23 @@ async def random_command(client: Client, message: Message):
                     f"💡 Premium users get unlimited access without verification!"
                 )
 
-            await message.reply_text(message_text, reply_markup=buttons)
+            await message.reply_text(message_text, reply_markup=InlineKeyboardMarkup(buttons))
             return
+
+        # Use command (this will handle admin/premium logic internally)
+        if not await use_command(user_id, client):
+            buttons = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔐 Get Access Token", callback_data="get_token")],
+                [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
+            ])
+            await message.reply_text(
+                "🔐 **Command Limit Reached!**\n\nYou've used all your free commands. Please verify to get 3 more commands or upgrade to Premium for unlimited access!",
+                reply_markup=buttons
+            )
+            return
+
         await handle_random_files(client, message, is_callback=False, skip_command_check=True)
+
     except Exception as cmd_error:
         print(f"ERROR: /rand command failed: {cmd_error}")
         try:
@@ -504,12 +533,12 @@ async def random_callback(client: Client, callback_query: CallbackQuery):
         except Exception as answer_error:
             print(f"ERROR: Could not send callback answer: {answer_error}")
 
-async def handle_random_files(client: Client, message, is_callback: bool = False, skip_command_check: bool = False):
-    """Handle random files request for both mother bot and clone bots"""
+async def handle_random_files(client: Client, message, is_callback=True, skip_command_check=False):
+    """Handle random files display for clone bot"""
     try:
-        print(f"DEBUG: handle_random_files called for user {message.from_user.id}")
+        print(f"DEBUG: handle_random_files called for user {message.from_user.id if hasattr(message, 'from_user') else 'unknown'}")
 
-        # Get bot token and determine if this is a clone
+        # Get bot information
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         bot_id = bot_token.split(':')[0] if ':' in bot_token else bot_token
         is_clone = bot_token != Config.BOT_TOKEN
@@ -569,12 +598,25 @@ async def handle_random_files(client: Client, message, is_callback: bool = False
 
         reply_markup = InlineKeyboardMarkup(buttons)
 
-        await message.reply_text(text, reply_markup=reply_markup)
+        if is_callback and hasattr(message, 'edit_message_text'):
+            await message.edit_message_text(text, reply_markup=reply_markup)
+        else:
+            await message.reply_text(text, reply_markup=reply_markup)
 
-    except Exception as main_error:
-        print(f"ERROR in handle_random_files: {main_error}")
+    except Exception as e:
+        print(f"ERROR in handle_random_files: {e}")
+        import traceback
         print(f"Traceback: {traceback.format_exc()}")
-        await message.reply_text("❌ An error occurred while fetching random files. Please try again.")
+
+        error_text = "❌ An error occurred while fetching random files. Please try again."
+
+        if is_callback and hasattr(message, 'edit_message_text'):
+            try:
+                await message.edit_message_text(error_text)
+            except:
+                await message.answer("❌ Error occurred", show_alert=True)
+        else:
+            await message.reply_text(error_text)
 
 async def show_popular_files(client: Client, callback_query: CallbackQuery):
     """Show popular files"""
@@ -1421,6 +1463,7 @@ async def recent_files_command(client: Client, message: Message):
     except Exception as e:
         print(f"Error in recent_files_command: {e}")
         await message.reply_text(f"❌ Error: {str(e)}")
+
 # Mother bot redirection for file commands
 @Client.on_message(filters.command(["rand", "random", "recent", "popular", "search"]) & filters.private)
 async def redirect_file_commands(client: Client, message: Message):
@@ -1484,6 +1527,7 @@ async def redirect_keyboard_handlers(client: Client, message: Message):
             [InlineKeyboardButton("🚀 Create Clone Bot", callback_data="start_clone_creation")]
         ])
         await message.reply_text(text, reply_markup=buttons)
+
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.logging import LOGGER
@@ -1511,7 +1555,7 @@ async def search_command(client: Client, message: Message):
         logger.error(f"Error in search command: {e}")
         await message.reply_text("❌ Search error occurred. Please try again.")
 
-async def handle_random_files(client, message, is_callback=False, skip_command_check=False):
+async def handle_random_files(client, message, is_callback=True, skip_command_check=False):
     """Handle random files request"""
     try:
         text = "🎲 **Random Files**\n\n"
