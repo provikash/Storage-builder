@@ -173,7 +173,7 @@ class HealthChecker:
         """Check database connectivity with enhanced error detection"""
         from bot.logging import get_context_logger
 
-        context_logger = get_context_logger(__name__).add_context(check_type="database")
+        context_logger = logger
         start_time = time.time()
 
         try:

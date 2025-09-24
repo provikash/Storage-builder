@@ -63,5 +63,9 @@ args = "export DATABASE_URI=\"$DATABASE_URL\" && python3 main.py"
 localPort = 5000
 externalPort = 80
 
+[[ports]]
+localPort = 44679
+externalPort = 3000
+
 [agent]
 expertMode = true

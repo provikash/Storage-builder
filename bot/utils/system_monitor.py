@@ -49,7 +49,7 @@ class SystemMonitor:
         from bot.utils.error_handler import safe_execute_async, ErrorRecoveryConfig
         # from bot.logging import get_context_logger # This line is removed due to the fix
 
-        context_logger = LOGGER(__name__).add_context(operation="collect_metrics")
+        context_logger = logger
 
         try:
             timestamp = time.time()
