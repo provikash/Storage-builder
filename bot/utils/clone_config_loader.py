@@ -188,7 +188,10 @@ class CloneConfigLoader:
             "auto_delete": True,
             "batch_links": True,
             "statistics": True,
-            "force_subscription": True
+            "force_subscription": True,
+            "random_mode": True,
+            "recent_mode": True,
+            "popular_mode": True
         }
 
     def _get_default_token_settings(self):

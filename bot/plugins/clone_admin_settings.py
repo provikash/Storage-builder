@@ -252,7 +252,8 @@ async def clone_settings_command(client: Client, message):
     text += f"• 🆕 Recent Files: {'✅ Enabled' if show_recent else '❌ Disabled'}\n"
     text += f"• 🔥 Popular Files: {'✅ Enabled' if show_popular else '❌ Disabled'}\n"
     text += f"• 🔐 Force Join: {'✅ Enabled' if force_join else '❌ Disabled'}\n\n"
-    text += f"⚡ **Quick Actions:**"
+    text += f"⚡ **Quick Actions:**\n"
+    text += f"💡 *Random files are enabled by default. Toggle to disable if needed.*"
 
     buttons = InlineKeyboardMarkup([
         [

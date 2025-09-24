@@ -47,7 +47,7 @@ async def check_clone_feature_enabled(client: Client, feature_name: str):
         }
         
         db_field = feature_mapping.get(feature_name, feature_name)
-        is_enabled = clone_data.get(db_field, False)
+        is_enabled = clone_data.get(db_field, True)  # Default to True
         
         logger.info(f"Feature check for {feature_name} (db_field: {db_field}): {is_enabled}")
         return is_enabled

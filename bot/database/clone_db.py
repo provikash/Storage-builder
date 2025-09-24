@@ -67,7 +67,10 @@ async def create_clone_with_db(bot_token, admin_id, db_url):
             "db_name": f"clone_{me.id}",
             "created_at": datetime.now(),
             "status": "pending_payment",
-            "last_seen": datetime.now()
+            "last_seen": datetime.now(),
+            "random_mode": True,
+            "recent_mode": True,
+            "popular_mode": True
         }
 
         await clones_collection.update_one(
@@ -127,7 +130,10 @@ async def create_clone_config(clone_id: str):
             "help_message": "",
             "about_message": ""
         },
-        "updated_at": datetime.now()
+        "updated_at": datetime.now(),
+        "random_mode": True,
+        "recent_mode": True,
+        "popular_mode": True
     }
 
     await clone_configs_collection.update_one(

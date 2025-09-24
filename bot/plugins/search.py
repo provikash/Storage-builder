@@ -34,11 +34,14 @@ async def check_feature_enabled(client: Client, feature_name: str) -> bool:
         clone_data = await get_clone_by_bot_token(bot_token)
 
         if not clone_data:
-            print(f"WARNING: Clone data not found for bot token {bot_token}. Assuming feature '{feature_name}' is enabled for clone.")
+            print(f"WARNING: Clone data not found for bot token {bot_token}. Defaulting feature '{feature_name}' to enabled for clone.")
             return True  # Default to enabled for clone bots
 
         # Return the enabled status of the feature, default to True if not specified
-        return clone_data.get(f'{feature_name}_mode', True)
+        feature_key = f'{feature_name}_mode'
+        is_enabled = clone_data.get(feature_key, True)  # Default to True
+        print(f"DEBUG: Feature check for {feature_name} (key: {feature_key}): {is_enabled}")
+        return is_enabled
     except Exception as e:
         print(f"Error checking feature {feature_name}: {e}")
         return True  # Default to enabled on error for clone bots
