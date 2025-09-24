@@ -2,7 +2,7 @@
 Main callback query router - simplified and focused
 """
 from pyrogram import Client, filters
-from pyrogram.types import CallbackQuery
+from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from bot.utils.callback_error_handler import safe_callback_handler
 from bot.logging import LOGGER
 from info import Config
@@ -97,6 +97,31 @@ async def handle_file_browsing(client: Client, query: CallbackQuery):
             return
         
         # Check if feature is enabled
+        feature_map = {
+            'random_files': 'random_mode',
+            'recent_files': 'recent_mode', 
+            'popular_files': 'popular_mode'
+        }
+        
+        feature_key = feature_map.get(callback_data)
+        if feature_key and not clone_data.get(feature_key, False):
+            await query.edit_message_text(f"❌ {callback_data.replace('_', ' ').title()} feature is disabled.")
+            return
+        
+        # Route to appropriate handler
+        if callback_data == "random_files":
+            from bot.plugins.clone_random_files import handle_clone_random_files
+            await handle_clone_random_files(client, query)
+        elif callback_data == "recent_files":
+            from bot.plugins.clone_random_files import handle_clone_recent_files
+            await handle_clone_recent_files(client, query)
+        elif callback_data == "popular_files":
+            from bot.plugins.clone_random_files import handle_clone_popular_files
+            await handle_clone_popular_files(client, query)
+            
+    except Exception as e:
+        logger.error(f"Error in file browsing: {e}")
+        await query.edit_message_text("❌ Error accessing files. Please try again.")
 
 # Toggle settings handlers
 @Client.on_callback_query(filters.regex(r"^toggle_(random|recent|popular)$"), group=-3)

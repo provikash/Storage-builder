@@ -1,4 +1,3 @@
-
 import os
 import asyncio
 import hashlib
@@ -16,19 +15,19 @@ logger = LOGGER(__name__)
 
 class FileManager:
     """Enhanced file management system with security and optimization"""
-    
+
     def __init__(self):
         self.storage_path = Config.STORAGE_PATH
         self.temp_path = Config.TEMP_PATH
         self.max_file_size = Config.MAX_FILE_SIZE * 1024 * 1024  # Convert MB to bytes
         self.active_downloads = {}
         self.file_cache = {}
-        
+
     async def validate_file(self, message: Message) -> Tuple[bool, str]:
         """Validate file before processing"""
         if not message.document and not message.photo and not message.video and not message.audio:
             return False, "No file found in message"
-        
+
         # Get file info
         file_info = None
         if message.document:
@@ -39,25 +38,25 @@ class FileManager:
             file_info = message.video
         elif message.audio:
             file_info = message.audio
-        
+
         # Check file size
         if hasattr(file_info, 'file_size') and file_info.file_size:
             if file_info.file_size > self.max_file_size:
                 return False, f"File too large. Maximum size: {Config.MAX_FILE_SIZE}MB"
-        
+
         # Check file name
         filename = getattr(file_info, 'file_name', 'unknown')
         if not security_manager.validate_file_path(filename):
             return False, "Invalid file type or dangerous filename"
-        
+
         return True, "File validation passed"
-    
+
     async def generate_file_id(self, file_content: bytes) -> str:
         """Generate unique file ID based on content hash"""
         hasher = hashlib.sha256()
         hasher.update(file_content)
         return hasher.hexdigest()[:16]
-    
+
     async def store_file(self, message: Message, user_id: int) -> Optional[Dict]:
         """Store file with metadata"""
         try:
@@ -66,27 +65,27 @@ class FileManager:
             if not is_valid:
                 logger.error(f"File validation failed: {validation_msg}")
                 return None
-            
+
             # Download file
             file_path = await self.download_file(message)
             if not file_path:
                 return None
-            
+
             # Read file content for ID generation
             async with aiofiles.open(file_path, 'rb') as f:
                 file_content = await f.read()
-            
+
             file_id = await self.generate_file_id(file_content)
-            
+
             # Get file info
             file_info = self.get_file_info(message)
-            
+
             # Create storage path
             storage_file_path = self.storage_path / f"{file_id}_{file_info['filename']}"
-            
+
             # Move file to storage
             os.rename(file_path, storage_file_path)
-            
+
             # Create file metadata
             metadata = {
                 'file_id': file_id,
@@ -103,34 +102,34 @@ class FileManager:
                 'description': message.caption or '',
                 'is_public': False
             }
-            
+
             logger.info(f"File stored successfully: {file_id}")
             return metadata
-            
+
         except Exception as e:
             logger.error(f"Error storing file: {e}")
             return None
-    
+
     async def download_file(self, message: Message) -> Optional[str]:
         """Download file from Telegram"""
         try:
             # Generate temporary file path
             temp_filename = f"temp_{message.id}_{int(datetime.now().timestamp())}"
             temp_file_path = self.temp_path / temp_filename
-            
+
             # Download file
             downloaded_file = await message.download(file_name=str(temp_file_path))
-            
+
             if downloaded_file:
                 logger.info(f"File downloaded: {downloaded_file}")
                 return downloaded_file
-            
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error downloading file: {e}")
             return None
-    
+
     def get_file_info(self, message: Message) -> Dict:
         """Extract file information from message"""
         file_info = {
@@ -138,7 +137,7 @@ class FileManager:
             'file_size': 0,
             'mime_type': 'application/octet-stream'
         }
-        
+
         if message.document:
             file_info['filename'] = message.document.file_name or 'document'
             file_info['file_size'] = message.document.file_size or 0
@@ -155,12 +154,12 @@ class FileManager:
             file_info['filename'] = message.audio.file_name or f"audio_{message.audio.file_id}.mp3"
             file_info['file_size'] = message.audio.file_size or 0
             file_info['mime_type'] = message.audio.mime_type or 'audio/mpeg'
-        
+
         # Sanitize filename
         file_info['filename'] = security_manager.sanitize_filename(file_info['filename'])
-        
+
         return file_info
-    
+
     async def get_file_path(self, file_id: str) -> Optional[Path]:
         """Get file path by file ID"""
         try:
@@ -172,7 +171,7 @@ class FileManager:
         except Exception as e:
             logger.error(f"Error getting file path: {e}")
             return None
-    
+
     async def delete_file(self, file_id: str) -> bool:
         """Delete file from storage"""
         try:
@@ -185,7 +184,7 @@ class FileManager:
         except Exception as e:
             logger.error(f"Error deleting file: {e}")
             return False
-    
+
     async def cleanup_temp_files(self):
         """Clean up temporary files older than 1 hour"""
         try:
@@ -200,20 +199,34 @@ class FileManager:
                     logger.warning(f"Error cleaning temp file {temp_file.name}: {e}")
         except Exception as e:
             logger.error(f"Error during temp file cleanup: {e}")
-    
+
     async def get_storage_stats(self) -> Dict:
         """Get storage statistics"""
         try:
+            from pathlib import Path
+            import os
+
+            # Ensure storage_path is a Path object
+            if isinstance(self.storage_path, str):
+                storage_path = Path(self.storage_path)
+            else:
+                storage_path = self.storage_path
+
+            total_files = 0
             total_size = 0
-            file_count = 0
-            
-            for file_path in self.storage_path.rglob("*"):
-                if file_path.is_file():
-                    total_size += file_path.stat().st_size
-                    file_count += 1
-            
+
+            if storage_path.exists():
+                for file_path in storage_path.rglob('*'):
+                    if file_path.is_file():
+                        total_files += 1
+                        try:
+                            total_size += file_path.stat().st_size
+                        except (OSError, FileNotFoundError):
+                            # Skip files that can't be accessed
+                            continue
+
             return {
-                'total_files': file_count,
+                'total_files': total_files,
                 'total_size_bytes': total_size,
                 'total_size_mb': round(total_size / (1024 * 1024), 2),
                 'storage_path': str(self.storage_path)
