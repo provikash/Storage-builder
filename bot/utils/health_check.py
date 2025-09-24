@@ -170,36 +170,54 @@ class HealthChecker:
             return {'status': 'critical', 'error': str(e)}
 
     async def check_database(self) -> Dict[str, Any]:
-        """Check database connectivity with enhanced error detection"""
-        from bot.logging import get_context_logger
-
-        context_logger = logger
-        start_time = time.time()
-
+        """Check database connectivity and performance"""
         try:
-            # Test database connection
-            from bot.database.connection import db
-            if db is not None:
-                # Try a simple operation - correct method call
-                try:
-                    result = await db.command("ping")
-                    return {
-                        'status': 'healthy',
-                        'connected': True,
-                        'response_time': time.time() - start_time
-                    }
-                except Exception as ping_error:
-                    raise Exception(f"Database ping failed: {ping_error}")
+            start_time = time.time()
+
+            # Simple ping to database with timeout
+            from bot.database.connection import get_database
+            db = await get_database()
+
+            # Try to run a simple query with timeout
+            try:
+                await asyncio.wait_for(db.list_collection_names(), timeout=10.0)
+            except asyncio.TimeoutError:
+                return {
+                    'status': 'unhealthy',
+                    'connected': False,
+                    'error': 'Database query timeout (>10s)'
+                }
+
+            response_time = time.time() - start_time
+
+            if response_time > 5.0:
+                return {
+                    'status': 'degraded',
+                    'connected': True,
+                    'response_time': response_time,
+                    'warning': 'Slow database response'
+                }
+            elif response_time > 2.0:
+                return {
+                    'status': 'degraded',
+                    'connected': True,
+                    'response_time': response_time,
+                    'warning': 'Moderate database response time'
+                }
             else:
-                raise Exception("Database connection is None")
+                return {
+                    'status': 'healthy',
+                    'connected': True,
+                    'response_time': response_time
+                }
+
         except Exception as e:
-            error_msg = str(e)
-            context_logger.error("Database health check exception", error=error_msg, error_type=type(e).__name__)
+            logger.error(f"Database health check failed: {e}")
             return {
-                'status': 'critical',
+                'status': 'unhealthy',
                 'connected': False,
-                'error': error_msg,
-                'error_type': type(e).__name__
+                'error': str(e),
+                'response_time': 0
             }
 
     async def check_clone_system(self) -> Dict[str, Any]:

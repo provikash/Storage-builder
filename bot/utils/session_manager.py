@@ -102,7 +102,13 @@ async def session_expired(user_id: int) -> bool:
 
         if not expires_at:
             print(f"❌ DEBUG SESSION: No expiry time found for user {user_id} - considered expired")
+            # Clean up corrupted session
+            await clear_session(user_id)
             return True
+
+        # Handle timezone-aware comparison
+        if hasattr(expires_at, 'tzinfo') and expires_at.tzinfo is not None:
+            current_time = current_time.replace(tzinfo=expires_at.tzinfo)
 
         is_expired = current_time > expires_at
 
@@ -111,11 +117,18 @@ async def session_expired(user_id: int) -> bool:
         print(f"   Expires at: {expires_at}")
         print(f"   Is expired: {is_expired}")
 
+        # Auto-cleanup expired sessions
+        if is_expired:
+            print(f"🧹 DEBUG SESSION: Auto-cleaning expired session for user {user_id}")
+            await clear_session(user_id)
+
         return is_expired
 
     except Exception as e:
         print(f"❌ DEBUG SESSION: Error checking session expiry for user {user_id}: {e}")
         logger.error(f"Error checking session expiry for user {user_id}: {e}")
+        # Clear problematic session
+        await clear_session(user_id)
         return True
 
 async def update_session_activity(user_id: int) -> bool:
