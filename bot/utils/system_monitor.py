@@ -55,24 +55,13 @@ class SystemMonitor:
             timestamp = time.time()
 
             # CPU metrics with fallback - reduced interval to lower CPU usage
-            async def get_cpu_metrics():
+            try:
                 cpu_percent = psutil.cpu_percent(interval=0.1)  # Reduced from 1 second
                 cpu_count = psutil.cpu_count()
                 load_avg = psutil.getloadavg() if hasattr(psutil, 'getloadavg') else (0, 0, 0)
-                return cpu_percent, cpu_count, load_avg
-
-            cpu_data = safe_execute_async(
-                get_cpu_metrics,
-                config=ErrorRecoveryConfig(
-                    max_retries=2,
-                    retry_delay=0.5,
-                    fallback_value=(0, 1, (0, 0, 0)),
-                    log_errors=True
-                ),
-                context={"metric_type": "cpu"}
-            )
-
-            cpu_percent, cpu_count, load_avg = cpu_data
+            except Exception as e:
+                logger.error(f"Error getting CPU metrics: {e}")
+                cpu_percent, cpu_count, load_avg = 0, 1, (0, 0, 0)
 
             # Memory metrics
             memory = psutil.virtual_memory()

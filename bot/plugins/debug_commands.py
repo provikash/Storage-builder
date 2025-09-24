@@ -1,4 +1,3 @@
-
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from info import Config
@@ -74,10 +73,10 @@ async def debug_premium_command(client: Client, message: Message):
 
 # Removed duplicate help command handler to prevent conflicts with start_handler.py
 # The help command is properly handled in start_handler.pylp command for user {user_id}: {e}")
-        await message.reply_text(f"❌ Help command error: {e}")
+# await message.reply_text(f"❌ Help command error: {e}")
 
 # Add debug message for all unhandled commands
-@Client.on_message(filters.command("*") & filters.private)
+@Client.on_message(filters.command(["debug", "test", "status"]))
 async def debug_unknown_commands(client: Client, message: Message):
     """Debug handler for unknown commands"""
     user_id = message.from_user.id

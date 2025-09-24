@@ -113,7 +113,7 @@ async def stats_command(client: Client, message: Message):
 
 @Client.on_message(filters.command("createclone") & filters.private)
 async def createclone_command(client: Client, message: Message):
-    """Handle /createclone command"""
+    """Handle /createclone"""
     try:
         from bot.plugins.step_clone_creation import start_clone_creation_callback
 
@@ -133,7 +133,7 @@ async def createclone_command(client: Client, message: Message):
 
 @Client.on_message(filters.command("deleteclone") & filters.private)
 async def deleteclone_command(client: Client, message: Message):
-    """Handle /deleteclone command"""
+    """Handle /deleteclone"""
     try:
         from bot.plugins.clone_management import delete_clone_callback
 
@@ -153,7 +153,7 @@ async def deleteclone_command(client: Client, message: Message):
 
 @Client.on_message(filters.command("clonestatus") & filters.private)
 async def clonestatus_command(client: Client, message: Message):
-    """Handle /clonestatus command"""
+    """Handle /clonestatus"""
     try:
         from bot.database.clone_db import get_user_clones
 
@@ -177,7 +177,11 @@ async def clonestatus_command(client: Client, message: Message):
         logger.error(f"Error in clonestatus command: {e}")
         await message.reply_text("❌ Error loading clone status. Please try /start")
 
-# Removed duplicate help command handler - handled in start_handler.pydler
+# Fix: Removed duplicate help command handler and its logic
+@Client.on_message(filters.command("help") & filters.private)
+async def help_command(client: Client, message: Message):
+    """Handle /help command"""
+    try:
         from bot.plugins.start_handler import help_callback
 
         # Create fake callback query
