@@ -207,7 +207,7 @@ async def keyboard_random_handler(client: Client, message: Message):
             )
             return
 
-        await handle_random_files(client, message, is_callback=False, skip_command_check=True)
+        await handle_random_files_direct(client, message, is_callback=False)
 
     except Exception as e:
         print(f"ERROR in keyboard_random_handler: {e}")
@@ -593,7 +593,7 @@ async def handle_random_files(client: Client, message, is_callback=True, skip_co
 
         # Add refresh button
         buttons.append([
-            InlineKeyboardButton("🔄 New Random Files", callback_data="get_random_files")
+            InlineKeyboardButton("🔄 New Random Files", callback_data="rand_new")
         ])
 
         reply_markup = InlineKeyboardMarkup(buttons)
