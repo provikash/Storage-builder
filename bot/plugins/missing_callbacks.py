@@ -308,6 +308,34 @@ async def handle_file_browsing_callbacks(client: Client, query: CallbackQuery):
         await query.answer("❌ An error occurred. Please try again.", show_alert=True)
 
 # Additional utility callbacks
+@Client.on_callback_query(filters.regex("^get_token$"), group=92)
+async def get_token_callback(client: Client, query: CallbackQuery):
+    """Handle get token callback"""
+    try:
+        await query.answer()
+        await query.edit_message_text(
+            "🔑 **Get Verification Token**\n\n"
+            "To get your verification token:\n"
+            "1. Use the /verify command\n"
+            "2. Complete the verification process\n"
+            "3. Use your token to access premium features\n\n"
+            "💡 **Note:** Tokens are valid for 24 hours.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
+            ])
+        )
+    except Exception as e:
+        logger.error(f"Error in get token callback: {e}")
+        await query.answer("❌ Error processing request", show_alert=True)
+
+# Close message handler
+@Client.on_callback_query(filters.regex("^close_message$"), group=97)
+async def handle_close_message(client: Client, query: CallbackQuery):
+    """Handle close message callback"""
+    try:
+        await query.message.delete()
+    except:
+        await query.edit_message_text("✅ Session closed.")
 @Client.on_callback_query(filters.regex("^(my_stats|get_token|docs|bot_stats)$"), group=92)
 async def handle_utility_callbacks(client: Client, query: CallbackQuery):
     """Handle utility callbacks"""

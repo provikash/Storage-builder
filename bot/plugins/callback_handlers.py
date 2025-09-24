@@ -34,23 +34,37 @@ async def handle_clone_settings(client: Client, query: CallbackQuery):
     logger.info(f"🎛️ CLONE SETTINGS: User {user_id} accessing settings")
     
     try:
-        from bot.plugins.clone_admin_settings import clone_settings_command
+        # Direct settings implementation
+        bot_token = getattr(client, 'bot_token', None)
+        if not bot_token:
+            await query.edit_message_text("❌ Unable to identify bot configuration.")
+            return
+            
+        # Check if user is admin
+        from bot.database.clone_db import get_clone_by_bot_token
+        clone_data = await get_clone_by_bot_token(bot_token)
         
-        # Create message proxy
-        class MessageProxy:
-            def __init__(self, query):
-                self.from_user = query.from_user
-                self.chat = query.message.chat if query.message else None
-                self.message_id = query.message.id if query.message else None
-                self._query = query
-
-            async def reply_text(self, text, reply_markup=None):
-                return await self._query.edit_message_text(text, reply_markup=reply_markup)
-
-            async def edit_message_text(self, text, reply_markup=None):
-                return await self._query.edit_message_text(text, reply_markup=reply_markup)
-
-        await clone_settings_command(client, MessageProxy(query))
+        if not clone_data or clone_data.get('admin_id') != user_id:
+            await query.edit_message_text("❌ You don't have permission to access settings.")
+            return
+            
+        # Show settings menu
+        text = "⚙️ **Clone Settings**\n\n"
+        text += "Configure your clone bot features:\n\n"
+        text += f"🎲 Random Files: {'✅' if clone_data.get('random_mode', False) else '❌'}\n"
+        text += f"🆕 Recent Files: {'✅' if clone_data.get('recent_mode', False) else '❌'}\n" 
+        text += f"🔥 Popular Files: {'✅' if clone_data.get('popular_mode', False) else '❌'}\n"
+        
+        buttons = [
+            [
+                InlineKeyboardButton("🎲 Toggle Random", callback_data="toggle_random"),
+                InlineKeyboardButton("🆕 Toggle Recent", callback_data="toggle_recent")
+            ],
+            [InlineKeyboardButton("🔥 Toggle Popular", callback_data="toggle_popular")],
+            [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
+        ]
+        
+        await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
         
     except Exception as e:
         logger.error(f"Error in clone settings: {e}")
@@ -83,6 +97,40 @@ async def handle_file_browsing(client: Client, query: CallbackQuery):
             return
         
         # Check if feature is enabled
+
+# Toggle settings handlers
+@Client.on_callback_query(filters.regex(r"^toggle_(random|recent|popular)$"), group=-3)
+async def handle_toggle_settings(client: Client, query: CallbackQuery):
+    """Handle toggle settings"""
+    await query.answer()
+    user_id = query.from_user.id
+    setting = query.data.split("_")[1]  # random, recent, or popular
+    
+    try:
+        from bot.database.clone_db import get_clone_by_bot_token, update_clone_settings
+        
+        bot_token = getattr(client, 'bot_token', None)
+        clone_data = await get_clone_by_bot_token(bot_token)
+        
+        if not clone_data or clone_data.get('admin_id') != user_id:
+            await query.answer("❌ Unauthorized", show_alert=True)
+            return
+            
+        # Toggle the setting
+        setting_key = f"{setting}_mode"
+        current_value = clone_data.get(setting_key, False)
+        new_value = not current_value
+        
+        # Update in database
+        await update_clone_settings(bot_token, {setting_key: new_value})
+        
+        # Show updated settings
+        await handle_clone_settings(client, query)
+        
+    except Exception as e:
+        logger.error(f"Error toggling {setting}: {e}")
+        await query.answer("❌ Error updating setting", show_alert=True)
+
         feature_map = {
             'random_files': 'random_mode',
             'recent_files': 'recent_mode', 

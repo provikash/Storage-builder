@@ -80,7 +80,7 @@ class SystemMonitor:
             process_cpu = process.cpu_percent()
 
             # Get storage stats safely
-            storage_stats = await self.get_storage_stats_safe()
+            storage_stats = self.get_storage_stats_safe()
 
             # Store metrics
             cpu_metric = {
@@ -134,7 +134,7 @@ class SystemMonitor:
         except Exception as e:
             logger.error(f"Failed to collect metrics: {e}")
 
-    async def get_storage_stats_safe(self) -> Dict[str, Any]:
+    def get_storage_stats_safe(self) -> Dict[str, Any]:
         """Get storage statistics with error handling"""
         try:
             from bot.config import Config # Assuming Config is in bot.config

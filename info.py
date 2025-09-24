@@ -171,6 +171,9 @@ class Config(object):
     # Additional config variables that might be missing
     FORCE_SUB_MESSAGE = os.environ.get("FORCE_SUB_MESSAGE", "Please join our channel to use this bot.")
     START_MESSAGE = os.environ.get("START_MESSAGE", "Welcome! I'm your file sharing bot.")
+    
+    # File size limits
+    MAX_FILE_SIZE = int(os.environ.get("MAX_FILE_SIZE", "2147483648"))  # 2GB default
 
     # Validate configuration on import
     @classmethod
