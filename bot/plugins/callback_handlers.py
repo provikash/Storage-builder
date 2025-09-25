@@ -25,7 +25,7 @@ CALLBACK_PRIORITIES = {
 }
 
 # Clone Settings Button Handler
-@Client.on_callback_query(filters.regex("^clone_settings_panel$"), group=1)
+@Client.on_callback_query(filters.regex("^clone_settings_panel$"), group=-5)
 async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
     """Handle clone settings panel callback"""
     user_id = query.from_user.id
@@ -74,7 +74,7 @@ async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
         await query.edit_message_text("❌ Error loading settings panel.")
 
 # File Browsing Handlers
-@Client.on_callback_query(filters.regex(r"^(random_files|recent_files|popular_files)$"), group=3)
+@Client.on_callback_query(filters.regex(r"^(random_files|recent_files|popular_files)$"), group=-3)
 async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
     """Handle file browsing callbacks for clone bots"""
     callback_data = query.data
@@ -141,7 +141,7 @@ async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
         await query.edit_message_text("❌ An error occurred while processing your request.")
 
 # Toggle settings handlers
-@Client.on_callback_query(filters.regex(r"^toggle_(random|recent|popular)$"), group=-3)
+@Client.on_callback_query(filters.regex(r"^toggle_(random|recent|popular)$"), group=-4)
 async def handle_toggle_settings(client: Client, query: CallbackQuery):
     """Handle toggle settings"""
     await query.answer()
@@ -257,6 +257,57 @@ async def handle_about_bot(client: Client, query: CallbackQuery):
     """Handle about bot callback"""
     try:
         text = "🤖 **About This Bot**\n\n"
+
+
+# File browsing handler implementations
+async def handle_random_files(client: Client, query: CallbackQuery):
+    """Handle random files browsing"""
+    try:
+        await query.edit_message_text(
+            "🎲 **Random Files**\n\n"
+            "Here are some random files from our collection:\n\n"
+            "🔄 This feature is currently being developed.\n"
+            "Please check back later for file listings.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+    except Exception as e:
+        logger.error(f"Error in handle_random_files: {e}")
+        await query.answer("❌ Error loading random files.")
+
+async def handle_recent_files(client: Client, query: CallbackQuery):
+    """Handle recent files browsing"""
+    try:
+        await query.edit_message_text(
+            "🆕 **Recent Files**\n\n"
+            "Here are the most recently uploaded files:\n\n"
+            "🔄 This feature is currently being developed.\n"
+            "Please check back later for file listings.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+    except Exception as e:
+        logger.error(f"Error in handle_recent_files: {e}")
+        await query.answer("❌ Error loading recent files.")
+
+async def handle_popular_files(client: Client, query: CallbackQuery):
+    """Handle popular files browsing"""
+    try:
+        await query.edit_message_text(
+            "🔥 **Popular Files**\n\n"
+            "Here are the most popular downloaded files:\n\n"
+            "🔄 This feature is currently being developed.\n"
+            "Please check back later for file listings.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+    except Exception as e:
+        logger.error(f"Error in handle_popular_files: {e}")
+        await query.answer("❌ Error loading popular files.")
+
         text += "This bot is a powerful tool for managing and accessing files.\n"
         text += "It supports various features including:\n"
         text += "• File browsing (random, recent, popular)\n"

@@ -250,6 +250,12 @@ async def start_command(client: Client, message: Message):
                 }
             }
             logger.info(f"📋 Clone bot detected - Admin: {clone_data.get('admin_id')}, Token: {bot_token[:10]}...")
+            
+            # Ensure clone is marked as active if it's responding
+            if clone_data.get('status') != 'active':
+                from bot.database.clone_db import activate_clone
+                await activate_clone(clone_data.get('_id'))
+                logger.info(f"🔄 Marked clone {clone_data.get('_id')} as active")
         else:
             config = await clone_config_loader.get_bot_config(bot_token)
             if config and config.get('bot_info', {}).get('is_clone', False):
@@ -317,13 +323,14 @@ async def start_command(client: Client, message: Message):
             try:
                 clone_data = await get_clone_by_bot_token(bot_token)
                 if clone_data:
-                    show_random = clone_data.get('random_mode', False)
-                    show_recent = clone_data.get('recent_mode', False) 
-                    show_popular = clone_data.get('popular_mode', False)
+                    # Default to True if settings not explicitly set (backwards compatibility)
+                    show_random = clone_data.get('random_mode', True)
+                    show_recent = clone_data.get('recent_mode', True) 
+                    show_popular = clone_data.get('popular_mode', True)
 
                     logger.info(f"Clone {clone_data.get('bot_id')} settings for regular user in start: random={show_random}, recent={show_recent}, popular={show_popular}")
 
-                    # Only show file browsing buttons if enabled by admin
+                    # Show file browsing buttons (default to enabled if not explicitly disabled)
                     file_buttons_row = []
                     if show_random:
                         file_buttons_row.append(InlineKeyboardButton("🎲 Random Files", callback_data="random_files"))
@@ -340,8 +347,20 @@ async def start_command(client: Client, message: Message):
 
                 else:
                     logger.warning(f"No clone data found for bot_token in start: {bot_token}")
+                    # Default buttons if no clone data found
+                    buttons.append([
+                        InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                        InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+                    ])
+                    buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
             except Exception as e:
                 logger.error(f"Error getting clone settings in start: {e}")
+                # Default buttons on error
+                buttons.append([
+                    InlineKeyboardButton("🎲 Random Files", callback_data="random_files"),
+                    InlineKeyboardButton("🆕 Recent Files", callback_data="recent_files")
+                ])
+                buttons.append([InlineKeyboardButton("🔥 Most Popular", callback_data="popular_files")])
 
             # User action buttons as specified in requirements (always visible)
             buttons.append([

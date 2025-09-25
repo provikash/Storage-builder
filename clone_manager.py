@@ -184,7 +184,7 @@ class CloneManager:
         if not subscription:
             logger.warning(f"No subscription found for bot {bot_id}, allowing startup for testing")
             return True, "No subscription required for testing"
-            
+
         status = subscription['status']
         is_payment_verified = subscription.get('payment_verified', False)
         expires_at = subscription.get('expires_at')
@@ -341,26 +341,27 @@ class CloneManager:
         try:
             from bot.database.clone_db import get_all_clones, activate_clone
             all_clones = await get_all_clones()
-            
+
             if not all_clones:
                 logger.info("No clones found in database")
                 return 0, 0
-            
+
             started_count = 0
             total_count = 0
-            
+
+            # Try to start clones with these statuses (including stopped)
             for clone in all_clones:
                 bot_id = clone.get('_id')
                 status = clone.get('status', 'unknown')
                 username = clone.get('username', 'unknown')
-                
-                # Try to start clones with these statuses
-                if status in ['active', 'deactivated', 'pending']:
+
+                if status in ['active', 'deactivated', 'pending', 'stopped']:
                     total_count += 1
-                    
+
                     # First activate in database
                     await activate_clone(bot_id)
-                    
+                    logger.info(f"🔄 Activated clone {username} ({bot_id}) in database")
+
                     # Then start the clone
                     success, message = await self.start_clone(bot_id)
                     if success:
@@ -368,9 +369,11 @@ class CloneManager:
                         logger.info(f"✅ Started clone {username}: {message}")
                     else:
                         logger.error(f"❌ Failed to start clone {username}: {message}")
-            
+                else:
+                    logger.info(f"⏭️ Skipping clone {username} with status: {status}")
+
             return started_count, total_count
-            
+
         except Exception as e:
             logger.error(f"Error in start_all_clones: {e}")
             return 0, 0
