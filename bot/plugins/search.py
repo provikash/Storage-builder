@@ -77,16 +77,10 @@ async def random_command(client: Client, message: Message):
         logger.debug(f"/rand command from {message.from_user.id}")
         if not _is_clone_client(client):
             await message.reply_text(
-                "🤖 **File Features Not Available Here**
-
-"
-                "The `/rand` command is only available in **clone bots**, not in the mother bot.
-
-"
-                "🔧 **How to access file features:**
-"
-                "1. Create your personal clone bot with `/createclone`
-"
+                "🤖 **File Features Not Available Here**\n\n"
+                "The `/rand` command is only available in **clone bots**, not in the mother bot.\n\n"
+                "🔧 **How to access file features:**\n"
+                "1. Create your personal clone bot with `/createclone`\n"
                 "2. Use your clone bot to access random files"
             )
             return
@@ -109,16 +103,13 @@ async def random_command(client: Client, message: Message):
             ]
             if verification_mode == "token_required":
                 message_text = (
-                    "🔐 **Access Token Required!**
-
-This bot requires token verification to use commands."
+                    "🔐 **Access Token Required!**\n\n"
+                    "This bot requires token verification to use commands."
                 )
             else:
                 command_limit = token_settings.get("command_limit", 3)
                 message_text = (
-                    "⚠️ **Command Limit Reached!**
-
-"
+                    "⚠️ **Command Limit Reached!**\n\n"
                     f"You've used all your free commands. Get a token or upgrade to Premium!"
                 )
             await message.reply_text(message_text, reply_markup=InlineKeyboardMarkup(buttons))
@@ -131,8 +122,8 @@ This bot requires token verification to use commands."
                 [InlineKeyboardButton("💎 Remove Ads - Buy Premium", callback_data="show_premium_plans")]
             ])
             await message.reply_text(
-                "🔐 **Command Limit Reached!**
-You've used your free commands. Verify or upgrade to continue.",
+                "🔐 **Command Limit Reached!**\n"
+                "You've used your free commands. Verify or upgrade to continue.",
                 reply_markup=buttons
             )
             return
