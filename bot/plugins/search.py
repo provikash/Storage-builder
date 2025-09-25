@@ -207,14 +207,11 @@ async def handle_random_files(client: Client, message, is_callback: bool = True,
 
         if not files:
             await _safe_send_or_edit(target_msg,
-                "📂 **No Files Found**
-
-No files are currently available in the database.",
+                "📂 **No Files Found**\n\nNo files are currently available in the database.",
                 reply_markup=None, replace=False)
             return
 
-        text_lines = ["🎲 **Random Files**
-"]
+        text_lines = ["🎲 **Random Files**\n"]
         buttons = []
         for i, f in enumerate(files, start=1):
             file_name = f.get("file_name") or f.get("filename") or "Unknown File"
