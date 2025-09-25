@@ -20,9 +20,9 @@ class CloneManager:
     async def start_clone(self, bot_id: str):
         """Start a specific clone bot with enhanced error handling"""
         from bot.logging import LOGGER
-        
+
         logger = LOGGER(__name__)
-        
+
         # Simple execution tracking
         class SimpleTracker:
             def __init__(self, name):
@@ -31,21 +31,21 @@ class CloneManager:
             def add_step(self, step, data=None):
                 self.steps.append(step)
                 logger.info(f"Step: {step}")
-            def complete(self, success=True, error=None):
+            def complete(self, success=False, error=None):
                 if success:
                     logger.info(f"Completed: {self.name}")
                 else:
                     logger.error(f"Failed: {self.name} - {error}")
-        
+
         tracker = SimpleTracker(f"start_clone_{bot_id}")
-        
+
         # Prevent multiple simultaneous starts
         if bot_id in getattr(self, '_starting_clones', set()):
             return False, "Clone startup already in progress"
-        
+
         if not hasattr(self, '_starting_clones'):
             self._starting_clones = set()
-        
+
         self._starting_clones.add(bot_id)
 
         try:
@@ -66,7 +66,7 @@ class CloneManager:
             subscription = await get_subscription(bot_id)
             if not subscription:
                 error_msg = "No subscription found"
-                context_logger.error(error_msg)
+                logger.error(error_msg)
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
 
@@ -152,7 +152,7 @@ class CloneManager:
             error_msg = str(e)
             logger.error(f"❌ Unexpected error starting clone {bot_id}: {error_msg}", exc_info=True)
             tracker.complete(success=False, error=error_msg)
-            
+
             # Clean up any partial state
             if bot_id in self.active_clones:
                 try:
@@ -164,7 +164,7 @@ class CloneManager:
                     logger.debug(f"Cleaned up partial state for clone {bot_id}")
                 except Exception as cleanup_error:
                     logger.error(f"Error during cleanup for clone {bot_id}: {cleanup_error}")
-            
+
             # Return more specific error message based on error type
             if "unexpected indent" in error_msg or "await" in error_msg:
                 return False, "Python syntax error detected. Code has syntax issues that need to be fixed."
@@ -184,12 +184,12 @@ class CloneManager:
         status = subscription['status']
         is_payment_verified = subscription.get('payment_verified', False)
         expires_at = subscription.get('expires_at')
-        
+
         # Check if subscription is expired
         if expires_at and expires_at < datetime.now():
             await self._update_subscription_status(bot_id, 'expired')
             return False, "Subscription expired"
-        
+
         # Handle different subscription statuses
         if status == 'active':
             return True, "Active subscription"
@@ -204,14 +204,14 @@ class CloneManager:
             return False, f"Subscription {status}"
         else:
             return False, f"Invalid subscription status: {status}"
-    
+
     async def _validate_bot_token(self, token: str) -> bool:
         """Validate bot token format"""
         import re
         # Basic bot token format validation
         pattern = r'^\d+:[A-Za-z0-9_-]+$'
         return bool(re.match(pattern, token))
-    
+
     async def _create_clone_client(self, bot_id: str, bot_token: str) -> Optional[Client]:
         """Create clone client with proper configuration"""
         try:
@@ -242,7 +242,7 @@ class CloneManager:
         except Exception as e:
             logger.error(f"Error creating clone client {bot_id}: {e}")
             return None
-    
+
     async def _start_clone_client(self, client: Client, bot_id: str, max_retries: int = 3) -> bool:
         """Start clone client with retry logic"""
         for attempt in range(max_retries):
@@ -251,7 +251,7 @@ class CloneManager:
                 if client.is_connected:
                     logger.info(f"Clone {bot_id} client already connected (attempt {attempt + 1})")
                     return True
-                
+
                 await asyncio.wait_for(client.start(), timeout=30.0)
                 return True
             except asyncio.TimeoutError:
@@ -269,30 +269,30 @@ class CloneManager:
                     return False
                 else:
                     logger.error(f"Clone {bot_id} start error (attempt {attempt + 1}/{max_retries}): {e}")
-            
+
             if attempt < max_retries - 1:
                 await asyncio.sleep(min(2 ** attempt, 10))  # Exponential backoff
-        
+
         return False
-    
+
     async def _verify_clone_health(self, bot_id: str) -> bool:
         """Verify clone is actually healthy"""
         if bot_id not in self.active_clones:
             return False
-        
+
         try:
             clone_info = self.active_clones[bot_id]
             client = clone_info['client']
-            
+
             if not client.is_connected:
                 return False
-            
+
             # Try to get bot info with timeout
             await asyncio.wait_for(client.get_me(), timeout=5.0)
             return True
         except:
             return False
-    
+
     async def _cleanup_stale_clone(self, bot_id: str):
         """Clean up stale clone entry"""
         try:
@@ -302,14 +302,14 @@ class CloneManager:
                 if client:
                     await self._safe_stop_client(client)
                 del self.active_clones[bot_id]
-            
+
             if bot_id in self.clone_tasks:
                 self.clone_tasks[bot_id].cancel()
                 del self.clone_tasks[bot_id]
-                
+
         except Exception as e:
             logger.error(f"Error cleaning up stale clone {bot_id}: {e}")
-    
+
     async def _safe_stop_client(self, client: Client):
         """Safely stop a client"""
         try:
@@ -317,26 +317,26 @@ class CloneManager:
                 await asyncio.wait_for(client.stop(), timeout=10.0)
         except:
             pass  # Ignore errors during shutdown
-    
+
     async def _handle_clone_auth_error(self, bot_id: str, error_type: str):
         """Handle authentication errors for clones"""
         try:
             # Deactivate clone
             await deactivate_clone(bot_id)
-            
+
             # Update clone status with error info
             await self._update_clone_status(bot_id, "auth_error", {
                 'error_type': error_type,
                 'error_time': datetime.now()
             })
-            
+
             # Clean up active clone
             if bot_id in self.active_clones:
                 await self._cleanup_stale_clone(bot_id)
-                
+
         except Exception as e:
             logger.error(f"Error handling auth error for clone {bot_id}: {e}")
-    
+
     async def _monitor_clone(self, bot_id: str):
         """Enhanced clone monitoring with health checks"""
         try:
@@ -356,10 +356,10 @@ class CloneManager:
                     else:
                         # Verify connection with ping
                         await asyncio.wait_for(client.get_me(), timeout=10.0)
-                    
+
                     # Update health check time
                     clone_info['last_health_check'] = datetime.now()
-                    
+
                 except asyncio.TimeoutError:
                     logger.warning(f"Health check timeout for clone {bot_id}")
                 except Exception as e:
@@ -380,7 +380,7 @@ class CloneManager:
             # Clean up on exit
             if bot_id in self.active_clones:
                 await self._cleanup_stale_clone(bot_id)
-    
+
     async def _reconnect_clone(self, client: Client, bot_id: str, max_attempts: int = 3) -> bool:
         """Attempt to reconnect a clone"""
         for attempt in range(max_attempts):
@@ -503,27 +503,61 @@ class CloneManager:
             return {'status': 'stopped'}
 
     async def start_all_clones(self):
-        """Start all active clones from database"""
+        """Start all active clones"""
         try:
             from bot.database.clone_db import get_all_clones
-            active_clones_data = await get_all_clones()
-            active_clones = [clone for clone in active_clones_data if clone.get('status') == 'active']
+            all_clones = await get_all_clones()
+
+            if not all_clones:
+                logger.info("No clones found in database")
+                return 0, 0
+
+            # Check for clones with status 'active' or 'pending_payment' with verified payment
+            startable_clones = []
+            for clone in all_clones:
+                status = clone.get('status', 'inactive')
+                if status == 'active':
+                    startable_clones.append(clone)
+                elif status == 'pending_payment':
+                    # Check if payment is verified
+                    from bot.database.subscription_db import get_subscription
+                    subscription = await get_subscription(clone['_id'])
+                    if subscription and subscription.get('payment_verified', False):
+                        startable_clones.append(clone)
+                        logger.info(f"Clone {clone['_id']} has verified payment, starting...")
+
+            if not startable_clones:
+                logger.info("No startable clones found")
+                # Check what clones exist for debugging
+                for clone in all_clones:
+                    logger.debug(f"Clone {clone['_id']}: status={clone.get('status', 'unknown')}, username={clone.get('username', 'unknown')}")
+                return 0, 0
+
+            logger.info(f"Starting {len(startable_clones)} startable clones...")
+
             started_count = 0
 
-            for clone_data in active_clones:
-                bot_id = clone_data['_id']
-                success, message = await self.start_clone(bot_id)
-                if success:
-                    started_count += 1
-                    logger.info(f"✅ Started clone {bot_id}")
-                else:
-                    logger.error(f"❌ Failed to start clone {bot_id}: {message}")
+            for clone in startable_clones:
+                try:
+                    success, message = await self.start_clone(clone['_id'])
+                    if success:
+                        started_count += 1
+                        logger.info(f"✅ Started clone {clone['_id']}: {message}")
+                    else:
+                        logger.warning(f"❌ Failed to start clone {clone['_id']}: {message}")
 
-            logger.info(f"🚀 Started {started_count}/{len(active_clones)} clones")
-            return started_count, len(active_clones)
+                    # Small delay between starts to prevent overwhelming
+                    await asyncio.sleep(2)
+
+                except Exception as e:
+                    logger.error(f"Error starting clone {clone['_id']}: {e}")
+                    continue
+
+            logger.info(f"🚀 Started {started_count}/{len(startable_clones)} clones")
+            return started_count, len(startable_clones)
 
         except Exception as e:
-            logger.error(f"❌ Error starting all clones: {e}")
+            logger.error(f"Error in start_all_clones: {e}")
             return 0, 0
 
     async def start_all_active_clones(self):

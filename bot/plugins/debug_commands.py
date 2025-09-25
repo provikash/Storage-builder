@@ -91,3 +91,73 @@ async def debug_unknown_commands(client: Client, message: Message):
     print(f"❓ DEBUG COMMAND: Unknown command '/{command}' from user {user_id}")
     print(f"👤 DEBUG COMMAND: User details - ID: {user_id}, Username: @{message.from_user.username}")
     print(f"📝 DEBUG COMMAND: Full text: '{message.text}'")
+
+
+@Client.on_message(filters.command("debugclones") & filters.private)
+async def debug_clones_command(client: Client, message: Message):
+    """Debug command to check clone status"""
+    user_id = message.from_user.id
+    
+    if user_id not in Config.ADMINS:
+        return await message.reply_text("❌ Only admins can use this command.")
+    
+    try:
+        from bot.database.clone_db import get_all_clones
+        all_clones = await get_all_clones()
+        
+        if not all_clones:
+            await message.reply_text("❌ No clones found in database.")
+            return
+        
+        text = "🤖 **Clone Database Status:**\n\n"
+        for clone in all_clones:
+            bot_id = clone.get('_id', 'Unknown')
+            username = clone.get('username', 'Unknown')
+            status = clone.get('status', 'Unknown')
+            admin_id = clone.get('admin_id', 'Unknown')
+            
+            text += f"🤖 **{username}** (`{bot_id}`)\n"
+            text += f"   Status: {status}\n"
+            text += f"   Admin: {admin_id}\n\n"
+        
+        await message.reply_text(text)
+        
+    except Exception as e:
+        await message.reply_text(f"❌ Error checking clones: {e}")
+
+
+
+@Client.on_message(filters.command("activateclone") & filters.private)
+async def activate_clone_command(client: Client, message: Message):
+    """Activate a clone bot"""
+    user_id = message.from_user.id
+    
+    if user_id not in Config.ADMINS:
+        return await message.reply_text("❌ Only admins can use this command.")
+    
+    if len(message.command) < 2:
+        return await message.reply_text("❌ Usage: `/activateclone <bot_id>`")
+    
+    bot_id = message.command[1]
+    
+    try:
+        from bot.database.clone_db import get_clone, activate_clone
+        from clone_manager import clone_manager
+        
+        clone = await get_clone(bot_id)
+        if not clone:
+            return await message.reply_text(f"❌ Clone {bot_id} not found.")
+        
+        # Activate in database
+        await activate_clone(bot_id)
+        
+        # Start the clone
+        success, msg = await clone_manager.start_clone(bot_id)
+        
+        if success:
+            await message.reply_text(f"✅ Clone {bot_id} activated and started: {msg}")
+        else:
+            await message.reply_text(f"⚠️ Clone {bot_id} activated in DB but failed to start: {msg}")
+            
+    except Exception as e:
+        await message.reply_text(f"❌ Error activating clone: {e}")
