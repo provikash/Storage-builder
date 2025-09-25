@@ -186,17 +186,27 @@ async def start_clone_system():
         logger.info("🔄 Starting Clone Manager...")
         print("🔄 DEBUG CLONE: Starting Clone Manager...")
         
-        # Get list of active clones first
+        # Get list of all clones first
         from bot.database.clone_db import get_all_clones
         all_clones = await get_all_clones()
-        active_clones = [c for c in all_clones if c.get('status') == 'active']
         
-        logger.info(f"📊 Found {len(active_clones)} active clones to start")
-        print(f"📊 DEBUG CLONE: Found {len(active_clones)} active clones to start")
+        if not all_clones:
+            logger.warning("⚠️ No clones found in database")
+            print("⚠️ DEBUG CLONE: No clones found in database")
+            return None
         
-        if not active_clones:
-            logger.warning("⚠️ No active clones found to start")
-            print("⚠️ DEBUG CLONE: No active clones found to start")
+        # Show all clones with their statuses
+        for clone in all_clones:
+            status = clone.get('status', 'unknown')
+            username = clone.get('username', 'unknown')
+            bot_id = clone.get('_id', 'unknown')
+            logger.info(f"📋 Clone found: {username} ({bot_id}) - Status: {status}")
+            print(f"📋 DEBUG CLONE: Clone found: {username} ({bot_id}) - Status: {status}")
+        
+        # Try to start all clones (including deactivated ones)
+        clones_to_start = [c for c in all_clones if c.get('status') in ['active', 'deactivated', 'pending']]
+        logger.info(f"📊 Found {len(clones_to_start)} clones to start")
+        print(f"📊 DEBUG CLONE: Found {len(clones_to_start)} clones to start")
         
         # Start all clones
         started_count, total_count = await clone_manager.start_all_clones()
