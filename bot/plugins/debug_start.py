@@ -31,16 +31,12 @@ async def catch_all_handler(client: Client, message: Message):
     """Catch-all handler to log unhandled messages"""
     try:
         if message.text and message.text.startswith('/'):
-            logger.warning(f"Unhandled command: {message.text} from user {message.from_user.id}")
-            if message.text.lower().startswith("/start"):
-                await message.reply_text(
-                    "🤖 **Bot Response**\n\n"
-                    "✅ I received your start command!\n"
-                    "Try /debug for system status."
-                )
+            # Only log truly unhandled commands (not /start)
+            if not message.text.lower().startswith("/start"):
+                logger.warning(f"Unhandled command: {message.text} from user {message.from_user.id}")
         else:
-            # Handle non-command text
-            if message.text and len(message.text) < 50:
+            # Handle non-command text only if it's short and not empty
+            if message.text and len(message.text) < 20 and message.text.strip():
                 await message.reply_text(
                     f"📝 You sent: `{message.text}`\n\n"
                     f"Use /start to begin or /debug to test."
