@@ -1,8 +1,9 @@
 import asyncio
 import logging
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from pyrogram.errors import FloodWait
+from bot.logging import LOGGER
 try:
     from bot.database.mongo_db import get_random_files, get_recent_files, get_popular_files, get_file_by_id, increment_download_count
 except ImportError:
@@ -22,7 +23,7 @@ from bot.utils.helper import get_readable_file_size
 from info import Config
 import bot.utils.clone_config_loader as clone_config_loader
 
-logger = logging.getLogger(__name__)
+logger = LOGGER(__name__)
 
 async def check_clone_feature_enabled(client: Client, feature_name: str):
     """Check if a feature is enabled for the current clone"""
@@ -320,3 +321,124 @@ async def handle_get_file(client: Client, query):
     except Exception as e:
         logger.error(f"Error handling file download: {e}")
         await query.answer("❌ Error processing file request.", show_alert=True)
+
+# Add missing callback handlers for clone random files
+@Client.on_callback_query(filters.regex("^clone_random_files$"))
+async def clone_random_files_callback(client: Client, query: CallbackQuery):
+    """Handle clone random files callback"""
+    try:
+        await query.answer()
+
+        # Check if this is a clone and feature is enabled
+        if not await check_clone_feature_enabled(client, 'random_button'):
+            await query.edit_message_text("❌ Random files feature is disabled for this bot.")
+            return
+
+        clone_id = await get_clone_id_from_client(client)
+
+        # Get random files from appropriate database
+        try:
+            from bot.database.index_db import get_random_files as get_index_random_files
+            files = await get_index_random_files(limit=10, clone_id=clone_id)
+        except ImportError:
+            # Fallback to mongo_db if index_db is not available
+            files = await get_random_files(limit=10, clone_id=clone_id)
+
+        if not files:
+            await query.edit_message_text("❌ No files found in database. Index some files first.")
+            return
+
+        text = "🎲 **Random Files**\n\n"
+        text += f"Found {len(files)} random files:\n\n"
+
+        # Show first file details
+        if files:
+            text += format_file_text(files[0])
+
+        buttons = create_file_buttons(files)
+
+        await query.edit_message_text(text, reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in clone random files callback: {e}")
+        await query.answer("❌ Error retrieving random files.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^clone_recent_files$"))
+async def clone_recent_files_callback(client: Client, query: CallbackQuery):
+    """Handle clone recent files callback"""
+    try:
+        await query.answer()
+
+        # Check if this is a clone and feature is enabled
+        if not await check_clone_feature_enabled(client, 'recent_button'):
+            await query.edit_message_text("❌ Recent files feature is disabled for this bot.")
+            return
+
+        clone_id = await get_clone_id_from_client(client)
+
+        # Get recent files from appropriate database
+        try:
+            from bot.database.index_db import get_recent_files as get_index_recent_files
+            files = await get_index_recent_files(limit=10, clone_id=clone_id)
+        except ImportError:
+            # Fallback to mongo_db if index_db is not available
+            files = await get_recent_files(limit=10, clone_id=clone_id)
+
+        if not files:
+            await query.edit_message_text("❌ No recent files found in database.")
+            return
+
+        text = "🕒 **Recent Files**\n\n"
+        text += f"Found {len(files)} recent files:\n\n"
+
+        # Show first file details
+        if files:
+            text += format_file_text(files[0])
+
+        buttons = create_file_buttons(files)
+
+        await query.edit_message_text(text, reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in clone recent files callback: {e}")
+        await query.answer("❌ Error retrieving recent files.", show_alert=True)
+
+@Client.on_callback_query(filters.regex("^clone_popular_files$"))
+async def clone_popular_files_callback(client: Client, query: CallbackQuery):
+    """Handle clone popular files callback"""
+    try:
+        await query.answer()
+
+        # Check if this is a clone and feature is enabled
+        if not await check_clone_feature_enabled(client, 'popular_button'):
+            await query.edit_message_text("❌ Popular files feature is disabled for this bot.")
+            return
+
+        clone_id = await get_clone_id_from_client(client)
+
+        # Get popular files from appropriate database
+        try:
+            from bot.database.index_db import get_popular_files as get_index_popular_files
+            files = await get_index_popular_files(limit=10, clone_id=clone_id)
+        except ImportError:
+            # Fallback to mongo_db if index_db is not available
+            files = await get_popular_files(limit=10, clone_id=clone_id)
+
+        if not files:
+            await query.edit_message_text("❌ No popular files found in database.")
+            return
+
+        text = "🔥 **Popular Files**\n\n"
+        text += f"Found {len(files)} popular files:\n\n"
+
+        # Show first file details
+        if files:
+            text += format_file_text(files[0])
+
+        buttons = create_file_buttons(files)
+
+        await query.edit_message_text(text, reply_markup=buttons)
+
+    except Exception as e:
+        logger.error(f"Error in clone popular files callback: {e}")
+        await query.answer("❌ Error retrieving popular files.", show_alert=True)

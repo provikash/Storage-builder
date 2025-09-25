@@ -412,8 +412,8 @@ async def handle_utility_callbacks(client: Client, query: CallbackQuery):
         logger.error(f"Error in utility callback {callback_data}: {e}")
         await query.answer("❌ An error occurred. Please try again.", show_alert=True)
 
-# Catch-all for unhandled callbacks
-@Client.on_callback_query(filters.regex(r"^(?!(" + "|".join(HANDLED_PATTERNS) + r"))", flags=0), group=99)
+# Catch-all for unhandled callbacks  
+@Client.on_callback_query(filters.regex(r"^(?!(get_token|show_premium_plans|rand_new|file_|back_to_start|help_|about_|my_profile|refresh_balance|full_transaction_history|create_clone|manage_clones|admin_panel))"), group=99)
 async def handle_missing_callbacks(client: Client, callback_query: CallbackQuery):
     """Handle unrecognized callback queries gracefully"""
     try:
