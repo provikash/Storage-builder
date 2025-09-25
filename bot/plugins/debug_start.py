@@ -23,7 +23,8 @@ async def debug_command(client: Client, message: Message):
         logger.error(f"Debug command failed: {e}")
         try:
             await message.reply_text("⚠️ Debug response with error")
-        except:
+        except Exception:
+            pass:
             pass
 
 @Client.on_message(filters.text & filters.private, group=99)

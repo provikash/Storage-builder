@@ -74,4 +74,4 @@ def load_plugins():
     return plugins_loaded, plugins_failed
 
 # Auto-load plugins when module is imported
-load_plugins() {e}")
+load_plugins()
