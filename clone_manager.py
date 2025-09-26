@@ -564,7 +564,7 @@ class CloneManager:
                         logger.info(f"Clone {clone['_id']} has verified payment, starting...")
 
             if not startable_clones:
-                logger.info("No startable clones found")
+                logger.info("No startable clones found - all clones may have validation issues")
                 # Check what clones exist for debugging
                 for clone in all_clones:
                     logger.debug(f"Clone {clone['_id']}: status={clone.get('status', 'unknown')}, username={clone.get('username', 'unknown')}")

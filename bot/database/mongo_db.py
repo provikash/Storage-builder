@@ -445,14 +445,28 @@ class MongoDB:
         if self.client:
             self.client.close()
 
-    def close_clone_connections(self):
-        """Close all clone MongoDB connections."""
-        for client in clone_clients.values():
-            client.close()
-        clone_clients.clear()
-        clone_dbs.clear()
-        clone_collections.clear()
-        logger.info("All clone MongoDB connections closed.")
+# Clone database connections
+clone_clients = {}
+clone_dbs = {}
+clone_collections = {}
+
+def get_clone_database(clone_id: str, mongodb_url: str):
+    """Get clone-specific database connection"""
+    if clone_id not in clone_clients:
+        clone_clients[clone_id] = AsyncIOMotorClient(mongodb_url)
+        clone_dbs[clone_id] = clone_clients[clone_id][f"clone_{clone_id}"]
+        clone_collections[clone_id] = clone_dbs[clone_id].files
+    
+    return clone_dbs[clone_id], clone_collections[clone_id]
+
+def close_clone_connections():
+    """Close all clone MongoDB connections."""
+    for client in clone_clients.values():
+        client.close()
+    clone_clients.clear()
+    clone_dbs.clear()
+    clone_collections.clear()
+    logger.info("All clone MongoDB connections closed.")
 
 # Fallback functions using bot.database.connection
 async def get_random_files_fallback(limit=10, clone_id=None):
