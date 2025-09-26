@@ -67,7 +67,7 @@ async def auto_index_forwarded_media(client: Client, message: Message):
     except Exception as e:
         logger.error(f"Error in auto-index forwarded media: {e}")
 
-@Client.on_message(filters.command(['autoindex']) & filters.private)
+@Client.on_message(filters.command(['autoindex', 'toggleautoindex']) & filters.private)
 async def toggle_auto_index_command(client: Client, message: Message):
     """Toggle auto-indexing for forwarded messages"""
     try:

@@ -357,53 +357,106 @@ async def get_clone_database_stats(clone_id):
         from bot.database.clone_db import get_clone
         clone_info = await get_clone(clone_id)
         if not clone_info or 'mongodb_url' not in clone_info:
+            logger.error(f"No MongoDB URL found for clone {clone_id}")
             return None
 
-        # Connect to clone's database
-        clone_db_client = AsyncIOMotorClient(clone_info['mongodb_url'])
-        clone_db = clone_db_client[clone_info.get('db_name', f"clone_{clone_id}")]
+        # Connect to clone's database with timeout
+        clone_db_client = AsyncIOMotorClient(
+            clone_info['mongodb_url'], 
+            serverSelectionTimeoutMS=5000,
+            connectTimeoutMS=5000
+        )
+        
+        try:
+            # Test connection
+            await clone_db_client.admin.command('ping')
+            
+            clone_db = clone_db_client[clone_info.get('db_name', f"clone_{clone_id}")]
+            
+            # Get collection stats with error handling
+            files_collection = clone_db['files']
+            users_collection = clone_db['users']
 
-        # Get collection stats
-        files_collection = clone_db['files']
-        users_collection = clone_db['users']
+            # Use asyncio.wait_for to prevent hanging
+            import asyncio
+            
+            total_files = await asyncio.wait_for(
+                files_collection.count_documents({}), timeout=10
+            )
+            
+            # Users collection might not exist
+            try:
+                total_users = await asyncio.wait_for(
+                    users_collection.count_documents({}), timeout=10
+                )
+            except:
+                total_users = 0
 
-        total_files = await files_collection.count_documents({})
-        total_users = await users_collection.count_documents({})
+            # Get file type distribution (with limit to prevent timeout)
+            pipeline = [
+                {"$group": {"_id": "$file_type", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+                {"$limit": 10}
+            ]
+            
+            try:
+                file_types = await asyncio.wait_for(
+                    files_collection.aggregate(pipeline).to_list(length=10), timeout=10
+                )
+            except:
+                file_types = []
 
-        # Get file type distribution
-        pipeline = [
-            {"$group": {"_id": "$file_type", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}}
-        ]
-        file_types = await files_collection.aggregate(pipeline).to_list(length=None)
+            # Get total file size (with timeout)
+            size_pipeline = [
+                {"$group": {"_id": None, "total_size": {"$sum": "$file_size"}}}
+            ]
+            
+            try:
+                size_result = await asyncio.wait_for(
+                    files_collection.aggregate(size_pipeline).to_list(length=1), timeout=10
+                )
+                total_size = size_result[0]['total_size'] if size_result else 0
+            except:
+                total_size = 0
 
-        # Get total file size
-        size_pipeline = [
-            {"$group": {"_id": None, "total_size": {"$sum": "$file_size"}}}
-        ]
-        size_result = await files_collection.aggregate(size_pipeline).to_list(length=1)
-        total_size = size_result[0]['total_size'] if size_result else 0
+            # Recent activity (files added in last 24 hours)
+            from datetime import timedelta
+            yesterday = datetime.now() - timedelta(days=1)
+            
+            try:
+                recent_files = await asyncio.wait_for(
+                    files_collection.count_documents({
+                        "indexed_at": {"$gte": yesterday}
+                    }), timeout=10
+                )
+            except:
+                # Try with created_at field if indexed_at doesn't exist
+                try:
+                    recent_files = await asyncio.wait_for(
+                        files_collection.count_documents({
+                            "date": {"$gte": yesterday}
+                        }), timeout=10
+                    )
+                except:
+                    recent_files = 0
 
-        # Recent activity (files added in last 24 hours)
-        from datetime import timedelta
-        yesterday = datetime.now() - timedelta(days=1)
-        recent_files = await files_collection.count_documents({
-            "indexed_at": {"$gte": yesterday}
-        })
+            return {
+                "total_files": total_files,
+                "total_users": total_users,
+                "total_size": total_size,
+                "recent_files": recent_files,
+                "file_types": {item["_id"]: item["count"] for item in file_types},
+                "database_name": clone_info.get('db_name', f"clone_{clone_id}")
+            }
+            
+        finally:
+            clone_db_client.close()
 
-        clone_db_client.close()
-
-        return {
-            "total_files": total_files,
-            "total_users": total_users,
-            "total_size": total_size,
-            "recent_files": recent_files,
-            "file_types": {item["_id"]: item["count"] for item in file_types},
-            "database_name": clone_info.get('db_name', f"clone_{clone_id}")
-        }
-
+    except asyncio.TimeoutError:
+        logger.error(f"Timeout getting clone database stats for {clone_id}")
+        return None
     except Exception as e:
-        logger.error(f"Error getting clone database stats: {e}")
+        logger.error(f"Error getting clone database stats for {clone_id}: {e}")
         return None
 
 async def check_clone_database_connection(clone_id):

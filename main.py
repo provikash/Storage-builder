@@ -107,30 +107,6 @@ async def start_mother_bot():
         from bot.utils.session_cleanup import session_cleanup
         await session_cleanup.cleanup_on_start()
 
-        # Initialize and start Mother Bot with full plugin access
-        mother_bot_plugins = {
-            "root": "bot.plugins",
-            "include": [
-                "start_handler",
-                "genlink",
-                "channel",
-                "admin_commands",
-                "admin_panel",
-                "balance_management",
-                "premium",
-                "stats",
-                "broadcast",
-                "mother_admin",
-                "mother_bot_commands",
-                "step_clone_creation",
-                "referral_program",
-                "debug_commands",
-                "debug_callbacks",
-                "debug_start",
-                "enhanced_about"
-            ]
-        }
-
         # Ensure temp_sessions directory exists
         import os
         session_dir = "temp_sessions"
@@ -141,7 +117,18 @@ async def start_mother_bot():
             api_id=Config.API_ID,
             api_hash=Config.API_HASH,
             bot_token=Config.BOT_TOKEN,
-            plugins=mother_bot_plugins,
+            plugins=dict(
+                root="bot.plugins",
+                include=[
+                    "start_handler",
+                    "clone_admin_settings",
+                    "clone_database_commands",
+                    "clone_index",
+                    "clone_auto_index",
+                    "clone_forward_indexer",
+                    "clone_status_commands"
+                ]
+            ),
             workdir=session_dir  # Use separate directory for sessions
         )
 
@@ -185,16 +172,16 @@ async def start_clone_system():
     try:
         logger.info("🔄 Starting Clone Manager...")
         print("🔄 DEBUG CLONE: Starting Clone Manager...")
-        
+
         # Get list of all clones first
         from bot.database.clone_db import get_all_clones
         all_clones = await get_all_clones()
-        
+
         if not all_clones:
             logger.warning("⚠️ No clones found in database")
             print("⚠️ DEBUG CLONE: No clones found in database")
             return None
-        
+
         # Show all clones with their statuses
         for clone in all_clones:
             status = clone.get('status', 'unknown')
@@ -202,12 +189,12 @@ async def start_clone_system():
             bot_id = clone.get('_id', 'unknown')
             logger.info(f"📋 Clone found: {username} ({bot_id}) - Status: {status}")
             print(f"📋 DEBUG CLONE: Clone found: {username} ({bot_id}) - Status: {status}")
-        
+
         # Try to start all clones (including stopped and deactivated ones)
         clones_to_start = [c for c in all_clones if c.get('status') in ['active', 'deactivated', 'pending', 'stopped']]
         logger.info(f"📊 Found {len(clones_to_start)} clones to start")
         print(f"📊 DEBUG CLONE: Found {len(clones_to_start)} clones to start")
-        
+
         # Start all clones
         started_count, total_count = await clone_manager.start_all_clones()
         logger.info(f"✅ Clone manager initialized: {started_count}/{total_count} clones started")
@@ -281,11 +268,11 @@ async def main():
 
         # Start mother bot
         app = await start_mother_bot()
-        
+
         if not app:
             logger.error("❌ Failed to initialize Mother Bot")
             sys.exit(1)
-        
+
         # Initialize handlers after bot is ready
         try:
             from bot.utils.handler_manager import register_handlers

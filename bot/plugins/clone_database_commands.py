@@ -24,7 +24,7 @@ def get_clone_id_from_client(client: Client):
     except:
         return None
 
-@Client.on_message(filters.command(['dbstats', 'databasestats']) & filters.private)
+@Client.on_message(filters.command(['dbstats', 'databasestats', 'clones']) & filters.private)
 async def clone_database_stats_command(client: Client, message: Message):
     """Show clone database statistics"""
     try:

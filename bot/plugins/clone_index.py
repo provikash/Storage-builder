@@ -24,7 +24,7 @@ def get_clone_id_from_client(client: Client):
     except:
         return None
 
-@Client.on_message(filters.command(['index', 'cloneindex']) & filters.private)
+@Client.on_message(filters.command(['index', 'cloneindex', 'batchindex']) & filters.private)
 async def clone_index_command(client: Client, message: Message):
     """Handle indexing command for clone bots"""
     try:
