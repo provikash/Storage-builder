@@ -1,8 +1,5 @@
 
-<file_path>bot/plugins/clone_auto_index.py</file_path>
-<change_summary>Auto-index forwarded media messages</change_summary>
-
-```python
+# Auto-index forwarded media messages
 import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message
@@ -187,4 +184,3 @@ async def batch_index_command(client: Client, message: Message):
     except Exception as e:
         logger.error(f"Error in batch index command: {e}")
         await message.reply_text("❌ Error processing batch index request.")
-```

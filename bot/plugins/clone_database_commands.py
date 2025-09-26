@@ -248,4 +248,3 @@ async def handle_clone_test_db(client: Client, query: CallbackQuery):
     except Exception as e:
         logger.error(f"Error testing clone database: {e}")
         await query.answer("❌ Error testing database connection.", show_alert=True)
-```
