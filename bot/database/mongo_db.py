@@ -135,7 +135,7 @@ async def get_recent_files(limit=10, clone_id=None):
         return []
 
 async def get_popular_files(limit=10, clone_id=None):
-    """Get popular files based on download count"""
+    """Get popular files sorted by download count with enhanced metrics"""
     try:
         # Determine which collection to use
         if clone_id:
@@ -146,20 +146,34 @@ async def get_popular_files(limit=10, clone_id=None):
         else:
             files_collection = collection
 
-        # Get files sorted by download count (highest first)
-        cursor = files_collection.find(
-            {"download_count": {"$exists": True, "$gt": 0}},
+        # Enhanced query with popularity metrics
+        pipeline = [
             {
-                "_id": 1,
-                "file_id": 1,
-                "file_name": 1,
-                "file_size": 1,
-                "file_type": 1,
-                "created_at": 1,
-                "download_count": 1
+                "$match": {
+                    "clone_id": clone_id if clone_id else {"$exists": False},
+                    "download_count": {"$gt": 0}  # Only files with downloads
+                }
+            },
+            {
+                "$addFields": {
+                    "popularity_score": {
+                        "$add": [
+                            {"$multiply": ["$download_count", 5]},  # Downloads are most important
+                            {"$multiply": [{"$ifNull": ["$view_count", 0]}, 1]},
+                            {"$multiply": [{"$ifNull": ["$share_count", 0]}, 3]}
+                        ]
+                    }
+                }
+            },
+            {
+                "$sort": {"popularity_score": -1, "download_count": -1}
+            },
+            {
+                "$limit": limit
             }
-        ).sort("download_count", -1).limit(limit)
+        ]
 
+        cursor = files_collection.aggregate(pipeline)
         files = await cursor.to_list(length=limit)
 
         # If no files with download count, get recent files instead
@@ -238,6 +252,63 @@ async def increment_download_count(file_id, clone_id=None):
     except Exception as e:
         logger.error(f"Error incrementing download count for {file_id} for {'clone ' + clone_id if clone_id else 'mother bot'}: {e}")
         return False
+
+async def get_file_stats(file_id, clone_id=None):
+    """Get detailed statistics for a file"""
+    try:
+        from bson import ObjectId
+
+        # Determine which collection to use
+        if clone_id:
+            files_collection = await get_clone_files_collection(clone_id)
+            if not files_collection:
+                logger.error(f"Could not get collection for clone {clone_id}")
+                return {
+                    'views': 0,
+                    'downloads': 0,
+                    'shares': 0,
+                    'recent_activity': 0
+                }
+        else:
+            files_collection = collection
+
+        # Try to find by ObjectId first, then by string
+        try:
+            query = {"_id": ObjectId(file_id)}
+        except:
+            query = {"file_id": file_id}
+
+        if clone_id:
+            query["clone_id"] = clone_id
+
+        file_doc = await files_collection.find_one(query)
+
+        if file_doc:
+            return {
+                'views': file_doc.get('view_count', 0),
+                'downloads': file_doc.get('download_count', 0),
+                'shares': file_doc.get('share_count', 0),
+                'recent_activity': file_doc.get('recent_downloads', 0),
+                'upload_date': file_doc.get('upload_date'),
+                'last_downloaded': file_doc.get('last_downloaded')
+            }
+        else:
+            return {
+                'views': 0,
+                'downloads': 0,
+                'shares': 0,
+                'recent_activity': 0
+            }
+
+    except Exception as e:
+        logger.error(f"Error getting file stats: {e}")
+        return {
+            'views': 0,
+            'downloads': 0,
+            'shares': 0,
+            'recent_activity': 0
+        }
+
 
 class MongoDB:
     """MongoDB connection handler"""
