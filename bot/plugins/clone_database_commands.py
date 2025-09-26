@@ -268,8 +268,17 @@ async def get_clone_database_stats(clone_data: dict):
             logger.error(f"No MongoDB URL found for clone {clone_data.get('_id')}")
             return None
             
-        # Connect to clone's specific database
-        clone_client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=5000)
+        # Connect to clone's specific database with better timeout settings
+        clone_client = AsyncIOMotorClient(
+            mongodb_url, 
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000,
+            socketTimeoutMS=10000
+        )
+        
+        # Test connection first
+        await clone_client.admin.command('ping')
+        
         clone_db = clone_client[clone_data.get('db_name', f"clone_{clone_data.get('_id')}")]
         files_collection = clone_db.files
         
@@ -333,7 +342,11 @@ async def check_clone_database_connection(clone_data: dict):
             return False, "No MongoDB URL configured for this clone"
             
         # Test connection to clone's specific database
-        clone_client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=5000)
+        clone_client = AsyncIOMotorClient(
+            mongodb_url, 
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000
+        )
         
         # Test with ping command
         await clone_client.admin.command("ping")

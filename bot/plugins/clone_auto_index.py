@@ -1,4 +1,3 @@
-
 # Auto-index forwarded media messages
 import logging
 import asyncio
@@ -30,24 +29,24 @@ async def auto_index_forwarded_media(client: Client, message: Message):
         clone_id = get_clone_id_from_client(client)
         if not clone_id:
             return  # Not a clone bot
-        
+
         # Get clone data
         clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token'))
         if not clone_data:
             return
-        
+
         # Check if user is admin of this clone
         if message.from_user.id != clone_data['admin_id']:
             return  # Only admin forwards are auto-indexed
-        
+
         # Check if auto-indexing is enabled (you can add this setting later)
         auto_index_enabled = clone_data.get('auto_index_forwarded', True)
         if not auto_index_enabled:
             return
-        
+
         # Try to auto-index the message
         success = await auto_index_forwarded_message(client, message, clone_id, clone_data)
-        
+
         if success:
             # Send a subtle confirmation
             try:
@@ -60,7 +59,7 @@ async def auto_index_forwarded_media(client: Client, message: Message):
                 )
             except:
                 pass  # If reply fails, it's okay
-        
+
     except Exception as e:
         logger.error(f"Error in auto-index forwarded media: {e}")
 
@@ -72,32 +71,32 @@ async def toggle_auto_index_command(client: Client, message: Message):
         if not clone_id:
             await message.reply_text("❌ This command is only available in clone bots.")
             return
-        
+
         # Get clone data to verify admin
         clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token'))
         if not clone_data:
             await message.reply_text("❌ Clone configuration not found.")
             return
-        
+
         # Check if user is admin of this clone
         if message.from_user.id != clone_data['admin_id']:
             await message.reply_text("❌ Only clone admin can use this command.")
             return
-        
+
         # Toggle auto-index setting
         current_setting = clone_data.get('auto_index_forwarded', True)
         new_setting = not current_setting
-        
+
         # Update in database
         from bot.database.clone_db import clones_collection
         await clones_collection.update_one(
             {"bot_id": clone_data['bot_id']},
             {"$set": {"auto_index_forwarded": new_setting}}
         )
-        
+
         status = "enabled" if new_setting else "disabled"
         emoji = "✅" if new_setting else "❌"
-        
+
         await message.reply_text(
             f"{emoji} **Auto-indexing {status.title()}**\n\n"
             f"📝 **Status**: Auto-indexing is now **{status}**\n\n"
@@ -106,7 +105,7 @@ async def toggle_auto_index_command(client: Client, message: Message):
             f"to your clone's database.\n\n"
             f"🔧 Use `/autoindex` again to toggle this setting."
         )
-        
+
     except Exception as e:
         logger.error(f"Error in toggle auto-index command: {e}")
         await message.reply_text("❌ Error toggling auto-index setting.")
@@ -119,18 +118,18 @@ async def batch_index_command(client: Client, message: Message):
         if not clone_id:
             await message.reply_text("❌ This command is only available in clone bots.")
             return
-        
+
         # Get clone data to verify admin
         clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token'))
         if not clone_data:
             await message.reply_text("❌ Clone configuration not found.")
             return
-        
+
         # Check if user is admin of this clone
         if message.from_user.id != clone_data['admin_id']:
             await message.reply_text("❌ Only clone admin can use this command.")
             return
-        
+
         if len(message.command) < 2:
             await message.reply_text(
                 "📚 **Batch Indexing**\n\n"
@@ -142,13 +141,13 @@ async def batch_index_command(client: Client, message: Message):
                 "This will index all media files from the channel to your clone's database."
             )
             return
-        
+
         channel_identifier = message.command[1]
-        
+
         # Try to get channel info
         try:
             chat = await client.get_chat(channel_identifier)
-            
+
             # Get latest message ID
             async for latest_msg in client.iter_messages(chat.id, limit=1):
                 last_msg_id = latest_msg.id
@@ -156,10 +155,10 @@ async def batch_index_command(client: Client, message: Message):
             else:
                 await message.reply_text("❌ Channel appears to be empty.")
                 return
-                
+
             # Start indexing process
             await start_channel_indexing(client, message, chat.id, last_msg_id, clone_id, clone_data)
-            
+
         except Exception as e:
             if "CHAT_ADMIN_REQUIRED" in str(e):
                 await message.reply_text(
@@ -175,7 +174,7 @@ async def batch_index_command(client: Client, message: Message):
                 )
             else:
                 await message.reply_text(f"❌ **Error**: {str(e)}")
-        
+
     except Exception as e:
         logger.error(f"Error in batch index command: {e}")
         await message.reply_text("❌ Error processing batch index request.")
@@ -185,16 +184,16 @@ class IndexTemp:
     """Temporary storage for indexing state per clone"""
     def __init__(self):
         self.states = {}  # clone_id -> {"current": 0, "cancel": False}
-    
+
     def get_state(self, clone_id):
         if clone_id not in self.states:
             self.states[clone_id] = {"current": 0, "cancel": False}
         return self.states[clone_id]
-    
+
     def set_cancel(self, clone_id, value=True):
         state = self.get_state(clone_id)
         state["cancel"] = value
-    
+
     def set_current(self, clone_id, value):
         state = self.get_state(clone_id)
         state["current"] = value
@@ -234,7 +233,7 @@ async def auto_index_forwarded_message(client: Client, message: Message, clone_i
             caption=caption,
             user_id=message.from_user.id if message.from_user else 0
         )
-        
+
         return success
     except Exception as e:
         logger.error(f"Error auto-indexing forwarded message: {e}")
@@ -246,7 +245,7 @@ async def start_channel_indexing(client: Client, message: Message, chat_id: int,
         # Reset indexing state for this clone
         temp.set_cancel(clone_id, False)
         temp.set_current(clone_id, 0)
-        
+
         # Show initial status message
         status_msg = await message.reply_text(
             "🔄 **Starting Channel Indexing...**\n\n"
@@ -257,10 +256,10 @@ async def start_channel_indexing(client: Client, message: Message, chat_id: int,
                 [InlineKeyboardButton('❌ Cancel', callback_data=f'cancel_index_{clone_id}')]
             ])
         )
-        
+
         # Start the indexing process
         await index_channel_files_to_db(last_msg_id, chat_id, status_msg, client, clone_id, clone_data)
-        
+
     except Exception as e:
         logger.error(f"Error starting channel indexing: {e}")
         await message.reply_text(f"❌ Error starting indexing: {str(e)}")
@@ -273,7 +272,7 @@ async def index_channel_files_to_db(last_msg_id: int, chat_id: int, status_msg: 
     deleted = 0
     no_media = 0
     unsupported = 0
-    
+
     state = temp.get_state(clone_id)
     current = state["current"]
 
@@ -357,12 +356,12 @@ async def index_channel_files_to_db(last_msg_id: int, chat_id: int, status_msg: 
                         caption=caption,
                         user_id=msg.from_user.id if msg.from_user else 0
                     )
-                    
+
                     if success:
                         total_files += 1
                     else:
                         duplicate += 1
-                        
+
                 except Exception as e:
                     logger.exception(f"Error indexing file {msg.id}: {e}")
                     errors += 1
@@ -379,7 +378,7 @@ async def index_channel_files_to_db(last_msg_id: int, chat_id: int, status_msg: 
         logger.exception(f"Fatal error in indexing: {e}")
         await status_msg.edit_text(f'❌ **Indexing Failed**\n\nError: {e}')
         return
-    
+
     # Final status update
     if state["cancel"]:
         await status_msg.edit_text(
@@ -413,12 +412,16 @@ async def add_to_clone_index(clone_data: dict, file_id: str, file_name: str, fil
         if not mongodb_url:
             logger.error(f"No MongoDB URL found for clone {clone_data.get('_id')}")
             return False
-            
-        # Connect to clone's specific database
-        clone_client = AsyncIOMotorClient(mongodb_url)
+
+        # Connect to clone's specific database with better settings
+        clone_client = AsyncIOMotorClient(
+            mongodb_url,
+            serverSelectionTimeoutMS=10000,
+            connectTimeoutMS=10000
+        )
         clone_db = clone_client[clone_data.get('db_name', f"clone_{clone_data.get('_id')}")]
         files_collection = clone_db.files
-        
+
         # Create file document
         file_doc = {
             "_id": file_id,
@@ -430,18 +433,18 @@ async def add_to_clone_index(clone_data: dict, file_id: str, file_name: str, fil
             "indexed_at": asyncio.get_event_loop().time(),
             "clone_id": clone_data.get('_id')
         }
-        
+
         # Insert file (will skip if duplicate due to _id)
         await files_collection.update_one(
             {"_id": file_id},
             {"$set": file_doc},
             upsert=True
         )
-        
+
         # Close the connection
         clone_client.close()
         return True
-        
+
     except Exception as e:
         logger.error(f"Error adding file to clone index: {e}")
         return False
@@ -453,25 +456,25 @@ async def handle_cancel_indexing(client: Client, query):
     try:
         # Extract clone ID from callback data
         clone_id = query.data.split('_')[-1]
-        
+
         # Get clone data to verify admin
         clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token'))
         if not clone_data:
             return await query.answer("❌ Clone configuration not found.", show_alert=True)
-        
+
         # Check if user is admin of this clone
         if query.from_user.id != clone_data['admin_id']:
             return await query.answer("❌ Only clone admin can cancel indexing.", show_alert=True)
-        
+
         # Set cancel flag
         temp.set_cancel(clone_id, True)
-        
+
         await query.answer("⏹️ Indexing cancellation requested...", show_alert=True)
         await query.edit_message_text(
             "⏹️ **Cancelling Indexing...**\n\n"
             "Please wait while the current batch finishes processing."
         )
-        
+
     except Exception as e:
         logger.error(f"Error cancelling indexing: {e}")
         await query.answer("❌ Error cancelling indexing.", show_alert=True)
