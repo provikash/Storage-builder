@@ -355,7 +355,7 @@ class CloneManager:
                 status = clone.get('status', 'unknown')
                 username = clone.get('username', 'unknown')
 
-                if status in ['active', 'deactivated', 'pending', 'stopped']:
+                if status in ['active', 'deactivated', 'pending', 'stopped', 'inactive']:
                     total_count += 1
 
                     # First activate in database

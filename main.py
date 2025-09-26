@@ -203,8 +203,8 @@ async def start_clone_system():
             logger.info(f"📋 Clone found: {username} ({bot_id}) - Status: {status}")
             print(f"📋 DEBUG CLONE: Clone found: {username} ({bot_id}) - Status: {status}")
         
-        # Try to start all clones (including deactivated ones)
-        clones_to_start = [c for c in all_clones if c.get('status') in ['active', 'deactivated', 'pending']]
+        # Try to start all clones (including stopped and deactivated ones)
+        clones_to_start = [c for c in all_clones if c.get('status') in ['active', 'deactivated', 'pending', 'stopped']]
         logger.info(f"📊 Found {len(clones_to_start)} clones to start")
         print(f"📊 DEBUG CLONE: Found {len(clones_to_start)} clones to start")
         

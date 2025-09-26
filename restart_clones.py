@@ -34,8 +34,8 @@ async def restart_all_clones():
 
             logger.info(f"🤖 Processing clone: {username} ({bot_id}) - Status: {status}")
 
-            # Activate clones that should be running (including deactivated ones that need reactivation)
-            if status in ['active', 'pending', 'running', 'deactivated']:
+            # Activate clones that should be running (including stopped and deactivated ones)
+            if status in ['active', 'pending', 'running', 'deactivated', 'stopped', 'inactive']:
                 active_count += 1
 
                 # Ensure it's marked as active

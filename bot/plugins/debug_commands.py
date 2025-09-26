@@ -161,3 +161,56 @@ async def activate_clone_command(client: Client, message: Message):
             
     except Exception as e:
         await message.reply_text(f"❌ Error activating clone: {e}")
+
+
+
+@Client.on_message(filters.command("forcestartall") & filters.private)
+async def force_start_all_clones_command(client: Client, message: Message):
+    """Force start all clones regardless of status"""
+    user_id = message.from_user.id
+    
+    if user_id not in Config.ADMINS:
+        return await message.reply_text("❌ Only admins can use this command.")
+    
+    try:
+        from bot.database.clone_db import get_all_clones, activate_clone
+        from clone_manager import clone_manager
+        
+        all_clones = await get_all_clones()
+        if not all_clones:
+            return await message.reply_text("❌ No clones found in database.")
+        
+        status_msg = await message.reply_text("🔄 Force starting all clones...")
+        
+        started_count = 0
+        total_count = len(all_clones)
+        
+        for clone in all_clones:
+            bot_id = clone.get('_id')
+            username = clone.get('username', 'Unknown')
+            current_status = clone.get('status', 'unknown')
+            
+            try:
+                # Force activate in database first
+                await activate_clone(bot_id)
+                
+                # Try to start the clone
+                success, msg = await clone_manager.start_clone(bot_id)
+                
+                if success:
+                    started_count += 1
+                    logger.info(f"✅ Force started clone {username}: {msg}")
+                else:
+                    logger.error(f"❌ Failed to force start clone {username}: {msg}")
+                    
+            except Exception as e:
+                logger.error(f"❌ Error force starting clone {username}: {e}")
+        
+        await status_msg.edit_text(
+            f"🎉 **Force Start Complete**\n\n"
+            f"✅ Started: {started_count}/{total_count} clones\n"
+            f"❌ Failed: {total_count - started_count} clones"
+        )
+        
+    except Exception as e:
+        await message.reply_text(f"❌ Error force starting clones: {str(e)}")
