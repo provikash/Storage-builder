@@ -1,8 +1,7 @@
 
-<file_path>bot/plugins/clone_database_commands.py</file_path>
-<change_summary>Create new file for clone database management commands</change_summary>
-
-```python
+"""
+Clone database management commands for clone bots
+"""
 import logging
 import asyncio
 from pyrogram import Client, filters
