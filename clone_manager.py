@@ -217,16 +217,16 @@ class CloneManager:
             clone_plugins = {
                 "root": "bot.plugins",
                 "include": [
-                    "start_handler", "missing_commands", "admin", "channel",
+                    "start_handler", "simple_test_commands", "admin", "channel",
                     "clone_admin", "clone_admin_commands", "clone_force_commands",
                     "clone_token_commands", "debug_callbacks", "debug_commands",
                     "enhanced_about", "force_sub_commands", "genlink", "index",
-                    "missing_callbacks", "referral_program", "simple_file_sharing",
+                    "referral_program", "simple_file_sharing",
                     "token", "auto_post", "clone_random_files"
                 ],
                 "exclude": [
                     "clone_management", "step_clone_creation", "mother_admin",
-                    "admin_commands", "balance_management", "admin_panel"
+                    "admin_commands", "balance_management", "admin_panel", "missing_commands", "missing_callbacks"
                 ]
             }
 

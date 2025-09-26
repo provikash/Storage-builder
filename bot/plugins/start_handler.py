@@ -250,7 +250,7 @@ async def start_command(client: Client, message: Message):
                 }
             }
             logger.info(f"📋 Clone bot detected - Admin: {clone_data.get('admin_id')}, Token: {bot_token[:10]}...")
-            
+
             # Ensure clone is marked as active if it's responding
             if clone_data.get('status') != 'active':
                 from bot.database.clone_db import activate_clone
@@ -272,15 +272,15 @@ async def start_command(client: Client, message: Message):
     # Create main menu buttons based on bot type
     if is_clone_bot:
         # Clone bot start message - simplified version
-        text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
-        text += f"📁 **Your Personal File Bot** - Browse, search, and download files instantly.\n\n"
-        text += f"🌟 **Features Available:**\n"
-        text += f"• 🎲 Random file discovery\n"
-        text += f"• 🆕 Latest uploaded content\n"
-        text += f"• 🔥 Most popular downloads\n"
-        text += f"• 🔍 Advanced search functionality\n\n"
-        text += f"💎 Status: {'Premium' if user_premium else 'Free'}\n\n"
-        text += f"🎯 **Choose an option below:**"
+        start_text = f"🤖 **Welcome {message.from_user.first_name}!**\n\n"
+        start_text += f"📁 **Your Personal File Bot** - Browse, search, and download files instantly.\n\n"
+        start_text += f"🌟 **Features Available:**\n"
+        start_text += f"• 🎲 Random file discovery\n"
+        start_text += f"• 🆕 Latest uploaded content\n"
+        start_text += f"• 🔥 Most popular downloads\n"
+        start_text += f"• 🔍 Advanced search functionality\n\n"
+        start_text += f"💎 Status: {'Premium' if user_premium else 'Free'}\n\n"
+        start_text += f"🎯 **Choose an option below:**"
 
         # Clone bot menu - check admin vs user
         if is_admin_user:
@@ -294,7 +294,7 @@ async def start_command(client: Client, message: Message):
             settings_button = InlineKeyboardButton("⚙️ Clone Settings", callback_data="clone_settings_panel")
             buttons.append([settings_button])
             logger.info(f"🎛️ BUTTON CREATED: Added clone settings button with callback_data='clone_settings_panel' for admin {user_id}")
-            
+
             # Debug: Log the exact button being created
             logger.debug(f"Button details: text='{settings_button.text}', callback_data='{settings_button.callback_data}'")
 
@@ -371,19 +371,36 @@ async def start_command(client: Client, message: Message):
                 InlineKeyboardButton("💎 Plans", callback_data="premium_info"),
                 InlineKeyboardButton("ℹ️ About", callback_data="about_bot")
             ])
+        reply_markup = InlineKeyboardMarkup(buttons)
+
+        # Send start message
+        try:
+            await message.reply_text(
+                text=start_text,
+                reply_markup=reply_markup,
+                quote=True
+            )
+            logger.info(f"✅ Start message sent successfully to user {user_id}")
+        except Exception as send_error:
+            logger.error(f"❌ Error sending start message to user {user_id}: {send_error}")
+            # Fallback simple message
+            await message.reply_text(
+                "🤖 **Bot is Online!**\n\nWelcome! The bot is working but there was an issue loading the full interface.",
+                quote=True
+            )
     else:
         # Mother bot start message - simplified version
-        text = f"🚀 **Welcome back to Advanced Bot Creator, {message.from_user.first_name}!**\n\n"
-        text += f"🤖 **Create & Manage Personal Clone Bots**\n"
-        text += f"Build your own file-sharing bot network with advanced features.\n\n"
-        text += f"🌟 **What You Can Do:**\n"
-        text += f"• 🤖 Create unlimited clone bots\n"
-        text += f"• 📁 Advanced file management system\n"
-        text += f"• 👥 User management & analytics\n"
-        text += f"• 💎 Premium features & monetization\n"
-        text += f"• 🔧 Complete customization control\n\n"
-        text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
-        text += f"🎯 **Get Started:**"
+        start_text = f"🚀 **Welcome back to Advanced Bot Creator, {message.from_user.first_name}!**\n\n"
+        start_text += f"🤖 **Create & Manage Personal Clone Bots**\n"
+        start_text += f"Build your own file-sharing bot network with advanced features.\n\n"
+        start_text += f"🌟 **What You Can Do:**\n"
+        start_text += f"• 🤖 Create unlimited clone bots\n"
+        start_text += f"• 📁 Advanced file management system\n"
+        start_text += f"• 👥 User management & analytics\n"
+        start_text += f"• 💎 Premium features & monetization\n"
+        start_text += f"• 🔧 Complete customization control\n\n"
+        start_text += f"💎 Status: {'Premium' if user_premium else 'Free'} | Balance: ${balance:.2f}\n\n"
+        start_text += f"🎯 **Get Started:**"
 
         # Mother bot buttons - as specified in requirements
         buttons = []
@@ -408,11 +425,11 @@ async def start_command(client: Client, message: Message):
                 InlineKeyboardButton("⚙️ Admin Panel", callback_data="admin_panel"),
                 InlineKeyboardButton("🔧 Bot Management", callback_data="bot_management")
             ])
-
-    await message.reply_text(
-        text,
-        reply_markup=InlineKeyboardMarkup(buttons)
-    )
+        reply_markup = InlineKeyboardMarkup(buttons)
+        await message.reply_text(
+            start_text,
+            reply_markup=reply_markup
+        )
 
 # File access handlers with enhanced feature checks
 # Random files callback is now handled in callback_handlers.py

@@ -68,6 +68,83 @@ def create_clone_welcome_message(user, is_clone=True):
     return text, buttons
 
 
+@Client.on_message(filters.command("echo") & filters.private)
+async def echo_command(client: Client, message: Message):
+    """Echo command for testing"""
+    try:
+        user_input = message.text.split(" ", 1)
+        if len(user_input) > 1:
+            echo_text = user_input[1]
+            await message.reply_text(f"🔄 **Echo:** {echo_text}", quote=True)
+        else:
+            await message.reply_text("🔄 **Echo:** Please provide text to echo!\nExample: `/echo Hello World`", quote=True)
+    except Exception as e:
+        logger.error(f"Error in echo command: {e}")
+        await message.reply_text("❌ Error in echo command", quote=True)
+
+@Client.on_message(filters.command("info") & filters.private)
+async def info_command(client: Client, message: Message):
+    """Get user and bot info"""
+    try:
+        user = message.from_user
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+
+        text = "ℹ️ **Information**\n\n"
+        text += f"👤 **User:** {user.first_name}"
+        if user.last_name:
+            text += f" {user.last_name}"
+        if user.username:
+            text += f" (@{user.username})"
+        text += f"\n🆔 **User ID:** `{user.id}`\n"
+
+        if bot_token != Config.BOT_TOKEN:
+            bot_id = bot_token.split(':')[0]
+            text += f"🤖 **Bot Type:** Clone Bot\n"
+            text += f"🆔 **Bot ID:** `{bot_id}`\n"
+        else:
+            text += f"🤖 **Bot Type:** Mother Bot\n"
+
+        text += f"💬 **Chat ID:** `{message.chat.id}`\n"
+        text += f"📅 **Message Date:** {message.date}"
+
+        await message.reply_text(text, quote=True)
+    except Exception as e:
+        logger.error(f"Error in info command: {e}")
+        await message.reply_text("❌ Error getting information", quote=True)
+
+@Client.on_message(filters.text & filters.private)
+async def handle_text_messages(client: Client, message: Message):
+    """Handle general text messages"""
+    try:
+        user_id = message.from_user.id
+        text = message.text.lower()
+
+        # Simple keyword responses
+        if any(word in text for word in ['hi', 'hello', 'hey', 'start']):
+            await message.reply_text(
+                "👋 Hello! I'm working fine.\n\n"
+                "Try these commands:\n"
+                "• `/start` - Main menu\n"
+                "• `/test` - Test bot\n"
+                "• `/help` - Get help\n"
+                "• `/files` - Browse files",
+                quote=True
+            )
+        elif any(word in text for word in ['help', 'commands']):
+            await message.reply_text(
+                "❓ **Quick Help:**\n\n"
+                "• `/help` - Full help menu\n"
+                "• `/test` - Test bot response\n"
+                "• `/files` - Browse files\n"
+                "• `/random` - Random files\n"
+                "• `/info` - Get information",
+                quote=True
+            )
+
+    except Exception as e:
+        logger.error(f"Error handling text message: {e}")
+
+
 @Client.on_message(filters.command("help") & filters.private)
 async def help_command(client: Client, message: Message):
     """Help command for clone bots"""
