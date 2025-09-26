@@ -15,11 +15,11 @@ def load_plugins():
     
     # Core plugins that must load first
     core_plugins = [
-        'callback_fix',          # Emergency handler fixes FIRST
-        'start_handler',         # Core /start command
-        'callback_handlers',     # Core callback system
+        'start_handler',         # Core /start command FIRST
+        'simple_test_commands',  # Simple test commands
+        'callback_fix',          # Emergency handler fixes
         'missing_callbacks',     # Missing callback handlers
-        'missing_commands'       # Missing command handlers
+        'callback_handlers'      # Core callback system LAST
     ]
     
     # Feature plugins

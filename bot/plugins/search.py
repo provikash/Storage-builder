@@ -358,8 +358,16 @@ async def show_popular_files(client: Client, callback_query: CallbackQuery):
             else:
                 buttons.append([InlineKeyboardButton(f"{file_type} • {display} ({access_count} views)", callback_data=callback_data)])
 
-
         buttons.append([InlineKeyboardButton("🎲 Random", callback_data="rand_new"),
+                       InlineKeyboardButton("🆕 Recent", callback_data="rand_recent")])
+        
+        reply_markup = InlineKeyboardMarkup(buttons)
+        
+        try:
+            await callback_query.message.edit_text(text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"Error editing popular files message: {e}")
+            await callback_query.answer("❌ Error loading popular files", show_alert=True)
                         InlineKeyboardButton("🆕 Recent", callback_data="rand_recent")])
         buttons.append([InlineKeyboardButton("📊 Stats", callback_data="rand_stats")])
 
