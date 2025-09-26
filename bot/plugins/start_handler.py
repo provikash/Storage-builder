@@ -34,7 +34,7 @@ except ImportError:
 try:
     from bot.utils.error_handler import safe_edit_message
 except ImportError:
-    async def safe_edit_message(query, text, **kwargs): 
+    async def safe_edit_message(query, text, **kwargs):
         return await query.edit_message_text(text, **kwargs)
 
 try:
@@ -325,7 +325,7 @@ async def start_command(client: Client, message: Message):
                 if clone_data:
                     # Default to True if settings not explicitly set (backwards compatibility)
                     show_random = clone_data.get('random_mode', True)
-                    show_recent = clone_data.get('recent_mode', True) 
+                    show_recent = clone_data.get('recent_mode', True)
                     show_popular = clone_data.get('popular_mode', True)
 
                     logger.info(f"Clone {clone_data.get('bot_id')} settings for regular user in start: random={show_random}, recent={show_recent}, popular={show_popular}")
@@ -609,7 +609,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
                 clone_data = await get_clone_by_bot_token(bot_token)
                 if clone_data:
                     show_random = clone_data.get('random_mode', False)
-                    show_recent = clone_data.get('recent_mode', False) 
+                    show_recent = clone_data.get('recent_mode', False)
                     show_popular = clone_data.get('popular_mode', False)
 
                     logger.info(f"Clone {clone_data.get('bot_id')} settings for regular user in back_to_start: random={show_random}, recent={show_recent}, popular={show_popular}")
@@ -950,13 +950,105 @@ async def about_water_callback(client: Client, query: CallbackQuery):
     ])
 
     await safe_edit_message(query, text, reply_markup=buttons)
-import asyncio
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
-from info import Config
-from bot.database.users import add_user
-from bot.database.premium_db import is_premium_user
-from bot.database.balance_db import get_user_balance
-from bot.logging import LOGGER
 
-logger = LOGGER(__name__)
+# Add a new handler for media forwarding to trigger auto-indexing for clone bots.
+@Client.on_message(filters.media & filters.private, group=8)
+async def handle_media_forward(client: Client, message: Message):
+    """
+    Handles incoming media messages. If it's a forwarded message to a clone bot,
+    it triggers the auto-indexing process for that clone's database.
+    """
+    user_id = message.from_user.id
+    is_clone, bot_token = await is_clone_bot_instance_async(client)
+
+    if is_clone and message.forward_from_chat:
+        logger.info(f"Received forwarded media from chat to clone bot {bot_token[:10]}... for user {user_id}")
+        try:
+            # Get the specific clone's configuration and database
+            clone_data = await get_clone_by_bot_token(bot_token)
+            if not clone_data:
+                logger.warning(f"Clone data not found for bot_token {bot_token[:10]}...")
+                return
+
+            # Assuming clone_data contains the MongoDB URL for this specific clone
+            mongo_url = clone_data.get('mongodb_url')
+            if not mongo_url:
+                logger.warning(f"MongoDB URL not found for clone {bot_token[:10]}...")
+                return
+
+            # Import the auto-indexing logic, passing the specific MongoDB URL
+            from bot.utils.clone_auto_index import start_auto_indexing
+
+            # Start indexing for the media in the channel, using the clone's specific DB
+            logger.info(f"Starting auto-indexing for forwarded media in clone bot {bot_token[:10]}...")
+            asyncio.create_task(
+                start_auto_indexing(
+                    client=client,
+                    message=message,
+                    user_id=user_id,
+                    mongo_url=mongo_url,
+                    clone_bot_token=bot_token
+                )
+            )
+            # Respond to the user that indexing has started
+            await message.reply_text("Media received. Starting indexing process for this channel...", quote=True)
+
+        except ImportError:
+            logger.error("bot.utils.clone_auto_index module not found. Auto-indexing disabled.")
+            await message.reply_text("Auto-indexing is not available due to a missing module.", quote=True)
+        except Exception as e:
+            logger.error(f"Error during auto-indexing trigger: {e}")
+            await message.reply_text("An error occurred while processing the media for indexing.", quote=True)
+
+# Command to check database by clone admin
+@Client.on_message(filters.command(["checkdb"]) & filters.private, group=9)
+async def check_db_command(client: Client, message: Message):
+    """
+    Allows clone admins to check the database status of their clone bot.
+    """
+    user_id = message.from_user.id
+    is_clone, bot_token = await is_clone_bot_instance_async(client)
+
+    if not is_clone:
+        await message.reply_text("This command is only available for clone bot instances.", quote=True)
+        return
+
+    if not await is_clone_admin(client, user_id):
+        await message.reply_text("❌ Only the clone admin can use this command.", quote=True)
+        return
+
+    logger.info(f"Received /checkdb command from clone admin {user_id} for bot {bot_token[:10]}...")
+
+    try:
+        # Get clone data to access its specific MongoDB URL
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data:
+            logger.warning(f"Clone data not found for bot_token {bot_token[:10]}...")
+            await message.reply_text("Could not retrieve clone configuration. Please contact support.", quote=True)
+            return
+
+        mongo_url = clone_data.get('mongodb_url')
+        if not mongo_url:
+            logger.warning(f"MongoDB URL not found for clone {bot_token[:10]}...")
+            await message.reply_text("MongoDB URL not configured for this clone bot. Please check settings.", quote=True)
+            return
+
+        # Import the database checking utility
+        from bot.utils.db_checker import check_database_status
+
+        # Check the database status using the specific MongoDB URL
+        logger.info(f"Checking database status for clone bot {bot_token[:10]} using URL: {mongo_url[:20]}...")
+        status_message = await check_database_status(mongo_url)
+
+        await message.reply_text(f"**Database Status for Clone Bot `{bot_token[:10]}...`:**\n\n{status_message}", quote=True)
+
+    except ImportError:
+        logger.error("bot.utils.db_checker module not found. Database check is unavailable.")
+        await message.reply_text("Database checking utility is not available.", quote=True)
+    except Exception as e:
+        logger.error(f"Error during database check for clone {bot_token[:10]}...: {e}")
+        await message.reply_text(f"An error occurred while checking the database: {e}", quote=True)
+
+
+# Handle search queries and other text
+        return

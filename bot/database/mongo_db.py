@@ -44,16 +44,17 @@ async def get_clone_files_collection(clone_id):
         # clone_db_url = clone_details['mongodb_url']
         # For now, we'll use a dummy URL, assuming it's accessible and valid.
         # You should replace this with actual logic to get the clone's DB URL.
-        clone_db_url = Config.DATABASE_URI # Placeholder: Use the main DB URL for demonstration
-                                          # Replace with actual clone-specific URL fetching logic
-
-        if not clone_db_url:
+        
+        # Fetch clone info and URL using the new function
+        from bot.database.clone_db import get_clone
+        clone_info = await get_clone(clone_id)
+        if not clone_info or 'mongodb_url' not in clone_info:
             logger.error(f"No MongoDB URL found for clone ID: {clone_id}")
             return None
+        clone_db_url = clone_info['mongodb_url']
+        clone_db_name = clone_info.get('db_name', f"clone_{clone_id}")
 
         clone_clients[clone_id] = AsyncIOMotorClient(clone_db_url)
-        # Use a database name specific to the clone, e.g., by appending the clone_id
-        clone_db_name = f"clone_db_{clone_id}"
         clone_dbs[clone_id] = clone_clients[clone_id][clone_db_name]
         clone_collections[clone_id] = clone_dbs[clone_id]['files']
         logger.info(f"Initialized collection for clone ID: {clone_id}")
@@ -308,6 +309,120 @@ async def get_file_stats(file_id, clone_id=None):
             'shares': 0,
             'recent_activity': 0
         }
+
+# Add clone-specific indexing functions
+async def add_file_to_clone_index(file_data, clone_id):
+    """Add file to clone-specific index"""
+    try:
+        # Get clone's database URL
+        from bot.database.clone_db import get_clone
+        clone_info = await get_clone(clone_id)
+        if not clone_info or 'mongodb_url' not in clone_info:
+            return False
+
+        # Connect to clone's database
+        clone_db_client = AsyncIOMotorClient(clone_info['mongodb_url'])
+        clone_db = clone_db_client[clone_info.get('db_name', f"clone_{clone_id}")]
+        clone_files_collection = clone_db['files']
+
+        # Add clone_id to file data
+        file_data['clone_id'] = clone_id
+        file_data['indexed_at'] = datetime.now()
+
+        # Check for duplicates
+        existing_file = await clone_files_collection.find_one({
+            "$or": [
+                {"file_id": file_data["file_id"]},
+                {"message_id": file_data.get("message_id"), "chat_id": file_data.get("chat_id")}
+            ]
+        })
+
+        if existing_file:
+            clone_db_client.close()
+            return False  # Duplicate found
+
+        # Insert file
+        await clone_files_collection.insert_one(file_data)
+
+        clone_db_client.close()
+        return True
+
+    except Exception as e:
+        logger.error(f"Error adding file to clone index: {e}")
+        return False
+
+async def get_clone_database_stats(clone_id):
+    """Get database statistics for a specific clone"""
+    try:
+        from bot.database.clone_db import get_clone
+        clone_info = await get_clone(clone_id)
+        if not clone_info or 'mongodb_url' not in clone_info:
+            return None
+
+        # Connect to clone's database
+        clone_db_client = AsyncIOMotorClient(clone_info['mongodb_url'])
+        clone_db = clone_db_client[clone_info.get('db_name', f"clone_{clone_id}")]
+
+        # Get collection stats
+        files_collection = clone_db['files']
+        users_collection = clone_db['users']
+
+        total_files = await files_collection.count_documents({})
+        total_users = await users_collection.count_documents({})
+
+        # Get file type distribution
+        pipeline = [
+            {"$group": {"_id": "$file_type", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}
+        ]
+        file_types = await files_collection.aggregate(pipeline).to_list(length=None)
+
+        # Get total file size
+        size_pipeline = [
+            {"$group": {"_id": None, "total_size": {"$sum": "$file_size"}}}
+        ]
+        size_result = await files_collection.aggregate(size_pipeline).to_list(length=1)
+        total_size = size_result[0]['total_size'] if size_result else 0
+
+        # Recent activity (files added in last 24 hours)
+        from datetime import timedelta
+        yesterday = datetime.now() - timedelta(days=1)
+        recent_files = await files_collection.count_documents({
+            "indexed_at": {"$gte": yesterday}
+        })
+
+        clone_db_client.close()
+
+        return {
+            "total_files": total_files,
+            "total_users": total_users,
+            "total_size": total_size,
+            "recent_files": recent_files,
+            "file_types": {item["_id"]: item["count"] for item in file_types},
+            "database_name": clone_info.get('db_name', f"clone_{clone_id}")
+        }
+
+    except Exception as e:
+        logger.error(f"Error getting clone database stats: {e}")
+        return None
+
+async def check_clone_database_connection(clone_id):
+    """Check if clone database connection is working"""
+    try:
+        from bot.database.clone_db import get_clone
+        clone_info = await get_clone(clone_id)
+        if not clone_info or 'mongodb_url' not in clone_info:
+            return False, "Clone configuration not found or missing database URL"
+
+        # Test connection
+        clone_db_client = AsyncIOMotorClient(clone_info['mongodb_url'], serverSelectionTimeoutMS=5000)
+        await clone_db_client.admin.command('ping')
+        clone_db_client.close()
+
+        return True, "Database connection successful"
+
+    except Exception as e:
+        return False, f"Database connection failed: {str(e)}"
 
 
 class MongoDB:

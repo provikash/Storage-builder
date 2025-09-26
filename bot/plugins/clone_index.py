@@ -180,15 +180,16 @@ async def index_clone_files(client: Client, msg: Message, chat_id: int, last_msg
             current += 1
             clone_index_temp[clone_id]["current"] = current
             
-            if current % 50 == 0:
+            if current % 20 == 0:  # More frequent updates
                 await msg.edit_text(
                     f"🔄 **Clone Indexing Progress**\n\n"
-                    f"📊 Messages fetched: `{current}`\n"
-                    f"✅ Files saved: `{total_files}`\n"
+                    f"📊 Messages processed: `{current}`\n"
+                    f"✅ Files indexed: `{total_files}`\n"
                     f"📋 Duplicates: `{duplicate}`\n"
                     f"🗑️ Deleted: `{deleted}`\n"
                     f"📄 Non-media: `{no_media + unsupported}`\n"
-                    f"❌ Errors: `{errors}`",
+                    f"❌ Errors: `{errors}`\n\n"
+                    f"🔍 Processing message ID: `{message.id if message else 'N/A'}`",
                     reply_markup=InlineKeyboardMarkup([
                         [InlineKeyboardButton("🛑 Cancel", callback_data=f"clone_cancel_index:{clone_id}")]
                     ])
@@ -200,7 +201,7 @@ async def index_clone_files(client: Client, msg: Message, chat_id: int, last_msg
             elif not message.media:
                 no_media += 1
                 continue
-            elif message.media not in [enums.MessageMediaType.VIDEO, enums.MessageMediaType.AUDIO, enums.MessageMediaType.DOCUMENT]:
+            elif message.media not in [enums.MessageMediaType.VIDEO, enums.MessageMediaType.AUDIO, enums.MessageMediaType.DOCUMENT, enums.MessageMediaType.PHOTO]:
                 unsupported += 1
                 continue
             
@@ -210,24 +211,39 @@ async def index_clone_files(client: Client, msg: Message, chat_id: int, last_msg
                 continue
             
             # Extract file information
-            file_name = getattr(media, 'file_name', None) or message.caption or f"File_{message.id}"
+            file_name = getattr(media, 'file_name', None)
+            if not file_name:
+                if message.media == enums.MessageMediaType.PHOTO:
+                    file_name = f"Photo_{message.id}.jpg"
+                else:
+                    file_name = message.caption.split('\n')[0] if message.caption else f"File_{message.id}"
+            
             file_size = getattr(media, 'file_size', 0)
             file_type = message.media.value
             caption = message.caption or ''
             
+            # Get file_id for downloading
+            file_id = getattr(media, 'file_id', None)
+            if not file_id and hasattr(media, 'file_ref'):
+                file_id = media.file_ref
+            
             try:
-                # Add to clone's database
+                # Prepare file data for clone's database
                 file_data = {
-                    "file_id": str(message.id),
+                    "file_id": file_id or str(message.id),
+                    "message_id": message.id,
+                    "chat_id": chat_id,
                     "file_name": file_name,
                     "file_type": file_type,
                     "file_size": file_size,
                     "caption": caption,
                     "user_id": message.from_user.id if message.from_user else 0,
-                    "message_id": message.id,
-                    "chat_id": chat_id
+                    "date": message.date,
+                    "views": getattr(message, 'views', 0),
+                    "forwards": getattr(message, 'forwards', 0)
                 }
                 
+                from bot.database.mongo_db import add_file_to_clone_index
                 success = await add_file_to_clone_index(file_data, clone_id)
                 if success:
                     total_files += 1
@@ -245,12 +261,13 @@ async def index_clone_files(client: Client, msg: Message, chat_id: int, last_msg
         await msg.edit_text(
             f"✅ **Clone Indexing Complete**\n\n"
             f"📊 **Final Results:**\n"
-            f"✅ Files saved: `{total_files}`\n"
-            f"📋 Duplicates: `{duplicate}`\n"
-            f"🗑️ Deleted: `{deleted}`\n"
-            f"📄 Non-media: `{no_media + unsupported}`\n"
+            f"✅ Files indexed: `{total_files}`\n"
+            f"📋 Duplicates skipped: `{duplicate}`\n"
+            f"🗑️ Deleted messages: `{deleted}`\n"
+            f"📄 Non-media messages: `{no_media + unsupported}`\n"
             f"❌ Errors: `{errors}`\n\n"
-            f"Files are now available in your clone bot!"
+            f"🎉 Files are now searchable in your clone bot!\n"
+            f"💡 Use `/search <query>` to find files."
         )
         
     except Exception as e:
@@ -260,3 +277,63 @@ async def index_clone_files(client: Client, msg: Message, chat_id: int, last_msg
         # Clean up temp data
         if clone_id in clone_index_temp:
             del clone_index_temp[clone_id]
+
+async def auto_index_forwarded_message(client: Client, message: Message, clone_id: str):
+    """Automatically index a forwarded message"""
+    try:
+        if not message.media:
+            return False
+        
+        if message.media not in [enums.MessageMediaType.VIDEO, enums.MessageMediaType.AUDIO, enums.MessageMediaType.DOCUMENT, enums.MessageMediaType.PHOTO]:
+            return False
+        
+        media = getattr(message, message.media.value, None)
+        if not media:
+            return False
+        
+        # Extract file information
+        file_name = getattr(media, 'file_name', None)
+        if not file_name:
+            if message.media == enums.MessageMediaType.PHOTO:
+                file_name = f"Photo_{message.id}.jpg"
+            else:
+                file_name = message.caption.split('\n')[0] if message.caption else f"File_{message.id}"
+        
+        file_size = getattr(media, 'file_size', 0)
+        file_type = message.media.value
+        caption = message.caption or ''
+        file_id = getattr(media, 'file_id', None)
+        
+        # Get original chat info from forward header
+        original_chat_id = None
+        original_message_id = None
+        
+        if message.forward_from_chat:
+            original_chat_id = message.forward_from_chat.id
+            original_message_id = message.forward_from_message_id
+        
+        # Prepare file data
+        file_data = {
+            "file_id": file_id or str(message.id),
+            "message_id": message.id,
+            "chat_id": message.chat.id,
+            "original_chat_id": original_chat_id,
+            "original_message_id": original_message_id,
+            "file_name": file_name,
+            "file_type": file_type,
+            "file_size": file_size,
+            "caption": caption,
+            "user_id": message.from_user.id if message.from_user else 0,
+            "date": message.date,
+            "views": getattr(message, 'views', 0),
+            "forwards": getattr(message, 'forwards', 0),
+            "is_forwarded": True
+        }
+        
+        from bot.database.mongo_db import add_file_to_clone_index
+        success = await add_file_to_clone_index(file_data, clone_id)
+        return success
+        
+    except Exception as e:
+        logger.error(f"Error auto-indexing forwarded message: {e}")
+        return False

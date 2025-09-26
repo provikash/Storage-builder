@@ -273,6 +273,10 @@ async def clone_settings_command(client: Client, message):
             InlineKeyboardButton("🔧 Advanced Settings", callback_data="clone_advanced_settings")
         ],
         [
+            InlineKeyboardButton("🗄️ Database Stats", callback_data=f"clone_refresh_stats:{clone_data.get('bot_id', 'unknown')}"),
+            InlineKeyboardButton("🔍 Test Database", callback_data=f"clone_test_db:{clone_data.get('bot_id', 'unknown')}")
+        ],
+        [
             InlineKeyboardButton("🔍 Debug Settings", callback_data="clone_debug_settings"),
             InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")
         ]
