@@ -61,18 +61,16 @@ class CloneManager:
 
             tracker.add_step("clone_data_retrieved", {"clone_exists": True})
 
-            # Enhanced subscription validation
+            # Enhanced subscription validation (TESTING MODE - ALWAYS ALLOW)
             tracker.add_step("checking_subscription")
             subscription = await get_subscription(bot_id)
-            if not subscription:
-                logger.warning(f"No subscription found for bot {bot_id}, allowing startup for testing")
-                # Allow startup even without subscription for testing purposes
-                # return True, "No subscription found" # Original behavior
+            logger.info(f"🔍 DEBUG: Subscription for bot {bot_id}: {subscription}")
+            print(f"🔍 DEBUG SUBSCRIPTION: For bot {bot_id}: {subscription}")
 
-            # Validate subscription status
-            subscription_valid, subscription_msg = await self._validate_subscription(subscription, bot_id)
-            if not subscription_valid:
-                return False, subscription_msg
+            # Always allow during development - bypass subscription validation
+            subscription_valid, subscription_msg = True, "Development mode: subscription validation bypassed"
+            logger.info(f"✅ DEBUG: Subscription validation result: {subscription_valid} - {subscription_msg}")
+            print(f"✅ DEBUG SUBSCRIPTION: Result: {subscription_valid} - {subscription_msg}")
 
             if bot_id in self.active_clones:
                 # Check if clone is actually running
@@ -84,13 +82,27 @@ class CloneManager:
 
             # Validate bot token
             bot_token = clone.get('bot_token') or clone.get('token')
-            if not bot_token or not await self._validate_bot_token(bot_token):
-                error_msg = "Invalid or missing bot token"
-                logger.error(error_msg)
+            logger.info(f"🔍 DEBUG: Bot token for {bot_id}: {bot_token[:20] if bot_token else 'None'}...")
+            print(f"🔍 DEBUG TOKEN: For {bot_id}: {bot_token[:20] if bot_token else 'None'}...")
+            
+            if not bot_token:
+                error_msg = "Missing bot token in clone data"
+                logger.error(f"❌ {error_msg} for bot {bot_id}")
+                print(f"❌ DEBUG TOKEN: {error_msg} for bot {bot_id}")
+                tracker.complete(success=False, error=error_msg)
+                return False, error_msg
+                
+            token_valid = await self._validate_bot_token(bot_token)
+            if not token_valid:
+                error_msg = "Invalid bot token format"
+                logger.error(f"❌ {error_msg} for bot {bot_id}")
+                print(f"❌ DEBUG TOKEN: {error_msg} for bot {bot_id}")
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
 
             tracker.add_step("bot_token_validated")
+            logger.info(f"✅ Bot token validated for {bot_id}")
+            print(f"✅ DEBUG TOKEN: Token validated for {bot_id}")
 
             # Create bot instance with proper error handling
             clone_bot = await self._create_clone_client(bot_id, bot_token)
@@ -180,19 +192,11 @@ class CloneManager:
 
     async def _validate_subscription(self, subscription: dict, bot_id: str) -> tuple[bool, str]:
         """Completely permissive subscription validation for testing"""
-        logger.info(f"🔄 Subscription validation for bot {bot_id} - ALLOWING ALL")
-        print(f"🔄 DEBUG SUBSCRIPTION: Validation for bot {bot_id} - ALLOWING ALL")
+        logger.info(f"🔄 Subscription validation for bot {bot_id} - ALLOWING ALL (TESTING MODE)")
+        print(f"🔄 DEBUG SUBSCRIPTION: Validation for bot {bot_id} - ALLOWING ALL (TESTING MODE)")
         
-        if not subscription:
-            logger.info(f"No subscription found for bot {bot_id}, allowing startup (testing mode)")
-            print(f"✅ DEBUG SUBSCRIPTION: No subscription for bot {bot_id} - allowing startup")
-            return True, "No subscription required (testing mode)"
-
-        status = subscription.get('status', 'unknown')
-        logger.info(f"Subscription status for bot {bot_id}: {status} - allowing anyway")
-        print(f"✅ DEBUG SUBSCRIPTION: Status for bot {bot_id}: {status} - allowing anyway")
-        
-        return True, f"Subscription validation bypassed (testing mode) - status was: {status}"
+        # Always return True during development/testing
+        return True, "Development mode: All clones allowed to start regardless of subscription status"
 
     async def _validate_bot_token(self, token: str) -> bool:
         """Validate bot token format"""
@@ -336,20 +340,21 @@ class CloneManager:
                 logger.info("No clones found in database")
                 return 0, 0
 
-            # Start ALL clones regardless of status - testing mode
-            clones_to_start = all_clones
-            logger.info(f"📊 Found {len(clones_to_start)} clones to start (all clones)")
-            print(f"📊 DEBUG CLONE: Found {len(clones_to_start)} clones to start (all clones)")
+            logger.info(f"📊 Found {len(all_clones)} clones in database")
+            print(f"📊 DEBUG CLONE: Found {len(all_clones)} clones in database")
 
             started_count = 0
 
-            for clone in clones_to_start:
+            for clone in all_clones:
                 try:
                     bot_id = clone.get('_id')
                     if not bot_id:
                         logger.warning("Skipping clone with no _id")
                         continue
 
+                    # Convert bot_id to string for consistency
+                    bot_id = str(bot_id)
+                    
                     # Force activate in database first
                     await activate_clone(bot_id)
                     status = clone.get('status', 'unknown')
@@ -369,9 +374,13 @@ class CloneManager:
                     else:
                         logger.error(f"❌ Failed to start clone {username}: {message}")
                         print(f"❌ DEBUG CLONE: Failed to start clone {username}: {message}")
+                        
+                        # Try to diagnose the issue
+                        print(f"🔍 DEBUG CLONE: Failure details - {message}")
+                        print(f"🔍 DEBUG CLONE: Clone data: {clone}")
 
                     # Small delay between starts
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2)
 
                 except Exception as e:
                     logger.error(f"Error processing clone {clone.get('username', 'unknown')} ({clone.get('_id')}): {e}")
@@ -380,9 +389,9 @@ class CloneManager:
                     traceback.print_exc()
                     continue
 
-            logger.info(f"🚀 Final result: Started {started_count}/{len(clones_to_start)} clones")
-            print(f"🚀 DEBUG CLONE: Final result: Started {started_count}/{len(clones_to_start)} clones")
-            return started_count, len(clones_to_start)
+            logger.info(f"🚀 Final result: Started {started_count}/{len(all_clones)} clones")
+            print(f"🚀 DEBUG CLONE: Final result: Started {started_count}/{len(all_clones)} clones")
+            return started_count, len(all_clones)
 
         except Exception as e:
             logger.error(f"Error in start_all_clones: {e}")

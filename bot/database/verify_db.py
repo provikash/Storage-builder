@@ -103,6 +103,10 @@ async def verify_user(user_id: int) -> bool:
     """Verify a user - alias for is_verified function"""
     return await is_verified(user_id)
 
+async def get_verification_token(user_id: int) -> str:
+    """Get verification token for user - alias for create_verification_token"""
+    return await create_verification_token(user_id)
+
 async def validate_token_and_verify(user_id: int, token: str) -> bool:
     """Validate token and verify user, then delete the token"""
     try:
