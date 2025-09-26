@@ -84,14 +84,14 @@ class CloneManager:
             bot_token = clone.get('bot_token') or clone.get('token')
             logger.info(f"🔍 DEBUG: Bot token for {bot_id}: {bot_token[:20] if bot_token else 'None'}...")
             print(f"🔍 DEBUG TOKEN: For {bot_id}: {bot_token[:20] if bot_token else 'None'}...")
-            
+
             if not bot_token:
                 error_msg = "Missing bot token in clone data"
                 logger.error(f"❌ {error_msg} for bot {bot_id}")
                 print(f"❌ DEBUG TOKEN: {error_msg} for bot {bot_id}")
                 tracker.complete(success=False, error=error_msg)
                 return False, error_msg
-                
+
             token_valid = await self._validate_bot_token(bot_token)
             if not token_valid:
                 error_msg = "Invalid bot token format"
@@ -194,7 +194,7 @@ class CloneManager:
         """Completely permissive subscription validation for testing"""
         logger.info(f"🔄 Subscription validation for bot {bot_id} - ALLOWING ALL (TESTING MODE)")
         print(f"🔄 DEBUG SUBSCRIPTION: Validation for bot {bot_id} - ALLOWING ALL (TESTING MODE)")
-        
+
         # Always return True during development/testing
         return True, "Development mode: All clones allowed to start regardless of subscription status"
 
@@ -340,8 +340,10 @@ class CloneManager:
                 logger.info("No clones found in database")
                 return 0, 0
 
-            logger.info(f"📊 Found {len(all_clones)} clones in database")
-            print(f"📊 DEBUG CLONE: Found {len(all_clones)} clones in database")
+            # Force start all clones in development mode
+            clones_to_start = all_clones
+            logger.info(f"📊 Found {len(clones_to_start)} clones to start (forcing all)")
+            print(f"📊 DEBUG CLONE: Found {len(clones_to_start)} clones to start (forcing all)")
 
             started_count = 0
 
@@ -354,7 +356,7 @@ class CloneManager:
 
                     # Convert bot_id to string for consistency
                     bot_id = str(bot_id)
-                    
+
                     # Force activate in database first
                     await activate_clone(bot_id)
                     status = clone.get('status', 'unknown')
@@ -362,24 +364,19 @@ class CloneManager:
                     logger.info(f"🔄 Force activated clone {username} ({bot_id}) in database - was {status}")
                     print(f"🔄 DEBUG CLONE: Force activated clone {username} ({bot_id}) - was {status}")
 
-                    # Attempt to start the clone with detailed logging
                     logger.info(f"🚀 Attempting to start clone {username} ({bot_id})")
-                    print(f"🚀 DEBUG CLONE: Attempting to start clone {username} ({bot_id})")
-                    
+                    print(f"🚀 DEBUG: Attempting to start clone {username} ({bot_id})")
+
                     success, message = await self.start_clone(bot_id)
                     if success:
                         started_count += 1
-                        logger.info(f"✅ Successfully started clone {username}: {message}")
-                        print(f"✅ DEBUG CLONE: Successfully started clone {username}: {message}")
+                        logger.info(f"✅ Started clone {username}: {message}")
+                        print(f"✅ DEBUG: Started clone {username}: {message}")
                     else:
                         logger.error(f"❌ Failed to start clone {username}: {message}")
-                        print(f"❌ DEBUG CLONE: Failed to start clone {username}: {message}")
-                        
-                        # Try to diagnose the issue
-                        print(f"🔍 DEBUG CLONE: Failure details - {message}")
-                        print(f"🔍 DEBUG CLONE: Clone data: {clone}")
+                        print(f"❌ DEBUG: Failed to start clone {username}: {message}")
 
-                    # Small delay between starts
+                    # Small delay between starts to prevent overwhelming
                     await asyncio.sleep(2)
 
                 except Exception as e:

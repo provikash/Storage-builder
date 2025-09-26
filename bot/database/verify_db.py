@@ -107,6 +107,16 @@ async def get_verification_token(user_id: int) -> str:
     """Get verification token for user - alias for create_verification_token"""
     return await create_verification_token(user_id)
 
+async def delete_verification_token(user_id: int) -> bool:
+    """Delete verification token for user"""
+    try:
+        result = await tokens_col.delete_many({"user_id": user_id})
+        logger.info(f"✅ Deleted {result.deleted_count} tokens for user {user_id}")
+        return result.deleted_count > 0
+    except Exception as e:
+        logger.error(f"❌ Error deleting verification token: {e}")
+        return False
+
 async def validate_token_and_verify(user_id: int, token: str) -> bool:
     """Validate token and verify user, then delete the token"""
     try:

@@ -93,6 +93,15 @@ args = "sleep 3"
 task = "shell.exec"
 args = "export DATABASE_URI=\"$DATABASE_URL\" && python3 main.py"
 
+[[workflows.workflow]]
+name = "Test Clone Startup"
+author = 48028191
+mode = "sequential"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python3 test_clone_startup.py"
+
 [[ports]]
 localPort = 5000
 externalPort = 80
