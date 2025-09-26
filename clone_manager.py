@@ -179,29 +179,20 @@ class CloneManager:
             self._starting_clones.discard(bot_id)
 
     async def _validate_subscription(self, subscription: dict, bot_id: str) -> tuple[bool, str]:
-        """Enhanced subscription validation"""
+        """Completely permissive subscription validation for testing"""
+        logger.info(f"🔄 Subscription validation for bot {bot_id} - ALLOWING ALL")
+        print(f"🔄 DEBUG SUBSCRIPTION: Validation for bot {bot_id} - ALLOWING ALL")
+        
         if not subscription:
-            logger.warning(f"No subscription found for bot {bot_id}, allowing startup for testing")
-            return True, "No subscription required for testing"
+            logger.info(f"No subscription found for bot {bot_id}, allowing startup (testing mode)")
+            print(f"✅ DEBUG SUBSCRIPTION: No subscription for bot {bot_id} - allowing startup")
+            return True, "No subscription required (testing mode)"
 
-        status = subscription['status']
-        is_payment_verified = subscription.get('payment_verified', False)
-        expires_at = subscription.get('expires_at')
-
-        # Check if subscription is expired
-        if expires_at and expires_at < datetime.now():
-            logger.warning(f"Subscription expired for bot {bot_id}, but allowing startup")
-            return True, "Expired subscription - allowing startup"
-
-        # Handle different subscription statuses - be more permissive
-        if status in ['active', 'pending']:
-            return True, f"Subscription status: {status}"
-        elif status in ['expired', 'cancelled']:
-            logger.warning(f"Subscription {status} for bot {bot_id}, but allowing startup")
-            return True, f"Subscription {status} - allowing startup"
-        else:
-            logger.warning(f"Unknown subscription status {status} for bot {bot_id}, allowing startup")
-            return True, f"Unknown subscription status: {status} - allowing startup"
+        status = subscription.get('status', 'unknown')
+        logger.info(f"Subscription status for bot {bot_id}: {status} - allowing anyway")
+        print(f"✅ DEBUG SUBSCRIPTION: Status for bot {bot_id}: {status} - allowing anyway")
+        
+        return True, f"Subscription validation bypassed (testing mode) - status was: {status}"
 
     async def _validate_bot_token(self, token: str) -> bool:
         """Validate bot token format"""
@@ -345,8 +336,8 @@ class CloneManager:
                 logger.info("No clones found in database")
                 return 0, 0
 
-            # Try to start all clones regardless of status during development
-            clones_to_start = all_clones  # Start all clones in development mode
+            # Start ALL clones regardless of status - testing mode
+            clones_to_start = all_clones
             logger.info(f"📊 Found {len(clones_to_start)} clones to start (all clones)")
             print(f"📊 DEBUG CLONE: Found {len(clones_to_start)} clones to start (all clones)")
 
@@ -359,31 +350,45 @@ class CloneManager:
                         logger.warning("Skipping clone with no _id")
                         continue
 
-                    # Activate in database first
+                    # Force activate in database first
                     await activate_clone(bot_id)
                     status = clone.get('status', 'unknown')
                     username = clone.get('username', 'unknown')
-                    logger.info(f"🔄 Activated clone {username} ({bot_id}) in database - was {status}")
+                    logger.info(f"🔄 Force activated clone {username} ({bot_id}) in database - was {status}")
+                    print(f"🔄 DEBUG CLONE: Force activated clone {username} ({bot_id}) - was {status}")
 
+                    # Attempt to start the clone with detailed logging
+                    logger.info(f"🚀 Attempting to start clone {username} ({bot_id})")
+                    print(f"🚀 DEBUG CLONE: Attempting to start clone {username} ({bot_id})")
+                    
                     success, message = await self.start_clone(bot_id)
                     if success:
                         started_count += 1
-                        logger.info(f"✅ Started clone {username}: {message}")
+                        logger.info(f"✅ Successfully started clone {username}: {message}")
+                        print(f"✅ DEBUG CLONE: Successfully started clone {username}: {message}")
                     else:
-                        logger.warning(f"❌ Failed to start clone {username}: {message}")
+                        logger.error(f"❌ Failed to start clone {username}: {message}")
+                        print(f"❌ DEBUG CLONE: Failed to start clone {username}: {message}")
 
-                    # Small delay between starts to prevent overwhelming
-                    await asyncio.sleep(2)
+                    # Small delay between starts
+                    await asyncio.sleep(1)
 
                 except Exception as e:
                     logger.error(f"Error processing clone {clone.get('username', 'unknown')} ({clone.get('_id')}): {e}")
+                    print(f"❌ DEBUG CLONE: Error processing clone: {e}")
+                    import traceback
+                    traceback.print_exc()
                     continue
 
-            logger.info(f"🚀 Started {started_count}/{len(clones_to_start)} clones")
+            logger.info(f"🚀 Final result: Started {started_count}/{len(clones_to_start)} clones")
+            print(f"🚀 DEBUG CLONE: Final result: Started {started_count}/{len(clones_to_start)} clones")
             return started_count, len(clones_to_start)
 
         except Exception as e:
             logger.error(f"Error in start_all_clones: {e}")
+            print(f"❌ DEBUG CLONE: Error in start_all_clones: {e}")
+            import traceback
+            traceback.print_exc()
             return 0, 0
 
     async def _monitor_clone(self, bot_id: str):
