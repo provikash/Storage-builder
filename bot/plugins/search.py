@@ -368,6 +368,20 @@ async def show_popular_files(client: Client, callback_query: CallbackQuery):
         except Exception as e:
             logger.error(f"Error editing popular files message: {e}")
             await callback_query.answer("❌ Error loading popular files", show_alert=True)
+
+    except Exception as e:
+        logger.exception(f"show_popular_files error: {e}")
+        try:
+            await callback_query.message.edit_text(f"❌ Error: {e}")
+        except Exception:
+            pass
+
+async def show_popular_files_alternative(client: Client, callback_query: CallbackQuery):
+    """Alternative implementation for popular files"""
+    try:
+        text = "🔥 **Popular Files**\n\nThis feature is being updated. Please try other options."
+        buttons = []
+        buttons.append([InlineKeyboardButton("🎲 Random", callback_data="rand_new"),
                         InlineKeyboardButton("🆕 Recent", callback_data="rand_recent")])
         buttons.append([InlineKeyboardButton("📊 Stats", callback_data="rand_stats")])
 
@@ -521,9 +535,7 @@ async def handle_recent_files_direct(client: Client, message: Message, is_callba
 async def search_command(client: Client, message: Message):
     try:
         if len(message.command) < 2:
-            await message.reply_text("❌ **Usage:** `/search <query>`
-
-Example: `/search funny videos`")
+            await message.reply_text("❌ **Usage:** `/search <query>`\n\nExample: `/search funny videos`")
             return
         query = " ".join(message.command[1:])
         

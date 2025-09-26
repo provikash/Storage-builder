@@ -4,7 +4,7 @@ from bot.database import get_user_command_count, increment_command_count, is_ver
 from bot.database.premium_db import use_premium_token
 from bot.database.command_usage_db import reset_command_count
 from info import Config
-from telebot.async_telebot import Client
+from pyrogram import Client
 from loguru import logger
 from bot.utils import clone_config_loader
 

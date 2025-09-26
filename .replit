@@ -1,4 +1,4 @@
-modules = ["c-clang14", "nodejs-20", "web", "python-3.11"]
+modules = ["c-clang14", "nodejs-20", "web", "python-3.11", "postgresql-16"]
 run = "python3 main.py"
 
 [nix]
@@ -62,6 +62,10 @@ args = "export DATABASE_URI=\"$DATABASE_URL\" && python3 main.py"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 43321
+externalPort = 3000
 
 [agent]
 expertMode = true
