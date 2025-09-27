@@ -6,7 +6,7 @@ channel = "stable-25_05"
 packages = ["cacert", "cargo", "gh", "libiconv", "libuv", "libxcrypt", "magma", "openssl", "pkg-config", "rustc"]
 
 [deployment]
-run = ["python3", "main.py"]
+run = ["export", "DATABASE_URI=$DATABASE_URL", "&&", "python3", "main.py"]
 deploymentTarget = "vm"
 
 [workflows]
@@ -105,6 +105,10 @@ args = "python3 test_clone_startup.py"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 33149
+externalPort = 3000
 
 [agent]
 expertMode = true
