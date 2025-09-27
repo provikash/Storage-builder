@@ -1,12 +1,7 @@
 
-import logging
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message
 from info import Config
-from bot.database import present_user, add_user
-from bot.utils.helper import get_readable_file_size
-
-logger = logging.getLogger(__name__)
 
 @Client.on_message(filters.command("help") & filters.private)
 async def help_command(client: Client, message: Message):
@@ -116,7 +111,7 @@ async def handle_files(client: Client, message: Message):
     await message.reply_text(
         f"✅ **File Received!**\n\n"
         f"📁 **Name:** `{file_name}`\n"
-        f"📊 **Size:** `{get_readable_file_size(file_size) if file_size else 'Unknown'}`\n"
+        f"📊 **Size:** `{get_readable_time(file_size) if file_size else 'Unknown'}`\n"
         f"🆔 **File ID:** `{file_id}`\n\n"
         f"Your file has been stored and is ready to share!",
         reply_markup=buttons
