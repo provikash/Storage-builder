@@ -265,7 +265,7 @@ async def clone_settings_command(client: Client, message):
             InlineKeyboardButton(f"🔐 Force Join: {'✅' if force_join else '❌'}", callback_data="clone_toggle_force_join")
         ],
         [
-            InlineKeyboardButton("🔑 Token Verification", callback_data="clone_token_verification_mode"),
+            InlineKeyboardButton("🔑 Token Verification Mode", callback_data="clone_token_verification_mode"),
             InlineKeyboardButton("🔗 URL Shortener", callback_data="clone_url_shortener_config")
         ],
         [
@@ -273,12 +273,8 @@ async def clone_settings_command(client: Client, message):
             InlineKeyboardButton("🔧 Advanced Settings", callback_data="clone_advanced_settings")
         ],
         [
-            InlineKeyboardButton("🗄️ Database Info", callback_data=f"refresh_db_info:{clone_data.get('bot_id', 'unknown')}"),
-            InlineKeyboardButton("📊 Database Stats", callback_data=f"clone_refresh_stats:{clone_data.get('bot_id', 'unknown')}")
-        ],
-        [
-            InlineKeyboardButton("🔍 Test Database", callback_data=f"clone_test_db:{clone_data.get('bot_id', 'unknown')}"),
-            InlineKeyboardButton("📁 Index Settings", callback_data=f"index_settings:{clone_data.get('bot_id', 'unknown')}")
+            InlineKeyboardButton("🗄️ Database Stats", callback_data=f"clone_refresh_stats:{clone_data.get('bot_id', 'unknown')}"),
+            InlineKeyboardButton("🔍 Test Database", callback_data=f"clone_test_db:{clone_data.get('bot_id', 'unknown')}")
         ],
         [
             InlineKeyboardButton("🔍 Debug Settings", callback_data="clone_debug_settings"),
@@ -981,7 +977,7 @@ async def handle_token_verification_mode_settings(client: Client, query: Callbac
                 InlineKeyboardButton("⏰ Time Mode", callback_data="clone_set_token_time_based"),
                 InlineKeyboardButton("⚙️ Shortener Config", callback_data="clone_url_shortener_config")
             ],
-            [InlineKeyboardButton("🔙 Back to Settings", callback_data="clone_back_to_settings")]
+            [InlineKeyboardButton("🔙 Back", callback_data="clone_back_to_settings")]
         ])
     )
 
