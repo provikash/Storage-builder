@@ -333,62 +333,37 @@ class CloneManager:
     async def start_all_clones(self):
         """Start all active clones"""
         try:
-            from bot.database.clone_db import get_all_clones, activate_clone
+            # Get list of all clones first
+            from bot.database.clone_db import get_all_clones
             all_clones = await get_all_clones()
 
             if not all_clones:
-                logger.info("No clones found in database")
-                return 0, 0
+                logger.warning("⚠️ No clones found in database")
+                print("⚠️ DEBUG CLONE: No clones found in database")
+                return None
 
-            # Force start all clones in development mode
-            clones_to_start = all_clones
-            logger.info(f"📊 Found {len(clones_to_start)} clones to start (forcing all)")
-            print(f"📊 DEBUG CLONE: Found {len(clones_to_start)} clones to start (forcing all)")
-
-            started_count = 0
-
+            # Show all clones with their statuses and activate stopped ones
             for clone in all_clones:
-                try:
-                    bot_id = clone.get('_id')
-                    if not bot_id:
-                        logger.warning("Skipping clone with no _id")
-                        continue
+                status = clone.get('status', 'unknown')
+                username = clone.get('username', 'unknown')
+                bot_id = clone.get('_id', 'unknown')
+                logger.info(f"📋 Clone found: {username} ({bot_id}) - Status: {status}")
+                print(f"📋 DEBUG CLONE: Clone found: {username} ({bot_id}) - Status: {status}")
 
-                    # Convert bot_id to string for consistency
-                    bot_id = str(bot_id)
-
-                    # Force activate in database first
+                # Activate stopped clones for testing
+                if status == 'stopped':
+                    from bot.database.clone_db import activate_clone
                     await activate_clone(bot_id)
-                    status = clone.get('status', 'unknown')
-                    username = clone.get('username', 'unknown')
-                    logger.info(f"🔄 Force activated clone {username} ({bot_id}) in database - was {status}")
-                    print(f"🔄 DEBUG CLONE: Force activated clone {username} ({bot_id}) - was {status}")
+                    logger.info(f"🔄 Activated stopped clone: {username} ({bot_id})")
+                    print(f"🔄 DEBUG CLONE: Activated stopped clone: {username} ({bot_id})")
 
-                    logger.info(f"🚀 Attempting to start clone {username} ({bot_id})")
-                    print(f"🚀 DEBUG: Attempting to start clone {username} ({bot_id})")
+            # Start ALL clones regardless of status (testing mode)
+            logger.info(f"📊 Attempting to start ALL {len(all_clones)} clones (testing mode)")
+            print(f"📊 DEBUG CLONE: Attempting to start ALL {len(all_clones)} clones (testing mode)")
 
-                    success, message = await self.start_clone(bot_id)
-                    if success:
-                        started_count += 1
-                        logger.info(f"✅ Started clone {username}: {message}")
-                        print(f"✅ DEBUG: Started clone {username}: {message}")
-                    else:
-                        logger.error(f"❌ Failed to start clone {username}: {message}")
-                        print(f"❌ DEBUG: Failed to start clone {username}: {message}")
-
-                    # Small delay between starts to prevent overwhelming
-                    await asyncio.sleep(2)
-
-                except Exception as e:
-                    logger.error(f"Error processing clone {clone.get('username', 'unknown')} ({clone.get('_id')}): {e}")
-                    print(f"❌ DEBUG CLONE: Error processing clone: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    continue
-
-            logger.info(f"🚀 Final result: Started {started_count}/{len(all_clones)} clones")
-            print(f"🚀 DEBUG CLONE: Final result: Started {started_count}/{len(all_clones)} clones")
-            return started_count, len(all_clones)
+            # Start all clones
+            started_count, total_count = await clone_manager.start_all_clones()
+            return started_count, total_count
 
         except Exception as e:
             logger.error(f"Error in start_all_clones: {e}")
@@ -565,59 +540,43 @@ class CloneManager:
     async def start_all_clones(self):
         """Start all active clones"""
         try:
+            # Get list of all clones first
             from bot.database.clone_db import get_all_clones
             all_clones = await get_all_clones()
 
             if not all_clones:
-                logger.info("No clones found in database")
-                return 0, 0
+                logger.warning("⚠️ No clones found in database")
+                print("⚠️ DEBUG CLONE: No clones found in database")
+                return None
 
-            # Check for clones with status 'active' or 'pending_payment' with verified payment
-            startable_clones = []
+            # Show all clones with their statuses and activate stopped ones
             for clone in all_clones:
-                status = clone.get('status', 'inactive')
-                if status == 'active':
-                    startable_clones.append(clone)
-                elif status == 'pending_payment':
-                    # Check if payment is verified
-                    from bot.database.subscription_db import get_subscription
-                    subscription = await get_subscription(clone['_id'])
-                    if subscription and subscription.get('payment_verified', False):
-                        startable_clones.append(clone)
-                        logger.info(f"Clone {clone['_id']} has verified payment, starting...")
+                status = clone.get('status', 'unknown')
+                username = clone.get('username', 'unknown')
+                bot_id = clone.get('_id', 'unknown')
+                logger.info(f"📋 Clone found: {username} ({bot_id}) - Status: {status}")
+                print(f"📋 DEBUG CLONE: Clone found: {username} ({bot_id}) - Status: {status}")
 
-            if not startable_clones:
-                logger.info("No startable clones found - all clones may have validation issues")
-                # Check what clones exist for debugging
-                for clone in all_clones:
-                    logger.debug(f"Clone {clone['_id']}: status={clone.get('status', 'unknown')}, username={clone.get('username', 'unknown')}")
-                return 0, 0
+                # Activate stopped clones for testing
+                if status == 'stopped':
+                    from bot.database.clone_db import activate_clone
+                    await activate_clone(bot_id)
+                    logger.info(f"🔄 Activated stopped clone: {username} ({bot_id})")
+                    print(f"🔄 DEBUG CLONE: Activated stopped clone: {username} ({bot_id})")
 
-            logger.info(f"Starting {len(startable_clones)} startable clones...")
+            # Start ALL clones regardless of status (testing mode)
+            logger.info(f"📊 Attempting to start ALL {len(all_clones)} clones (testing mode)")
+            print(f"📊 DEBUG CLONE: Attempting to start ALL {len(all_clones)} clones (testing mode)")
 
-            started_count = 0
-
-            for clone in startable_clones:
-                try:
-                    success, message = await self.start_clone(clone['_id'])
-                    if success:
-                        started_count += 1
-                        logger.info(f"✅ Started clone {clone['_id']}: {message}")
-                    else:
-                        logger.warning(f"❌ Failed to start clone {clone['_id']}: {message}")
-
-                    # Small delay between starts to prevent overwhelming
-                    await asyncio.sleep(2)
-
-                except Exception as e:
-                    logger.error(f"Error starting clone {clone['_id']}: {e}")
-                    continue
-
-            logger.info(f"🚀 Started {started_count}/{len(startable_clones)} clones")
-            return started_count, len(startable_clones)
+            # Start all clones
+            started_count, total_count = await clone_manager.start_all_clones()
+            return started_count, total_count
 
         except Exception as e:
             logger.error(f"Error in start_all_clones: {e}")
+            print(f"❌ DEBUG CLONE: Error in start_all_clones: {e}")
+            import traceback
+            traceback.print_exc()
             return 0, 0
 
     async def start_all_active_clones(self):
@@ -625,7 +584,7 @@ class CloneManager:
         return await self.start_all_clones()
 
     def get_running_clones(self):
-        """Get list of currently running clones"""
+        """Get list of currently running clone IDs"""
         return list(self.active_clones.keys())
 
     async def check_subscriptions(self):
@@ -773,6 +732,33 @@ class CloneManager:
         except Exception as e:
             logger.error(f"❌ Error in mass clone deletion: {e}")
             return 0, 0
+
+    async def force_start_clone(self, clone_id: str):
+        """Force start a specific clone (bypass all validations)"""
+        try:
+            logger.info(f"🔧 Force starting clone {clone_id}...")
+
+            # Get clone data
+            clone = await get_clone(clone_id)
+            if not clone:
+                return False, f"Clone {clone_id} not found"
+
+            # Activate clone first
+            await activate_clone(clone_id)
+
+            # Try to start
+            success, message = await self.start_clone(clone_id)
+
+            if success:
+                logger.info(f"✅ Force start successful for clone {clone_id}")
+                return True, f"Clone {clone_id} force started successfully"
+            else:
+                logger.error(f"❌ Force start failed for clone {clone_id}: {message}")
+                return False, f"Force start failed: {message}"
+
+        except Exception as e:
+            logger.error(f"❌ Force start error for clone {clone_id}: {e}")
+            return False, f"Force start error: {str(e)}"
 
 # Create global instance
 clone_manager = CloneManager()

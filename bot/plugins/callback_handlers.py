@@ -228,6 +228,131 @@ async def catch_all_callback_handler(client: Client, query: CallbackQuery):
     except Exception as e:
         logger.error(f"Error in catch-all callback handler: {e}")
 
+# Helper functions for file browsing
+async def handle_random_files(client: Client, query: CallbackQuery):
+    """Handle random files browsing"""
+    try:
+        await query.edit_message_text(
+            "🎲 **Random Files**\n\n"
+            "This feature shows random files from the clone's database.\n\n"
+            "⚠️ **Feature Implementation Needed**\n"
+            "Random file browsing is not yet implemented for this clone.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+    except Exception as e:
+        logger.error(f"Error in random files handler: {e}")
+        await query.edit_message_text("❌ Error loading random files.")
+
+async def handle_recent_files(client: Client, query: CallbackQuery):
+    """Handle recent files browsing"""
+    try:
+        await query.edit_message_text(
+            "🆕 **Recent Files**\n\n"
+            "This feature shows recently added files from the clone's database.\n\n"
+            "⚠️ **Feature Implementation Needed**\n"
+            "Recent file browsing is not yet implemented for this clone.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+    except Exception as e:
+        logger.error(f"Error in recent files handler: {e}")
+        await query.edit_message_text("❌ Error loading recent files.")
+
+async def handle_popular_files(client: Client, query: CallbackQuery):
+    """Handle popular files browsing"""
+    try:
+        await query.edit_message_text(
+            "🔥 **Popular Files**\n\n"
+            "This feature shows popular/most downloaded files from the clone's database.\n\n"
+            "⚠️ **Feature Implementation Needed**\n"
+            "Popular file browsing is not yet implemented for this clone.",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+            ])
+        )
+    except Exception as e:
+        logger.error(f"Error in popular files handler: {e}")
+        await query.edit_message_text("❌ Error loading popular files.")
+
+# General callback handler functions
+async def handle_help_menu(client: Client, query: CallbackQuery):
+    """Handle help menu callback"""
+    await query.edit_message_text(
+        "❓ **Help Menu**\n\n"
+        "Help system is not yet implemented.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
+        ])
+    )
+
+async def handle_about_bot(client: Client, query: CallbackQuery):
+    """Handle about bot callback"""
+    await query.edit_message_text(
+        "ℹ️ **About This Bot**\n\n"
+        "About page is not yet implemented.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
+        ])
+    )
+
+async def handle_user_profile(client: Client, query: CallbackQuery):
+    """Handle user profile callback"""
+    await query.edit_message_text(
+        "👤 **User Profile**\n\n"
+        "User profile is not yet implemented.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
+        ])
+    )
+
+async def handle_premium_info(client: Client, query: CallbackQuery):
+    """Handle premium info callback"""
+    await query.edit_message_text(
+        "⭐ **Premium Information**\n\n"
+        "Premium features are not yet implemented.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
+        ])
+    )
+
+async def handle_back_to_start(client: Client, query: CallbackQuery):
+    """Handle back to start callback"""
+    try:
+        from bot.plugins.start_handler import start_command
+        # Create a fake message object for start_command
+        fake_message = type('obj', (object,), {
+            'from_user': query.from_user,
+            'chat': query.message.chat,
+            'reply_text': query.edit_message_text
+        })()
+        await start_command(client, fake_message)
+    except Exception as e:
+        logger.error(f"Error in back to start: {e}")
+        await query.edit_message_text("❌ Error returning to start.")
+
+async def handle_my_stats(client: Client, query: CallbackQuery):
+    """Handle my stats callback"""
+    await query.edit_message_text(
+        "📊 **My Statistics**\n\n"
+        "Statistics are not yet implemented.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
+        ])
+    )
+
+async def handle_add_balance(client: Client, query: CallbackQuery):
+    """Handle add balance callback"""
+    await query.edit_message_text(
+        "💰 **Add Balance**\n\n"
+        "Balance system is not yet implemented.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
+        ])
+    )
+
 # --- Clone Specific Callbacks ---
 
 @Client.on_callback_query(filters.regex("^goto_clone_settings$"))
