@@ -31,8 +31,25 @@ async def create_clone_with_db(bot_token, admin_id, db_url):
     """Create a new clone entry with separate database"""
     from pyrogram import Client
     from motor.motor_asyncio import AsyncIOMotorClient
+    from bot.utils.security import security_manager
+    import asyncio
+    
     try:
-        # Validate bot token
+        # Input validation
+        if not all([bot_token, admin_id, db_url]):
+            return False, "Missing required parameters"
+            
+        if not security_manager.validate_bot_token(bot_token):
+            return False, "Invalid bot token format"
+            
+        if not isinstance(admin_id, int) or admin_id <= 0:
+            return False, "Invalid admin ID"
+            
+        # Validate database URL format
+        if not db_url.startswith(('mongodb://', 'mongodb+srv://')):
+            return False, "Invalid database URL format"
+        
+        # Test bot token with timeout
         test_client = Client(
             name=f"test_{bot_token[:10]}",
             api_id=Config.API_ID,
@@ -40,8 +57,15 @@ async def create_clone_with_db(bot_token, admin_id, db_url):
             bot_token=bot_token
         )
 
-        await test_client.start()
-        me = await test_client.get_me()
+        try:
+            await asyncio.wait_for(test_client.start(), timeout=30.0)
+            me = await asyncio.wait_for(test_client.get_me(), timeout=10.0)
+        except asyncio.TimeoutError:
+            await test_client.stop()
+            return False, "Bot verification timeout"
+        except Exception as e:
+            await test_client.stop()
+            return False, f"Bot verification failed: {str(e)}"
 
         # Test clone's database connection
         try:

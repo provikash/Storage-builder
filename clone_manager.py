@@ -20,33 +20,56 @@ class CloneManager:
     async def start_clone(self, bot_id: str):
         """Start a specific clone bot with enhanced error handling"""
         from bot.logging import LOGGER
+        from bot.utils.security import security_manager
+        import asyncio
 
         logger = LOGGER(__name__)
+        
+        # Input validation
+        if not bot_id or not isinstance(bot_id, str):
+            return False, "Invalid bot ID provided"
+            
+        if not bot_id.isdigit() or len(bot_id) < 8:
+            return False, "Bot ID must be a valid numeric string"
 
-        # Simple execution tracking
+        # Enhanced execution tracking with timeout
         class SimpleTracker:
             def __init__(self, name):
                 self.name = name
                 self.steps = []
+                self.start_time = asyncio.get_event_loop().time()
+                
             def add_step(self, step, data=None):
                 self.steps.append(step)
-                logger.info(f"Step: {step}")
+                elapsed = asyncio.get_event_loop().time() - self.start_time
+                logger.info(f"Step: {step} (elapsed: {elapsed:.2f}s)")
+                
             def complete(self, success=False, error=None):
+                elapsed = asyncio.get_event_loop().time() - self.start_time
                 if success:
-                    logger.info(f"Completed: {self.name}")
+                    logger.info(f"Completed: {self.name} in {elapsed:.2f}s")
                 else:
-                    logger.error(f"Failed: {self.name} - {error}")
+                    logger.error(f"Failed: {self.name} in {elapsed:.2f}s - {error}")
 
         tracker = SimpleTracker(f"start_clone_{bot_id}")
 
-        # Prevent multiple simultaneous starts
-        if bot_id in getattr(self, '_starting_clones', set()):
-            return False, "Clone startup already in progress"
-
+        # Prevent multiple simultaneous starts with proper locking
         if not hasattr(self, '_starting_clones'):
             self._starting_clones = set()
-
-        self._starting_clones.add(bot_id)
+            self._clone_locks = {}
+            
+        if bot_id in self._starting_clones:
+            return False, "Clone startup already in progress"
+            
+        # Create lock for this specific clone
+        if bot_id not in self._clone_locks:
+            self._clone_locks[bot_id] = asyncio.Lock()
+            
+        async with self._clone_locks[bot_id]:
+            if bot_id in self._starting_clones:
+                return False, "Clone startup already in progress"
+                
+            self._starting_clones.add(bot_id)
 
         try:
             tracker.add_step("fetching_clone_data")

@@ -174,21 +174,75 @@ class HealthChecker:
         try:
             start_time = time.time()
 
-            # Simple ping to database with timeout
+            # Database connection test with proper error handling
             from bot.database.connection import get_database
-            db = await get_database()
-
-            # Try to run a simple query with timeout
+            
             try:
-                await asyncio.wait_for(db.list_collection_names(), timeout=10.0)
+                db = await asyncio.wait_for(get_database(), timeout=5.0)
+                if not db:
+                    return {
+                        'status': 'unhealthy',
+                        'connected': False,
+                        'error': 'Failed to get database connection'
+                    }
             except asyncio.TimeoutError:
                 return {
                     'status': 'unhealthy',
                     'connected': False,
-                    'error': 'Database query timeout (>10s)'
+                    'error': 'Database connection timeout'
                 }
 
+            # Test database operations with multiple checks
+            checks = []
+            
+            # 1. List collections test
+            try:
+                collections = await asyncio.wait_for(db.list_collection_names(), timeout=10.0)
+                checks.append(('collections_list', True, len(collections)))
+            except asyncio.TimeoutError:
+                checks.append(('collections_list', False, 'timeout'))
+            except Exception as e:
+                checks.append(('collections_list', False, str(e)))
+            
+            # 2. Simple query test
+            try:
+                result = await asyncio.wait_for(
+                    db.clones.count_documents({}), 
+                    timeout=5.0
+                )
+                checks.append(('count_query', True, result))
+            except asyncio.TimeoutError:
+                checks.append(('count_query', False, 'timeout'))
+            except Exception as e:
+                checks.append(('count_query', False, str(e)))
+            
+            # 3. Write test (if possible)
+            try:
+                test_doc = {'_id': 'health_check', 'timestamp': time.time()}
+                await asyncio.wait_for(
+                    db.health_checks.replace_one(
+                        {'_id': 'health_check'}, 
+                        test_doc, 
+                        upsert=True
+                    ), 
+                    timeout=5.0
+                )
+                checks.append(('write_test', True, 'success'))
+            except asyncio.TimeoutError:
+                checks.append(('write_test', False, 'timeout'))
+            except Exception as e:
+                checks.append(('write_test', False, str(e)))
+
             response_time = time.time() - start_time
+            
+            # Determine overall status
+            failed_checks = [c for c in checks if not c[1]]
+            if len(failed_checks) >= 2:
+                status = 'unhealthy'
+            elif len(failed_checks) == 1:
+                status = 'degraded'
+            else:
+                status = 'healthy'
 
             if response_time > 5.0:
                 return {
