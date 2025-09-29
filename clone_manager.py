@@ -340,7 +340,7 @@ class CloneManager:
             if not all_clones:
                 logger.warning("⚠️ No clones found in database")
                 print("⚠️ DEBUG CLONE: No clones found in database")
-                return None
+                return 0, 0
 
             # Show all clones with their statuses and activate stopped ones
             for clone in all_clones:
@@ -362,7 +362,22 @@ class CloneManager:
             print(f"📊 DEBUG CLONE: Attempting to start ALL {len(all_clones)} clones (testing mode)")
 
             # Start all clones
-            started_count, total_count = await clone_manager.start_all_clones()
+            # Start all clones individually
+            started_count = 0
+            total_count = len(all_clones)
+            
+            for clone in all_clones:
+                bot_id = clone.get('_id')
+                if bot_id:
+                    try:
+                        success, message = await self.start_clone(bot_id)
+                        if success:
+                            started_count += 1
+                        logger.info(f"Start clone {bot_id}: {message}")
+                    except Exception as e:
+                        logger.error(f"Failed to start clone {bot_id}: {e}")
+                        
+            started_count, total_count = started_count, total_count
             return started_count, total_count
 
         except Exception as e:
@@ -547,7 +562,7 @@ class CloneManager:
             if not all_clones:
                 logger.warning("⚠️ No clones found in database")
                 print("⚠️ DEBUG CLONE: No clones found in database")
-                return None
+                return 0, 0
 
             # Show all clones with their statuses and activate stopped ones
             for clone in all_clones:
@@ -569,7 +584,22 @@ class CloneManager:
             print(f"📊 DEBUG CLONE: Attempting to start ALL {len(all_clones)} clones (testing mode)")
 
             # Start all clones
-            started_count, total_count = await clone_manager.start_all_clones()
+            # Start all clones individually
+            started_count = 0
+            total_count = len(all_clones)
+            
+            for clone in all_clones:
+                bot_id = clone.get('_id')
+                if bot_id:
+                    try:
+                        success, message = await self.start_clone(bot_id)
+                        if success:
+                            started_count += 1
+                        logger.info(f"Start clone {bot_id}: {message}")
+                    except Exception as e:
+                        logger.error(f"Failed to start clone {bot_id}: {e}")
+                        
+            started_count, total_count = started_count, total_count
             return started_count, total_count
 
         except Exception as e:

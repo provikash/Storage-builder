@@ -195,8 +195,13 @@ async def start_clone_system():
         print(f"📊 DEBUG CLONE: Attempting to start ALL {len(all_clones)} clones (testing mode)")
 
         # Start all clones
-        started_count, total_count = await clone_manager.start_all_clones()
-        logger.info(f"✅ Clone manager initialized: {started_count}/{total_count} clones started")
+        result = await clone_manager.start_all_clones()
+        if result is not None:
+            started_count, total_count = result
+            logger.info(f"✅ Clone manager initialized: {started_count}/{total_count} clones started")
+        else:
+            started_count, total_count = 0, 0
+            logger.info("✅ Clone manager initialized: No clones to start")
         print(f"✅ DEBUG CLONE: Clone manager initialized: {started_count}/{total_count} clones started")
 
         # Start subscription monitoring in background
