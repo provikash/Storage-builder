@@ -963,23 +963,6 @@ async def handle_media_forward(client: Client, message: Message):
 
     if is_clone and message.forward_from_chat:
         logger.info(f"Received forwarded media from chat to clone bot {bot_token[:10]}... for user {user_id}")
-        try:
-            # Get the specific clone's configuration and database
-            clone_data = await get_clone_by_bot_token(bot_token)
-            if not clone_data:
-                logger.warning(f"Clone data not found for bot_token {bot_token[:10]}...")
-                return
-
-            # ADMIN VERIFICATION - Only clone admin can trigger auto-indexing
-            if user_id != clone_data.get('admin_id'):
-                logger.info(f"Auto-indexing blocked: User {user_id} is not the clone admin {clone_data.get('admin_id')}")
-                await message.reply_text(
-                    "📁 **Media Received**\n\n"
-                    "❌ Auto-indexing is restricted to clone administrators only.\n"
-                    "Contact the clone admin if you want this media to be indexed.",
-                    quote=True
-                )
-                return
 
             # Assuming clone_data contains the MongoDB URL for this specific clone
             mongo_url = clone_data.get('mongodb_url')
