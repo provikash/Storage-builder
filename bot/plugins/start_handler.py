@@ -961,47 +961,8 @@ async def handle_media_forward(client: Client, message: Message):
     user_id = message.from_user.id
     is_clone, bot_token = await is_clone_bot_instance_async(client)
 
-    if is_clone and message.forward_from_chat:
-        logger.info(f"Received forwarded media from chat to clone bot {bot_token[:10]}... for user {user_id}")
-
-        try:
-            # Fetch clone data to get the specific MongoDB URL
-            clone_data = await get_clone_by_bot_token(bot_token)
-            if not clone_data:
-                logger.warning(f"Clone data not found for bot_token {bot_token[:10]}...")
-                await message.reply_text("Could not retrieve clone configuration for auto-indexing. Please contact support.", quote=True)
-                return
-
-            # Assuming clone_data contains the MongoDB URL for this specific clone
-            mongo_url = clone_data.get('mongodb_url')
-            if not mongo_url:
-                logger.warning(f"MongoDB URL not found for clone {bot_token[:10]}...")
-                await message.reply_text("MongoDB URL not configured for this clone bot. Auto-indexing is disabled.", quote=True)
-                return
-
-            # Import the auto-indexing logic, passing the specific MongoDB URL
-            from bot.utils.clone_auto_index import start_auto_indexing
-
-            # Start indexing for the media in the channel, using the clone's specific DB
-            logger.info(f"Starting auto-indexing for forwarded media in clone bot {bot_token[:10]}...")
-            asyncio.create_task(
-                start_auto_indexing(
-                    client=client,
-                    message=message,
-                    user_id=user_id,
-                    mongo_url=mongo_url,
-                    clone_bot_token=bot_token
-                )
-            )
-            # Respond to the user that indexing has started
-            await message.reply_text("Media received. Starting indexing process for this channel...", quote=True)
-
-        except ImportError:
-            logger.error("bot.utils.clone_auto_index module not found. Auto-indexing disabled.")
-            await message.reply_text("Auto-indexing is not available due to a missing module.", quote=True)
-        except Exception as e:
-            logger.error(f"Error during auto-indexing trigger: {e}")
-            await message.reply_text("An error occurred while processing the media for indexing.", quote=True)
+    # Auto-indexing for forwarded media is handled by dedicated handlers in clone_auto_index.py and clone_forward_indexer.py
+    # No need to handle it here in start_handler.py
 
 # Command to check database by clone admin
 @Client.on_message(filters.command(["checkdb"]) & filters.private, group=9)
