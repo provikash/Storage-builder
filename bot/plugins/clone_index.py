@@ -26,7 +26,7 @@ def get_clone_id_from_client(client: Client):
 
 @Client.on_message(filters.command(['index', 'cloneindex', 'batchindex']) & filters.private)
 async def clone_index_command(client: Client, message: Message):
-    """Handle indexing command for clone bots"""
+    """Handle indexing command for clone bots - ADMIN ONLY"""
     try:
         clone_id = get_clone_id_from_client(client)
         if not clone_id:
@@ -39,9 +39,9 @@ async def clone_index_command(client: Client, message: Message):
             await message.reply_text("❌ Clone configuration not found.")
             return
         
-        # Check if user is admin of this clone
+        # Strict admin check - only clone admin can use indexing commands
         if message.from_user.id != clone_data['admin_id']:
-            await message.reply_text("❌ Only clone admin can use this command.")
+            await message.reply_text("❌ **Access Denied**\n\nOnly the clone administrator can use indexing commands.\nContact your clone admin for file indexing requests.")
             return
         
         if len(message.command) < 2:
@@ -338,8 +338,16 @@ async def index_clone_files(client: Client, msg: Message, chat_id: int, last_msg
             del clone_index_temp[clone_id]
 
 async def auto_index_forwarded_message(client: Client, message: Message, clone_id: str):
-    """Automatically index a forwarded message"""
+    """Automatically index a forwarded message - ADMIN ONLY"""
     try:
+        # Verify admin access first
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        clone_data = await get_clone_by_bot_token(bot_token)
+        
+        if not clone_data or message.from_user.id != clone_data.get('admin_id'):
+            logger.warning(f"Auto-indexing blocked: User {message.from_user.id} is not clone admin")
+            return False
+        
         if not message.media:
             return False
         

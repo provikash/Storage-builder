@@ -20,7 +20,7 @@ def get_clone_id_from_client(client: Client):
 
 @Client.on_message(filters.forwarded & filters.media & filters.private)
 async def handle_forwarded_media_indexing(client: Client, message: Message):
-    """Auto-index forwarded media from clone admin"""
+    """Auto-index forwarded media from clone admin ONLY"""
     try:
         clone_id = get_clone_id_from_client(client)
         if not clone_id:
@@ -31,9 +31,16 @@ async def handle_forwarded_media_indexing(client: Client, message: Message):
         if not clone_data:
             return
         
-        # Check if user is admin of this clone
+        # STRICT ADMIN CHECK - Only clone admin can trigger auto-indexing
         if message.from_user.id != clone_data['admin_id']:
-            return  # Only admin forwards are processed
+            # Send notification to non-admin users
+            await message.reply_text(
+                "📁 **Media Received**\n\n"
+                "❌ Auto-indexing is restricted to clone administrators only.\n"
+                "Contact the clone admin if you want this media to be indexed.",
+                quote=True
+            )
+            return  # Exit early for non-admin users
         
         # Check if message is forwarded from a channel
         if not message.forward_from_chat:

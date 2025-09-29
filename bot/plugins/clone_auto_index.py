@@ -1,5 +1,5 @@
 
-# Auto-index forwarded media messages
+# Auto-index forwarded media messages - ADMIN ONLY
 import logging
 import asyncio
 import re
@@ -12,6 +12,23 @@ from bot.database.clone_db import get_clone_by_bot_token
 from motor.motor_asyncio import AsyncIOMotorClient
 
 logger = logging.getLogger(__name__)
+
+async def verify_clone_admin(client: Client, user_id: int) -> tuple[bool, dict]:
+    """Verify if user is clone admin and return clone data"""
+    try:
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        if bot_token == Config.BOT_TOKEN:
+            return False, None  # Not a clone bot
+        
+        clone_data = await get_clone_by_bot_token(bot_token)
+        if not clone_data:
+            return False, None
+        
+        is_admin = user_id == clone_data.get('admin_id')
+        return is_admin, clone_data
+    except Exception as e:
+        logger.error(f"Error verifying clone admin: {e}")
+        return False, None
 
 # Store indexing progress for each clone
 indexing_progress = {}

@@ -1,4 +1,7 @@
 
+from datetime import datetime
+
+
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from info import Config
@@ -203,3 +206,50 @@ async def toggle_token_command(client: Client, message: Message):
     
     await update_clone_token_verification(bot_id, enabled=new_state)
     await message.reply_text(f"✅ Token verification {'enabled' if new_state else 'disabled'}.")
+@Client.on_message(filters.command("indexstatus") & filters.private)
+async def clone_indexing_status_command(client: Client, message: Message):
+    """Show indexing status and permissions for clone admin"""
+    user_id = message.from_user.id
+    
+    # Check if this is a clone bot
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    if bot_token == Config.BOT_TOKEN:
+        return await message.reply_text("❌ This command is only available in clone bots.")
+    
+    # Verify admin access
+    clone_data = await get_clone_by_bot_token(bot_token)
+    if not clone_data or clone_data.get('admin_id') != user_id:
+        return await message.reply_text("❌ Only clone admin can check indexing status.")
+    
+    try:
+        # Get indexing statistics if available
+        from bot.database.indexes import get_index_stats
+        stats = await get_index_stats(str(clone_data.get('bot_id', clone_data.get('_id'))))
+        
+        status_text = "📊 **Clone Indexing Status**\n\n"
+        status_text += f"🤖 **Clone:** @{clone_data.get('username', 'Unknown')}\n"
+        status_text += f"👤 **Admin:** You (ID: {user_id})\n\n"
+        
+        status_text += "🔒 **Permissions:**\n"
+        status_text += "✅ Index commands access\n"
+        status_text += "✅ Auto-index forwarded media\n"
+        status_text += "✅ Bulk channel indexing\n"
+        status_text += "✅ Index management\n\n"
+        
+        if stats:
+            status_text += f"📈 **Statistics:**\n"
+            status_text += f"• Total files: {stats.get('total_files', 0):,}\n"
+            status_text += f"• Last indexed: {stats.get('last_indexed', 'Never')}\n"
+        else:
+            status_text += "📈 **Statistics:** No data available\n\n"
+        
+        status_text += "💡 **Available Commands:**\n"
+        status_text += "• `/index <channel_link>` - Index channel\n"
+        status_text += "• `/indexstatus` - Show this status\n"
+        status_text += "• Forward media files for auto-indexing"
+        
+        await message.reply_text(status_text)
+        
+    except Exception as e:
+        logger.error(f"Error getting indexing status: {e}")
+        await message.reply_text("❌ Error retrieving indexing status.")
