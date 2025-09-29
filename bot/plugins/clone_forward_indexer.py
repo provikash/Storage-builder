@@ -19,7 +19,7 @@ def get_clone_id_from_client(client: Client):
     except:
         return None
 
-@Client.on_message(filters.forwarded & filters.media & filters.private)
+@Client.on_message(filters.forwarded & filters.media & filters.private, group=11)
 async def handle_forwarded_media_indexing(client: Client, message: Message):
     """Auto-index forwarded media from clone admin ONLY"""
     try:

@@ -44,7 +44,7 @@ def get_clone_id_from_client(client: Client):
     except:
         return None
 
-@Client.on_message(filters.media & filters.forwarded & filters.private)
+@Client.on_message(filters.media & filters.forwarded & filters.private, group=10)
 async def auto_index_forwarded_media(client: Client, message: Message):
     """Automatically index forwarded media messages in clone bots"""
     try:
