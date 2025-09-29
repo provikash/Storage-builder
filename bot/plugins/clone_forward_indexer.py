@@ -33,7 +33,8 @@ async def handle_forwarded_media_indexing(client: Client, message: Message):
             return
         
         # STRICT ADMIN CHECK - Only clone admin can trigger auto-indexing
-  # Exit early for non-admin users
+        if message.from_user.id != clone_data.get('admin_id'):
+            return  # Exit early for non-admin users
         
         # Check if message is forwarded from a channel
         if not message.forward_from_chat:
