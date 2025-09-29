@@ -1,7 +1,8 @@
 
 import logging
+from datetime import datetime
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import MessageMediaType
 from info import Config
 from bot.database.clone_db import get_clone_by_bot_token
@@ -63,30 +64,29 @@ async def handle_forwarded_media_indexing(client: Client, message: Message):
                 
             latest_msg_id = latest_msg.id
             
-            # Ask admin if they want to index the entire channel
+            # First ask admin for approval to proceed with indexing
             from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
             
-            buttons = InlineKeyboardMarkup([
+            approval_buttons = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("✅ Index Entire Channel", 
-                                       callback_data=f"auto_index_channel:{channel_id}:{latest_msg_id}:{clone_id}")
+                    InlineKeyboardButton("✅ Approve Indexing", 
+                                       callback_data=f"approve_indexing:{channel_id}:{latest_msg_id}:{clone_id}:{forward_msg_id}")
                 ],
                 [
-                    InlineKeyboardButton("📁 Index This File Only", 
-                                       callback_data=f"index_single_file:{clone_id}")
-                ],
-                [
-                    InlineKeyboardButton("❌ Cancel", callback_data="close")
+                    InlineKeyboardButton("❌ Reject", callback_data="close")
                 ]
             ])
             
             await message.reply_text(
-                f"📋 **Auto-Index Detected**\n\n"
-                f"**Channel:** {channel_title}\n"
+                f"🔍 **Indexing Request**\n\n"
+                f"**Media Source:** {channel_title}\n"
+                f"**Channel ID:** `{channel_id}`\n"
                 f"**Total Messages:** ~{latest_msg_id:,}\n"
-                f"**Forwarded Message ID:** {forward_msg_id}\n\n"
-                f"Would you like to index all media from this channel to your clone's database?",
-                reply_markup=buttons
+                f"**Forwarded Message:** #{forward_msg_id}\n\n"
+                f"**Admin Approval Required**\n"
+                f"Do you want to proceed with indexing media from this channel?\n\n"
+                f"⚠️ This will add files to your clone's database.",
+                reply_markup=approval_buttons
             )
             
         except Exception as e:
@@ -99,6 +99,62 @@ async def handle_forwarded_media_indexing(client: Client, message: Message):
         
     except Exception as e:
         logger.error(f"Error in forwarded media indexing: {e}")
+
+@Client.on_callback_query(filters.regex("^approve_indexing:"))
+async def handle_approve_indexing(client: Client, query):
+    """Handle admin approval for indexing"""
+    try:
+        data_parts = query.data.split(":")
+        channel_id = int(data_parts[1])
+        latest_msg_id = int(data_parts[2])
+        clone_id = data_parts[3]
+        forward_msg_id = int(data_parts[4])
+        
+        # Verify user is still the clone admin
+        clone_data = await get_clone_by_bot_token(getattr(client, 'bot_token'))
+        if not clone_data or clone_data.get('admin_id') != query.from_user.id:
+            await query.answer("❌ Only clone admin can approve indexing.", show_alert=True)
+            return
+        
+        await query.answer("Indexing approved! Choose your indexing method.", show_alert=False)
+        
+        # Get channel info for display
+        try:
+            forward_chat = await client.get_chat(channel_id)
+            channel_title = forward_chat.title or "Unknown Channel"
+        except:
+            channel_title = "Unknown Channel"
+        
+        # Show indexing options after approval
+        buttons = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("🔄 Index Entire Channel", 
+                                   callback_data=f"auto_index_channel:{channel_id}:{latest_msg_id}:{clone_id}")
+            ],
+            [
+                InlineKeyboardButton("📁 Index This File Only", 
+                                   callback_data=f"index_single_file:{clone_id}:{forward_msg_id}")
+            ],
+            [
+                InlineKeyboardButton("❌ Cancel", callback_data="close")
+            ]
+        ])
+        
+        await query.edit_message_text(
+            f"✅ **Indexing Approved**\n\n"
+            f"**Channel:** {channel_title}\n"
+            f"**Total Messages:** ~{latest_msg_id:,}\n"
+            f"**Clone Database:** `{clone_data.get('db_name', f'clone_{clone_id}')}`\n\n"
+            f"**Choose Indexing Method:**\n"
+            f"• **Full Channel**: Index all media from this channel\n"
+            f"• **Single File**: Index only the forwarded media\n\n"
+            f"Select your preferred option:",
+            reply_markup=buttons
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in approve indexing: {e}")
+        await query.answer("❌ Error processing approval.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^auto_index_channel:"))
 async def handle_auto_index_channel(client: Client, query):
@@ -139,14 +195,29 @@ async def handle_auto_index_channel(client: Client, query):
 async def handle_index_single_file(client: Client, query):
     """Handle single file indexing"""
     try:
-        clone_id = query.data.split(":")[1]
+        data_parts = query.data.split(":")
+        clone_id = data_parts[1]
         
-        # Get the original message (should be replied to)
-        if not query.message.reply_to_message:
-            await query.answer("❌ Cannot find the forwarded file.", show_alert=True)
-            return
+        # Check if we have a specific message ID (from approval flow)
+        if len(data_parts) > 2:
+            message_id = int(data_parts[2])
+            # Get the specific forwarded message
+            try:
+                forwarded_msg = await client.get_messages(query.message.chat.id, message_id)
+                if not forwarded_msg or not forwarded_msg.media:
+                    await query.edit_message_text("❌ **Error**: Media message not found.")
+                    return
+            except Exception as e:
+                await query.edit_message_text(f"❌ **Error**: Could not retrieve message: {str(e)}")
+                return
+        else:
+            # Get the original message (should be replied to)
+            if not query.message.reply_to_message:
+                await query.answer("❌ Cannot find the forwarded file.", show_alert=True)
+                return
+            forwarded_msg = query.message.reply_to_message
         
-        forwarded_msg = query.message.reply_to_message
+        await query.answer("Processing single file...", show_alert=False)
         
         # Import the auto-index function
         from bot.plugins.clone_index import auto_index_forwarded_message
@@ -154,15 +225,32 @@ async def handle_index_single_file(client: Client, query):
         success = await auto_index_forwarded_message(client, forwarded_msg, clone_id)
         
         if success:
+            # Get file info for display
+            file_name = "Media file"
+            if forwarded_msg.document and forwarded_msg.document.file_name:
+                file_name = forwarded_msg.document.file_name
+            elif forwarded_msg.video and forwarded_msg.video.file_name:
+                file_name = forwarded_msg.video.file_name
+            elif forwarded_msg.audio and forwarded_msg.audio.file_name:
+                file_name = forwarded_msg.audio.file_name
+            elif forwarded_msg.photo:
+                file_name = f"Photo_{forwarded_msg.id}"
+            
             await query.edit_message_text(
                 "✅ **File Indexed Successfully**\n\n"
-                f"📁 **File**: `{forwarded_msg.document.file_name if forwarded_msg.document else 'Media file'}`\n"
+                f"📁 **File**: `{file_name}`\n"
+                f"🆔 **Message ID**: `{forwarded_msg.id}`\n"
+                f"🗄️ **Database**: Clone {clone_id}\n\n"
                 f"🔍 File is now searchable in your clone bot!"
             )
         else:
             await query.edit_message_text(
                 "❌ **Indexing Failed**\n\n"
-                "File could not be indexed. It may already exist or there was an error."
+                "File could not be indexed. It may already exist or there was an error.\n\n"
+                "**Possible reasons:**\n"
+                "• File already exists in database\n"
+                "• Database connection error\n"
+                "• File format not supported"
             )
         
     except Exception as e:
