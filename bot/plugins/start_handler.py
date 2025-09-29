@@ -964,10 +964,19 @@ async def handle_media_forward(client: Client, message: Message):
     if is_clone and message.forward_from_chat:
         logger.info(f"Received forwarded media from chat to clone bot {bot_token[:10]}... for user {user_id}")
 
+        try:
+            # Fetch clone data to get the specific MongoDB URL
+            clone_data = await get_clone_by_bot_token(bot_token)
+            if not clone_data:
+                logger.warning(f"Clone data not found for bot_token {bot_token[:10]}...")
+                await message.reply_text("Could not retrieve clone configuration for auto-indexing. Please contact support.", quote=True)
+                return
+
             # Assuming clone_data contains the MongoDB URL for this specific clone
             mongo_url = clone_data.get('mongodb_url')
             if not mongo_url:
                 logger.warning(f"MongoDB URL not found for clone {bot_token[:10]}...")
+                await message.reply_text("MongoDB URL not configured for this clone bot. Auto-indexing is disabled.", quote=True)
                 return
 
             # Import the auto-indexing logic, passing the specific MongoDB URL
