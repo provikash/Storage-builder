@@ -228,7 +228,56 @@ async def index_clone_files(client: Client, msg: Message, chat_id: int, last_msg
                 file_id = media.file_ref
             
             try:
-                # Prepare file data for clone's database
+                # Extract enhanced metadata
+                file_extension = file_name.split('.')[-1].lower() if '.' in file_name else ''
+                mime_type = getattr(media, 'mime_type', '')
+                duration = getattr(media, 'duration', 0)
+                width = getattr(media, 'width', 0)
+                height = getattr(media, 'height', 0)
+                
+                # Extract quality indicators
+                quality = 'unknown'
+                if file_size > 0:
+                    if file_type == 'video':
+                        if height >= 1080:
+                            quality = '1080p+'
+                        elif height >= 720:
+                            quality = '720p'
+                        elif height >= 480:
+                            quality = '480p'
+                        else:
+                            quality = 'low'
+                    elif file_type == 'audio':
+                        if file_size > 10 * 1024 * 1024:  # 10MB+
+                            quality = 'high'
+                        elif file_size > 5 * 1024 * 1024:  # 5MB+
+                            quality = 'medium'
+                        else:
+                            quality = 'low'
+                
+                # Enhanced keywords extraction
+                keywords = []
+                text_content = f"{file_name} {caption}".lower()
+                
+                # Extract keywords from filename and caption
+                import re
+                words = re.findall(r'\b\w+\b', text_content)
+                keywords = [word for word in words if len(word) > 2]
+                
+                # Add metadata-based keywords
+                if quality != 'unknown':
+                    keywords.append(quality)
+                if file_extension:
+                    keywords.append(file_extension)
+                if duration > 0:
+                    if duration > 3600:  # 1 hour+
+                        keywords.extend(['long', 'movie', 'full'])
+                    elif duration > 1800:  # 30+ minutes
+                        keywords.extend(['medium', 'episode'])
+                    else:
+                        keywords.extend(['short', 'clip'])
+
+                # Prepare enhanced file data for clone's database
                 file_data = {
                     "file_id": file_id or str(message.id),
                     "message_id": message.id,
@@ -236,11 +285,21 @@ async def index_clone_files(client: Client, msg: Message, chat_id: int, last_msg
                     "file_name": file_name,
                     "file_type": file_type,
                     "file_size": file_size,
+                    "file_extension": file_extension,
+                    "mime_type": mime_type,
+                    "duration": duration,
+                    "width": width,
+                    "height": height,
+                    "quality": quality,
+                    "keywords": list(set(keywords)),  # Remove duplicates
                     "caption": caption,
                     "user_id": message.from_user.id if message.from_user else 0,
                     "date": message.date,
                     "views": getattr(message, 'views', 0),
-                    "forwards": getattr(message, 'forwards', 0)
+                    "forwards": getattr(message, 'forwards', 0),
+                    "indexed_at": datetime.utcnow(),
+                    "access_count": 0,
+                    "last_accessed": None
                 }
                 
                 from bot.database.mongo_db import add_file_to_clone_index
