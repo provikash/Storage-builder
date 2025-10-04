@@ -21,9 +21,7 @@ def load_plugins():
 
     # Feature plugins - Unified versions
     feature_plugins = [
-        'clone_admin_unified',   # Unified clone admin
-        'clone_indexing_unified', # Unified clone indexing
-        'clone_search_unified',  # Unified clone search
+        'clone_unified',         # Unified clone plugin (merged from multiple clone plugins)
         # admin_panel - MIGRATED to bot/handlers/motherbot/
         'balance_management',    # Balance management
         'premium',               # Premium features
