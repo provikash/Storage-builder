@@ -21,3 +21,13 @@ __all__ = [
     'start',
     'search'
 ]
+"""
+Bot Handlers Package
+Organized into motherbot, clonebot, and shared handlers
+"""
+
+from bot.handlers import motherbot
+from bot.handlers import clonebot
+from bot.handlers import shared
+
+__all__ = ["motherbot", "clonebot", "shared"]
