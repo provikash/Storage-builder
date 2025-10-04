@@ -15,35 +15,20 @@ def load_plugins():
     # Core plugins that must load first
     core_plugins = [
         'start_handler',         # Core /start command FIRST
-        'simple_test_commands',  # Simple test commands
+        'commands_unified',      # Unified commands handler
         'callback_unified',      # Unified callback handler
-        'missing_callbacks',     # Missing callback handlers (if any remain)
-        'callback_handlers'      # Core callback system LAST (if still needed separately)
     ]
 
-    # Feature plugins
+    # Feature plugins - Unified versions
     feature_plugins = [
-        'admin_commands',
-        'admin_panel', 
-        'balance_management',
-        'premium',
-        'stats',
-        'broadcast',
-        'enhanced_about',
-        'channel',
-        'clone_admin',
-        'clone_admin_commands',
-        'clone_force_commands',
-        'clone_token_commands',
-        'force_sub_commands',
-        'genlink',
-        'index',
-        'referral_program',
-        'simple_file_sharing',
-        'search',
-        'token',
-        'auto_post',
-        'clone_random_files'
+        'clone_admin_unified',   # Unified clone admin
+        'clone_indexing_unified', # Unified clone indexing
+        'clone_search_unified',  # Unified clone search
+        'admin_panel',           # Admin panel
+        'balance_management',    # Balance management
+        'premium',               # Premium features
+        'enhanced_about',        # About page
+        'auto_post',             # Auto posting
     ]
 
     # Debug plugins (load last)
