@@ -6,7 +6,7 @@ channel = "stable-25_05"
 packages = ["cacert", "cargo", "gh", "libiconv", "libuv", "libxcrypt", "magma", "openssl", "pkg-config", "rustc"]
 
 [deployment]
-run = ["export", "DATABASE_URI=$DATABASE_URL", "&&", "python3", "main.py"]
+run = ["python3", "main.py"]
 deploymentTarget = "vm"
 
 [workflows]
@@ -109,6 +109,10 @@ externalPort = 80
 [[ports]]
 localPort = 33149
 externalPort = 3000
+
+[[ports]]
+localPort = 36471
+externalPort = 3001
 
 [agent]
 expertMode = true

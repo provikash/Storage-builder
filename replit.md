@@ -5,7 +5,7 @@ This is a sophisticated Telegram bot system for file sharing with clone creation
 
 ## Project Status
 **Import Status:** ✅ Successfully configured and running in Replit environment
-**Last Updated:** September 24, 2025
+**Last Updated:** October 4, 2025
 
 ## Architecture
 - **Main Bot (Mother Bot):** Handles admin functions, clone creation, and premium subscriptions
@@ -30,14 +30,18 @@ This is a sophisticated Telegram bot system for file sharing with clone creation
 - **Web Interface:** Flask
 - **Deployment:** Replit VM (persistent)
 
-## Recent Changes (2025-09-24)
+## Recent Changes (2025-10-04)
 - ✅ Fresh GitHub import successfully set up
 - ✅ Python 3.11 environment configured
-- ✅ All dependencies installed from requirements.txt
-- ✅ Fixed logging issues in health monitoring
+- ✅ All dependencies installed from requirements_clean.txt
+- ✅ Required secrets configured (API_ID, API_HASH, BOT_TOKEN, DATABASE_URL, ADMINS)
+- ✅ Web server secured (removed hardcoded default secret key)
+- ✅ Consolidated clone management scripts into unified clone_cli.py
+- ✅ Cleaned up duplicate scripts and test files
+- ✅ Updated .gitignore with project-specific entries
+- ✅ VM deployment configuration set up for persistent operation
 - ✅ Web server configured and running on port 5000
-- ✅ VM deployment configuration set up
-- ✅ Bot system fully operational with active users
+- ✅ Bot system fully operational with Mother Bot and clone bots
 
 ## Configuration
 - Environment variables configured through Replit Secrets
@@ -54,6 +58,31 @@ This is a sophisticated Telegram bot system for file sharing with clone creation
 ## Current State
 - Mother Bot: @Hd_File_Sharing_bot (active)
 - Clone Bots: 1 active (@Searchfilefreebot)
-- Web Dashboard: Available on port 5000
+- Web Dashboard: Available on port 5000 (login required)
 - Status: Fully operational with active users and monitoring systems
 - Real users interacting with clone creation system
+
+## Clone Management
+Use the unified CLI tool for all clone operations:
+```bash
+# List all clones and their status
+python3 clone_cli.py list
+
+# Start all clones
+python3 clone_cli.py start-all
+
+# Restart all clones
+python3 clone_cli.py restart-all
+
+# Stop all clones
+python3 clone_cli.py stop-all
+
+# Start specific clone
+python3 clone_cli.py start --bot-id <BOT_ID>
+
+# Restart specific clone
+python3 clone_cli.py restart --bot-id <BOT_ID>
+
+# Stop specific clone
+python3 clone_cli.py stop --bot-id <BOT_ID>
+```

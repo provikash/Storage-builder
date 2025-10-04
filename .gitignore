@@ -209,3 +209,10 @@ __marimo__/
 # Telegram session files (contain sensitive authentication data)
 *.session
 PS-LinkVault.session
+*.session-journal
+temp_sessions/
+
+# Project-specific
+logs/
+backup.patch
+LinkVault.txt

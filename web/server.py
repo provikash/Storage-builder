@@ -9,7 +9,11 @@ from bot.database.connection_manager import get_database
 from clone_manager import clone_manager
 
 app = Flask(__name__)
-app.secret_key = Config.WEBHOOK_SECRET or "default_secret_key"
+if not Config.WEBHOOK_SECRET:
+    import secrets
+    app.secret_key = secrets.token_hex(32)
+else:
+    app.secret_key = Config.WEBHOOK_SECRET
 
 # HTML Templates
 DASHBOARD_TEMPLATE = """
