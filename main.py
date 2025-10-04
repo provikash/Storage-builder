@@ -1,4 +1,7 @@
-import uvloop
+# Setup uvloop if available (not on Windows)
+from shared.utils.uvloop_compat import setup_event_loop
+setup_event_loop()
+
 import asyncio
 import logging
 import signal
@@ -17,8 +20,6 @@ from bot.logging import LOGGER
 from bot.utils.callback_safety import suppress_handler_removal_errors
 
 logger = LOGGER(__name__)
-
-uvloop.install()
 
 class GracefulShutdown:
     """Handle graceful shutdown of the application"""

@@ -1,0 +1,31 @@
+
+# Python Telegram Bot Dependencies (Windows Compatible)
+pyrogram==2.0.106
+TgCrypto==1.2.5
+motor==3.3.2
+pymongo==4.6.0
+dnspython==2.4.2
+
+# Web Framework
+Flask==2.3.3
+werkzeug==3.1.3
+
+# Utilities
+python-dotenv==1.0.0
+APScheduler==3.10.4
+aiohttp==3.9.1
+httpx==0.28.1
+loguru==0.7.3
+psutil==5.9.6
+pytz==2025.2
+
+# Shortlink Support
+shortzy==0.0.8
+
+# Testing (optional)
+pytest==8.4.1
+pytest-asyncio==1.1.0
+pytest-mock==3.14.1
+
+# Note: uvloop is excluded for Windows compatibility
+# If you need it on Linux/Mac, use requirements.txt instead
