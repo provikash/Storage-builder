@@ -1,19 +1,19 @@
 
 """
-Clone programs package - contains all clone-specific functionality
+Bot Programs Package
+Contains reusable program modules for bot functionality
 """
 
-# Import all clone program modules
-from . import clone_admin
-from . import clone_features
-from . import clone_indexing
-from . import clone_management
-from . import clone_random_files
+from bot.programs.clone_admin import CloneAdminProgram
+from bot.programs.clone_features import CloneFeaturesProgram
+from bot.programs.clone_indexing import CloneIndexingProgram
+from bot.programs.clone_management import CloneManagementProgram
+from bot.programs.clone_random_files import CloneRandomFilesProgram
 
 __all__ = [
-    'clone_admin',
-    'clone_features', 
-    'clone_indexing',
-    'clone_management',
-    'clone_random_files'
+    "CloneAdminProgram",
+    "CloneFeaturesProgram", 
+    "CloneIndexingProgram",
+    "CloneManagementProgram",
+    "CloneRandomFilesProgram"
 ]
