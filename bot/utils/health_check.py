@@ -179,7 +179,7 @@ class HealthChecker:
             
             try:
                 db = await asyncio.wait_for(get_database(), timeout=5.0)
-                if not db:
+                if db is None:
                     return {
                         'status': 'unhealthy',
                         'connected': False,
