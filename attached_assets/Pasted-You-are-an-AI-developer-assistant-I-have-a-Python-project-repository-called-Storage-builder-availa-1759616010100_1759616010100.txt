@@ -1,0 +1,49 @@
+You are an AI developer assistant. I have a Python project repository called Storage-builder, available at: https://github.com/provikash/Storage-builder
+
+The project currently has:
+- Motherbot code and clonebot code mixed together in the same folder.
+- Some utility scripts, debugging scripts, and test scripts scattered in the root directory.
+- uvloop is used, but it should be optional on Windows.
+
+Your task is to:
+
+1. *Separate Motherbot and Clonebot code* into two folders:
+   - motherbot/ → contains motherbot logic and any shared utilities used by motherbot.
+   - clonebot/ → contains clonebot logic, clone management scripts, and clone-specific utilities.
+
+2. *Move all test/debug scripts* into a tests/ folder. These scripts should *not* be in production folders.
+
+3. *Remove or archive unused files* that are not necessary for running motherbot or clonebot.
+
+4. *Update imports* inside the scripts to work with the new folder structure. Use relative imports where needed.
+
+5. *Make uvloop optional* for Windows:
+   - In any file where uvloop is imported, wrap it like:
+     python
+     import sys
+     if sys.platform != "win32":
+         import uvloop
+         import asyncio
+         asyncio.set_event_loop_policy(uvloop.EventLoopPolicy())
+     
+
+6. *Ensure the project runs* after reorganization:
+   - Create run_motherbot.py in root to start motherbot.
+   - Create run_clonebot.py in root to start clonebot.
+
+7. *Update requirements*:
+   - Create requirements.txt with all necessary packages.
+   - Create requirements_windows.txt that excludes uvloop.
+
+8. *Output a full folder structure* and updated script paths so I can directly apply it in VS Code.
+
+Constraints:
+- Keep all functionality intact.
+- Do not remove code that is actively used by motherbot or clonebot.
+- Make the structure clean and modular for future development.
+
+Your output should be structured like a *step-by-step migration plan*, including:
+- Folder structure
+- Files to move
+- Scripts to update
+- Sample code changes for imports and uvloop handling
