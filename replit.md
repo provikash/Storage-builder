@@ -38,6 +38,8 @@ This is a sophisticated Telegram bot system for file sharing with clone creation
 - ✅ Web server secured (removed hardcoded default secret key)
 - ✅ **Consolidated all clone management into single clone_manager.py file**
 - ✅ **Removed redundant clone files (clone_cli.py, run_clonebot.py, run_motherbot.py)**
+- ✅ **Consolidated random feature files - removed duplicate bot/programs/clone_random_files.py**
+- ✅ **All random file features now in bot/plugins/clone_random_files.py**
 - ✅ Cleaned up duplicate scripts and test files
 - ✅ Updated .gitignore with project-specific entries
 - ✅ VM deployment configuration set up for persistent operation
