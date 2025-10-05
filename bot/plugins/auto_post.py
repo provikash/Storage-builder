@@ -1,1 +1,0 @@
-# This file has been removed as auto posting functionality is no longer needed
