@@ -308,7 +308,7 @@ async def search_files_command(client: Client, message: Message):
 
         query = " ".join(message.command[1:])
         clone_id = await get_clone_id_from_client(client)
-        
+
         if not clone_id:
             await message.reply_text("❌ Search is only available in clone bots.")
             return
@@ -607,7 +607,7 @@ async def handle_clone_popular_files(client: Client, query):
         await query.answer("❌ Error retrieving popular files.", show_alert=True)
 
 @Client.on_callback_query(filters.regex("^get_file:"))
-async def handle_get_file(client: Client, query):
+async def handle_get_file(client: Client, query: CallbackQuery):
     """Handle file download request with enhanced tracking and UI"""
     try:
         await query.answer()
@@ -798,46 +798,24 @@ async def handle_get_random_file(client: Client, query):
         await query.answer("❌ Error getting random file.", show_alert=True)
 
 # Callback handlers for clone bot file browsing
-@Client.on_callback_query(filters.regex("^clone_random_files$"))
+@Client.on_callback_query(filters.regex(r"^clone_random_files$"))
 async def handle_clone_random_files_callback(client: Client, query: CallbackQuery):
-    """Handle random files callback for clone bot"""
+    """Handle clone random files callback"""
     try:
-        await query.answer()
-
-        clone_id = await get_clone_id_from_client(client)
-        if not clone_id:
-            await query.edit_message_text("❌ This feature is only available in clone bots.")
-            return
-
-        # Check if feature is enabled
-        if not await check_clone_feature_enabled(client, 'random_button'):
-            await query.edit_message_text("❌ Random files feature is not available or disabled.")
-            return
-
-        # Get random files
-        try:
-            from bot.database.index_db import get_random_files as get_index_random_files
-            files = await get_index_random_files(limit=10, clone_id=clone_id)
-        except ImportError:
-            files = await get_random_files(limit=10, clone_id=clone_id)
-
-        if not files:
-            await query.edit_message_text("❌ No files found in database. Index some files first.")
-            return
-
-        text = "🎲 **Random Files Discovery**\n\n"
-        text += f"🎯 Picked {len(files)} random files for you:\n\n"
-
-        # Show first file details
-        if files:
-            text += format_file_text(files[0], include_stats=True)
-
-        buttons = create_file_buttons(files, current_mode="random")
-        await query.edit_message_text(text, reply_markup=buttons)
-
+        await handle_clone_random_files(client, query)
     except Exception as e:
-        logger.error(f"Error in random files callback: {e}")
-        await query.edit_message_text("❌ Error loading random files. Please try again.")
+        logger.error(f"Error in clone random files callback: {e}")
+        await query.answer("❌ Error loading random files.", show_alert=True)
+
+@Client.on_callback_query(filters.regex(r"^random_files$"))
+async def handle_random_files_button(client: Client, query: CallbackQuery):
+    """Handle random files button from start menu"""
+    try:
+        await handle_clone_random_files(client, query)
+    except Exception as e:
+        logger.error(f"Error in random files button: {e}")
+        await query.answer("❌ Error loading random files.", show_alert=True)
+
 
 @Client.on_callback_query(filters.regex("^clone_popular_files$"))
 async def handle_clone_popular_files_callback(client: Client, query: CallbackQuery):
@@ -958,7 +936,7 @@ async def handle_clone_trending_files_callback(client: Client, query: CallbackQu
         logger.error(f"Error in trending files callback: {e}")
         await query.edit_message_text("❌ Error loading trending files. Please try again.")
 
-@Client.on_callback_query(filters.regex("^get_file:"))
+@Client.on_callback_query(filters.regex(r"^get_file:"))
 async def handle_get_file_callback(client: Client, query: CallbackQuery):
     """Handle file download callback"""
     try:
