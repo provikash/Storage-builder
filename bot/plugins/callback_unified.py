@@ -298,7 +298,7 @@ async def get_token_callback(client, query):
 async def back_to_start_callback(client: Client, query: CallbackQuery):
     """Handle back to start callback"""
     try:
-        from bot.plugins.start_handler import start_handler
+        from bot.plugins.start_handler import start_command
 
         class FakeMessage:
             def __init__(self, query):
@@ -311,7 +311,7 @@ async def back_to_start_callback(client: Client, query: CallbackQuery):
                 await query.edit_message_text(text, reply_markup=reply_markup)
 
         fake_message = FakeMessage(query)
-        await start_handler(client, fake_message)
+        await start_command(client, fake_message)
 
     except Exception as e:
         logger.error(f"Error in back_to_start callback: {e}")
