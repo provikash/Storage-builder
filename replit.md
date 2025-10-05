@@ -30,13 +30,14 @@ This is a sophisticated Telegram bot system for file sharing with clone creation
 - **Web Interface:** Flask
 - **Deployment:** Replit VM (persistent)
 
-## Recent Changes (2025-10-04)
+## Recent Changes (2025-10-05)
 - ✅ Fresh GitHub import successfully set up
 - ✅ Python 3.11 environment configured
-- ✅ All dependencies installed from requirements_clean.txt
+- ✅ All dependencies installed from requirements.txt
 - ✅ Required secrets configured (API_ID, API_HASH, BOT_TOKEN, DATABASE_URL, ADMINS)
 - ✅ Web server secured (removed hardcoded default secret key)
-- ✅ Consolidated clone management scripts into unified clone_cli.py
+- ✅ **Consolidated all clone management into single clone_manager.py file**
+- ✅ **Removed redundant clone files (clone_cli.py, run_clonebot.py, run_motherbot.py)**
 - ✅ Cleaned up duplicate scripts and test files
 - ✅ Updated .gitignore with project-specific entries
 - ✅ VM deployment configuration set up for persistent operation
@@ -63,26 +64,26 @@ This is a sophisticated Telegram bot system for file sharing with clone creation
 - Real users interacting with clone creation system
 
 ## Clone Management
-Use the unified CLI tool for all clone operations:
+All clone-related functionality has been consolidated into `clone_manager.py`. Use the CLI tool for all clone operations:
 ```bash
 # List all clones and their status
-python3 clone_cli.py list
+python3 clone_manager.py list
 
 # Start all clones
-python3 clone_cli.py start-all
+python3 clone_manager.py start-all
 
 # Restart all clones
-python3 clone_cli.py restart-all
+python3 clone_manager.py restart-all
 
 # Stop all clones
-python3 clone_cli.py stop-all
+python3 clone_manager.py stop-all
 
 # Start specific clone
-python3 clone_cli.py start --bot-id <BOT_ID>
+python3 clone_manager.py start --bot-id <BOT_ID>
 
 # Restart specific clone
-python3 clone_cli.py restart --bot-id <BOT_ID>
+python3 clone_manager.py restart --bot-id <BOT_ID>
 
 # Stop specific clone
-python3 clone_cli.py stop --bot-id <BOT_ID>
+python3 clone_manager.py stop --bot-id <BOT_ID>
 ```
