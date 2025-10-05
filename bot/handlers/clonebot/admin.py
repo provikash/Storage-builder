@@ -156,6 +156,72 @@ async def clone_stats_callback(client: Client, query: CallbackQuery):
     
     await query.edit_message_text(text, reply_markup=buttons)
 
+@Client.on_callback_query(filters.regex("^clone_toggle_features$"))
+async def clone_toggle_features_callback(client: Client, query: CallbackQuery):
+    """Handle clone features toggle"""
+    user_id = query.from_user.id
+    
+    if not await is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access.", show_alert=True)
+    
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    clone_data = await get_clone_by_bot_token(bot_token)
+    
+    if not clone_data:
+        return await query.answer("❌ Clone configuration not found!", show_alert=True)
+    
+    text = f"🎛️ **Clone Features Management**\n\n"
+    text += f"Toggle features on/off for your clone bot:\n\n"
+    
+    features = {
+        'random_mode': {'name': 'Random Files', 'emoji': '🎲'},
+        'recent_mode': {'name': 'Recent Files', 'emoji': '🆕'},
+        'popular_mode': {'name': 'Popular Files', 'emoji': '🔥'},
+        'search_mode': {'name': 'Search', 'emoji': '🔍'}
+    }
+    
+    buttons = []
+    for feature_key, feature_info in features.items():
+        status = "✅" if clone_data.get(feature_key, False) else "❌"
+        text += f"{feature_info['emoji']} {feature_info['name']}: {status}\n"
+        
+        buttons.append([
+            InlineKeyboardButton(
+                f"{feature_info['emoji']} Toggle {feature_info['name']}", 
+                callback_data=f"toggle_feature_{feature_key}"
+            )
+        ])
+    
+    buttons.append([InlineKeyboardButton("🔙 Back", callback_data="goto_clone_admin")])
+    
+    await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
+
+@Client.on_callback_query(filters.regex("^toggle_feature_"))
+async def handle_feature_toggle(client: Client, query: CallbackQuery):
+    """Toggle a specific feature"""
+    user_id = query.from_user.id
+    
+    if not await is_clone_admin(client, user_id):
+        return await query.answer("❌ Unauthorized access.", show_alert=True)
+    
+    feature_key = query.data.replace("toggle_feature_", "")
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    
+    clone_data = await get_clone_by_bot_token(bot_token)
+    if not clone_data:
+        return await query.answer("❌ Configuration error", show_alert=True)
+    
+    current_value = clone_data.get(feature_key, False)
+    new_value = not current_value
+    
+    success = await update_clone_config(clone_data['_id'], {feature_key: new_value})
+    
+    if success:
+        await query.answer("✅ Feature toggled successfully")
+        await clone_toggle_features_callback(client, query)
+    else:
+        await query.answer("❌ Failed to toggle feature", show_alert=True)
+
 @Client.on_callback_query(filters.regex("^goto_clone_admin$"))
 async def goto_clone_admin_callback(client: Client, query: CallbackQuery):
     """Return to clone admin panel"""
