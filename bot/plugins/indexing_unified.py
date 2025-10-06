@@ -295,13 +295,19 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot, clone_id=None, clone_dat
 async def clone_index_command(client: Client, message: Message):
     """Unified indexing command for clone bots"""
     try:
+        logger.info(f"Clone index command received from user {message.from_user.id}")
+        
         is_admin, clone_data = await verify_clone_admin(client, message.from_user.id)
+        logger.info(f"Admin verification result: is_admin={is_admin}, clone_data={'present' if clone_data else 'None'}")
+        
         if not is_admin:
+            logger.warning(f"User {message.from_user.id} is not authorized for clone indexing")
             return await message.reply_text("❌ **Access Denied**\n\nThis command is only available to clone administrators.")
         
         clone_id = get_clone_id_from_client(client)
+        logger.info(f"Clone ID extracted: {clone_id}")
     except Exception as e:
-        logger.error(f"Error in clone_index_command: {e}")
+        logger.error(f"Error in clone_index_command: {e}", exc_info=True)
         return await message.reply_text(f"❌ Error: {str(e)}")
     
     if len(message.command) < 2:
@@ -333,19 +339,23 @@ async def clone_index_command(client: Client, message: Message):
 async def process_clone_index_request(client: Client, message: Message, input_text: str, clone_id: str, clone_data: dict):
     """Process clone indexing request"""
     try:
+        logger.info(f"Processing clone index request for input: {input_text}")
         channel_id = None
         
         # Parse input format
         if input_text.startswith('@'):
             username = input_text[1:]
+            logger.info(f"Parsing username: @{username}")
             chat = await client.get_chat(username)
             channel_id = chat.id
+            logger.info(f"Resolved channel ID: {channel_id}")
         elif input_text.startswith('https://t.me/'):
             if '/c/' in input_text:
                 regex = re.compile(r"https://t\.me/c/(\d+)/(\d+)")
                 match = regex.match(input_text)
                 if match:
                     channel_id = int(f"-100{match.group(1)}")
+                    logger.info(f"Parsed private channel ID: {channel_id}")
             else:
                 regex = re.compile(r"https://t\.me/([^/]+)/?(\d+)?")
                 match = regex.match(input_text)
@@ -353,20 +363,44 @@ async def process_clone_index_request(client: Client, message: Message, input_te
                     username = match.group(1)
                     chat = await client.get_chat(username)
                     channel_id = chat.id
-        elif input_text.startswith('-100'):
+                    logger.info(f"Resolved public channel ID: {channel_id}")
+        elif input_text.startswith('-100') or input_text.lstrip('-').isdigit():
             channel_id = int(input_text)
+            logger.info(f"Using direct channel ID: {channel_id}")
         
         if not channel_id:
-            return await message.reply_text("❌ Invalid channel format.")
+            logger.error(f"Failed to parse channel ID from input: {input_text}")
+            return await message.reply_text("❌ Invalid channel format.\n\nSupported formats:\n• `-1001234567890`\n• `@channelname`\n• `https://t.me/channel`")
         
-        chat = await client.get_chat(channel_id)
-        channel_title = chat.title or "Unknown Channel"
+        try:
+            chat = await client.get_chat(channel_id)
+            channel_title = chat.title or "Unknown Channel"
+            logger.info(f"Successfully accessed channel: {channel_title}")
+        except Exception as e:
+            logger.error(f"Failed to access channel {channel_id}: {e}")
+            return await message.reply_text(
+                f"❌ **Cannot Access Channel**\n\n"
+                f"Error: {str(e)}\n\n"
+                f"Make sure:\n"
+                f"• The bot is a member/admin of the channel\n"
+                f"• The channel ID is correct\n"
+                f"• The channel is not deleted"
+            )
         
-        async for latest_msg in client.iter_messages(channel_id, limit=1):
-            last_msg_id = latest_msg.id
-            break
-        else:
-            return await message.reply_text("❌ Channel appears to be empty.")
+        try:
+            async for latest_msg in client.iter_messages(channel_id, limit=1):
+                last_msg_id = latest_msg.id
+                break
+            else:
+                return await message.reply_text("❌ Channel appears to be empty.")
+            logger.info(f"Found last message ID: {last_msg_id}")
+        except Exception as e:
+            logger.error(f"Failed to read messages from channel: {e}")
+            return await message.reply_text(
+                f"❌ **Cannot Read Messages**\n\n"
+                f"Error: {str(e)}\n\n"
+                f"The bot needs admin rights with 'Read Messages' permission."
+            )
         
         buttons = InlineKeyboardMarkup([
             [InlineKeyboardButton("✅ Start Indexing", callback_data=f"start_clone_index:{clone_id}:{channel_id}:{last_msg_id}")],
@@ -388,7 +422,7 @@ async def process_clone_index_request(client: Client, message: Message, input_te
 
 
 @Client.on_callback_query(filters.regex("^start_clone_index:"))
-async def start_clone_indexing_callback(client: Client, query: CallbackQuery):
+async def start_clone_index_callback(client: Client, query: CallbackQuery):
     """Handle start clone indexing callback"""
     try:
         _, clone_id, channel_id, last_msg_id = query.data.split(":")
@@ -413,10 +447,13 @@ async def start_clone_indexing_callback(client: Client, query: CallbackQuery):
         await index_files_to_db(last_msg_id, channel_id, msg, client, clone_id, clone_data)
         
     except Exception as e:
-        logger.error(f"Error in start_clone_indexing_callback: {e}")
+        logger.error(f"Error in start_clone_index_callback: {e}")
         await query.message.edit_text(f"❌ Error: {str(e)}")
-async def start_clone_index_callback(client: Client, query: CallbackQuery):
-    """Start clone indexing"""
+
+
+@Client.on_callback_query(filters.regex("^index_cancel$"))
+async def cancel_clone_index_callback(client: Client, query: CallbackQuery):
+    """Handle cancel indexing callback"""
     try:
         _, clone_id, channel_id, last_msg_id = query.data.split(":")
         channel_id = int(channel_id)
