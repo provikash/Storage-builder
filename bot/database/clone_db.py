@@ -188,19 +188,47 @@ async def get_clone_by_bot_token(bot_token):
     """Get clone data by bot token"""
     try:
         if not bot_token:
+            logger.warning("No bot token provided to get_clone_by_bot_token")
             return None
+
+        logger.info(f"Looking up clone with bot token: {bot_token[:10]}...")
 
         # Try to find by bot_token first
         result = await clones_collection.find_one({"bot_token": bot_token})
         if result:
+            logger.info(f"Found clone by bot_token field: {result.get('_id')}")
+            return result
+
+        # Try to find by token field (alternative field name)
+        result = await clones_collection.find_one({"token": bot_token})
+        if result:
+            logger.info(f"Found clone by token field: {result.get('_id')}")
             return result
 
         # If not found, try with bot_id extracted from token
-        bot_id = int(bot_token.split(':')[0]) if ':' in bot_token else int(bot_token)
-        result = await clones_collection.find_one({"bot_id": bot_id})
-        return result
+        try:
+            bot_id = int(bot_token.split(':')[0]) if ':' in bot_token else int(bot_token)
+            logger.info(f"Trying to find clone by bot_id: {bot_id}")
+            
+            result = await clones_collection.find_one({"bot_id": bot_id})
+            if result:
+                logger.info(f"Found clone by bot_id: {result.get('_id')}")
+                return result
+            
+            # Also try _id field with string bot_id
+            result = await clones_collection.find_one({"_id": str(bot_id)})
+            if result:
+                logger.info(f"Found clone by _id: {result.get('_id')}")
+                return result
+                
+        except (ValueError, IndexError) as parse_error:
+            logger.error(f"Error parsing bot_id from token: {parse_error}")
+        
+        logger.warning(f"No clone found for bot token: {bot_token[:10]}...")
+        return None
+        
     except Exception as e:
-        logger.error(f"Error getting clone by bot token: {e}")
+        logger.error(f"Error getting clone by bot token: {e}", exc_info=True)
         return None
 
 async def update_clone_config(clone_id: str, config_updates: dict):

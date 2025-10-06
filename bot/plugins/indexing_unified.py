@@ -48,17 +48,30 @@ async def verify_clone_admin(client: Client, user_id: int) -> tuple[bool, dict]:
     """Verify if user is clone admin"""
     try:
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        # If this is the mother bot, return False
         if bot_token == Config.BOT_TOKEN:
+            logger.info(f"This is mother bot, not a clone. Bot token matches Config.BOT_TOKEN")
             return False, None
 
+        # Get clone data
         clone_data = await get_clone_by_bot_token(bot_token)
+        logger.info(f"Clone data retrieved: {clone_data is not None}")
+        
         if not clone_data:
+            logger.warning(f"No clone data found for bot token: {bot_token[:10]}...")
             return False, None
 
-        is_admin = user_id == clone_data.get('admin_id')
+        # Check admin ID
+        admin_id = clone_data.get('admin_id')
+        logger.info(f"Checking admin: user_id={user_id}, admin_id={admin_id}")
+        
+        is_admin = user_id == admin_id
+        logger.info(f"Admin verification result: {is_admin}")
+        
         return is_admin, clone_data
     except Exception as e:
-        logger.error(f"Error verifying clone admin: {e}")
+        logger.error(f"Error verifying clone admin: {e}", exc_info=True)
         return False, None
 
 
@@ -317,13 +330,29 @@ async def clone_index_command(client: Client, message: Message):
         logger.info(f"📥 Clone index command received from user {message.from_user.id}")
         logger.info(f"📥 Command text: {message.text}")
         logger.info(f"📥 Command args: {message.command}")
+        
+        # Get bot token for debugging
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        logger.info(f"🔑 Bot token (first 10 chars): {bot_token[:10]}...")
 
         is_admin, clone_data = await verify_clone_admin(client, message.from_user.id)
         logger.info(f"✅ Admin verification result: is_admin={is_admin}, clone_data={'present' if clone_data else 'None'}")
 
         if not is_admin:
             logger.warning(f"⛔ User {message.from_user.id} is not authorized for clone indexing")
-            return await message.reply_text("❌ **Access Denied**\n\nThis command is only available to clone administrators.")
+            
+            # Provide detailed error message for debugging
+            if clone_data:
+                admin_id = clone_data.get('admin_id')
+                error_msg = f"❌ **Access Denied**\n\n"
+                error_msg += f"This command is only available to clone administrators.\n\n"
+                error_msg += f"👤 Your ID: `{message.from_user.id}`\n"
+                error_msg += f"👑 Admin ID: `{admin_id}`\n\n"
+                error_msg += f"Please contact the bot owner if you believe this is an error."
+            else:
+                error_msg = "❌ **Access Denied**\n\nThis command is only available to clone administrators."
+            
+            return await message.reply_text(error_msg)
 
         clone_id = get_clone_id_from_client(client)
         logger.info(f"🆔 Clone ID extracted: {clone_id}")
