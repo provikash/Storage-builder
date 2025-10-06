@@ -391,22 +391,54 @@ async def process_clone_index_request(client: Client, message: Message, input_te
 
         if not channel_id:
             logger.error(f"Failed to parse channel ID from input: {input_text}")
-            return await message.reply_text("❌ Invalid channel format.\n\nSupported formats:\n• `-1001234567890`\n• `@channelname`\n• `https://t.me/channel`")
-
-        try:
-            chat = await client.get_chat(channel_id)
-            channel_title = chat.title or "Unknown Channel"
-            logger.info(f"Successfully accessed channel: {channel_title}")
-        except Exception as e:
-            logger.error(f"Failed to access channel {channel_id}: {e}")
             return await message.reply_text(
-                f"❌ **Cannot Access Channel**\n\n"
-                f"Error: {str(e)}\n\n"
-                f"Make sure:\n"
-                f"• The bot is a member/admin of the channel\n"
-                f"• The channel ID is correct\n"
-                f"• The channel is not deleted"
+                "❌ **Invalid Channel Format**\n\n"
+                "Please use one of these formats:\n"
+                "• `@channelname`\n"
+                "• `https://t.me/channelname`\n"
+                "• `-1001234567890` (Channel ID)\n"
+                "• `https://t.me/c/1234567890/123` (Private channel)\n\n"
+                f"**Your input:** `{input_text}`"
             )
+
+        # Verify bot has access to channel
+        try:
+            chat_info = await client.get_chat(channel_id)
+            logger.info(f"✅ Verified access to channel: {chat_info.title} ({channel_id})")
+        except Exception as e:
+            logger.error(f"❌ Cannot access channel {channel_id}: {e}")
+            error_msg = str(e)
+
+            if "CHANNEL_PRIVATE" in error_msg or "CHANNEL_INVALID" in error_msg:
+                return await message.reply_text(
+                    f"❌ **Cannot Access Channel**\n\n"
+                    f"The channel `{channel_id}` is private or doesn't exist.\n\n"
+                    "**Required Steps:**\n"
+                    "1. Add the bot to the channel\n"
+                    "2. Make the bot an admin\n"
+                    "3. Grant 'Read Messages' permission\n"
+                    "4. Try the command again"
+                )
+            elif "CHAT_ADMIN_REQUIRED" in error_msg:
+                return await message.reply_text(
+                    f"❌ **Admin Rights Required**\n\n"
+                    f"The bot needs admin rights in `{channel_id}`.\n\n"
+                    "**Required Steps:**\n"
+                    "1. Go to channel settings\n"
+                    "2. Add bot as administrator\n"
+                    "3. Enable these permissions:\n"
+                    "   • Read Messages\n"
+                    "   • Access Message History"
+                )
+            else:
+                return await message.reply_text(
+                    f"❌ **Error Accessing Channel**\n\n"
+                    f"Error: `{error_msg}`\n\n"
+                    "Make sure:\n"
+                    "• The bot is added to the channel\n"
+                    "• The bot has admin rights\n"
+                    "• For private channels, bot must be an admin"
+                )
 
         try:
             async for latest_msg in client.iter_messages(channel_id, limit=1):
@@ -430,7 +462,7 @@ async def process_clone_index_request(client: Client, message: Message, input_te
 
         await message.reply_text(
             f"🔍 **Indexing Confirmation**\n\n"
-            f"**Channel:** {channel_title}\n"
+            f"**Channel:** {chat_info.title}\n"
             f"**Total Messages:** ~{last_msg_id:,}\n"
             f"**Database:** `{clone_data.get('db_name')}`\n\n"
             f"Ready to start indexing?",
@@ -456,20 +488,48 @@ async def start_clone_index_callback(client: Client, query: CallbackQuery):
 
         await query.answer("Starting indexing...", show_alert=False)
 
-        msg = await query.message.edit_text(
-            "🔄 **Indexing Started**\n\n"
-            "Please wait while files are being indexed...",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Cancel", callback_data="index_cancel")]
-            ])
-        )
+        # Get latest message ID for indexing
+        try:
+            # Try to get the latest message from the channel
+            async for msg in client.get_chat_history(channel_id, limit=1):
+                last_message_id = msg.id
+                break
+            else:
+                last_message_id = 0
+        except Exception as e:
+            logger.warning(f"Could not get latest message ID: {e}")
+            last_message_id = 0
 
         # Start indexing
-        await index_files_to_db(last_msg_id, channel_id, msg, client, clone_id, clone_data)
+        status_msg = await query.message.edit_text(
+            f"🔄 **Starting Indexing**\n\n"
+            f"📢 **Channel:** `{await (await client.get_chat(channel_id)).title}`\n"
+            f"🆔 **Channel ID:** `{channel_id}`\n"
+            f"💾 **Database:** `{clone_data.get('db_name', f'clone_{clone_id}')}`\n"
+            f"📊 **Last Message ID:** `{last_message_id if last_message_id > 0 else 'All messages'}`\n\n"
+            "⏳ Indexing in progress...\n"
+            "_This may take a while depending on channel size_"
+        )
+
+        await index_files_to_db(
+            lst_msg_id=last_message_id,
+            chat=channel_id,
+            msg=status_msg,
+            bot=client,
+            clone_id=clone_id,
+            clone_data=clone_data
+        )
 
     except Exception as e:
-        logger.error(f"Error in start_clone_index_callback: {e}")
-        await query.message.edit_text(f"❌ Error: {str(e)}")
+        logger.error(f"❌ Error in start_clone_index_callback: {e}")
+        await query.message.edit_text(
+            f"❌ **Indexing Failed**\n\n"
+            f"Error: `{str(e)}`\n\n"
+            "Please check:\n"
+            "• Bot has admin access to the channel\n"
+            "• Database connection is working\n"
+            "• Channel ID/link is correct"
+        )
 
 
 @Client.on_callback_query(filters.regex("^index_cancel$"))
