@@ -295,19 +295,21 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot, clone_id=None, clone_dat
 async def clone_index_command(client: Client, message: Message):
     """Unified indexing command for clone bots"""
     try:
-        logger.info(f"Clone index command received from user {message.from_user.id}")
+        logger.info(f"📥 Clone index command received from user {message.from_user.id}")
+        logger.info(f"📥 Command text: {message.text}")
+        logger.info(f"📥 Command args: {message.command}")
         
         is_admin, clone_data = await verify_clone_admin(client, message.from_user.id)
-        logger.info(f"Admin verification result: is_admin={is_admin}, clone_data={'present' if clone_data else 'None'}")
+        logger.info(f"✅ Admin verification result: is_admin={is_admin}, clone_data={'present' if clone_data else 'None'}")
         
         if not is_admin:
-            logger.warning(f"User {message.from_user.id} is not authorized for clone indexing")
+            logger.warning(f"⛔ User {message.from_user.id} is not authorized for clone indexing")
             return await message.reply_text("❌ **Access Denied**\n\nThis command is only available to clone administrators.")
         
         clone_id = get_clone_id_from_client(client)
-        logger.info(f"Clone ID extracted: {clone_id}")
+        logger.info(f"🆔 Clone ID extracted: {clone_id}")
     except Exception as e:
-        logger.error(f"Error in clone_index_command: {e}", exc_info=True)
+        logger.error(f"❌ Error in clone_index_command initial setup: {e}", exc_info=True)
         return await message.reply_text(f"❌ Error: {str(e)}")
     
     if len(message.command) < 2:
@@ -455,40 +457,12 @@ async def start_clone_index_callback(client: Client, query: CallbackQuery):
 async def cancel_clone_index_callback(client: Client, query: CallbackQuery):
     """Handle cancel indexing callback"""
     try:
-        _, clone_id, channel_id, last_msg_id = query.data.split(":")
-        channel_id = int(channel_id)
-        last_msg_id = int(last_msg_id)
-        
-        is_admin, clone_data = await verify_clone_admin(client, query.from_user.id)
-        
-        if not is_admin:
-            return await query.answer("❌ Access Denied", show_alert=True)
-        
-        await query.answer("Starting indexing...")
-        
-        await query.message.edit_text(
-            "📥 **Indexing Started**\n\n"
-            "Please wait while files are being indexed...",
-            reply_markup=InlineKeyboardMarkup([
-                [InlineKeyboardButton("❌ Cancel", callback_data="index_cancel")]
-            ])
-        )
-        
-        # Start indexing
-        await index_files_to_db(last_msg_id, channel_id, query.message, client, clone_id, clone_data)
+        index_config.CANCEL = True
+        await query.answer("⏹️ Cancelling indexing...", show_alert=True)
         
     except Exception as e:
-        logger.error(f"Error in start_clone_index_callback: {e}")
+        logger.error(f"Error in cancel_clone_index_callback: {e}")
         await query.answer(f"❌ Error: {str(e)}", show_alert=True)
-        if not is_admin:
-            return await query.answer("❌ Only clone admin can start indexing.", show_alert=True)
-        
-        await query.edit_message_text("🔄 **Starting Indexing...**")
-        await index_files_to_db(last_msg_id, channel_id, query.message, client, clone_id, clone_data)
-        
-    except Exception as e:
-        logger.error(f"Error starting clone index: {e}")
-        await query.answer("❌ Error starting indexing.", show_alert=True)
 
 
 # ===================== BULK INDEXING =====================
