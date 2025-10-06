@@ -196,13 +196,19 @@ async def get_clone_by_bot_token(bot_token):
         # Try to find by bot_token first
         result = await clones_collection.find_one({"bot_token": bot_token})
         if result:
-            logger.info(f"Found clone by bot_token field: {result.get('_id')}")
+            logger.info(f"Found clone by bot_token field: {result.get('_id')}, admin_id: {result.get('admin_id')}")
+            # Ensure mongodb_url is present
+            if not result.get('mongodb_url') and result.get('db_url'):
+                result['mongodb_url'] = result['db_url']
             return result
 
         # Try to find by token field (alternative field name)
         result = await clones_collection.find_one({"token": bot_token})
         if result:
-            logger.info(f"Found clone by token field: {result.get('_id')}")
+            logger.info(f"Found clone by token field: {result.get('_id')}, admin_id: {result.get('admin_id')}")
+            # Ensure mongodb_url is present
+            if not result.get('mongodb_url') and result.get('db_url'):
+                result['mongodb_url'] = result['db_url']
             return result
 
         # If not found, try with bot_id extracted from token
@@ -212,13 +218,19 @@ async def get_clone_by_bot_token(bot_token):
             
             result = await clones_collection.find_one({"bot_id": bot_id})
             if result:
-                logger.info(f"Found clone by bot_id: {result.get('_id')}")
+                logger.info(f"Found clone by bot_id: {result.get('_id')}, admin_id: {result.get('admin_id')}")
+                # Ensure mongodb_url is present
+                if not result.get('mongodb_url') and result.get('db_url'):
+                    result['mongodb_url'] = result['db_url']
                 return result
             
             # Also try _id field with string bot_id
             result = await clones_collection.find_one({"_id": str(bot_id)})
             if result:
-                logger.info(f"Found clone by _id: {result.get('_id')}")
+                logger.info(f"Found clone by _id: {result.get('_id')}, admin_id: {result.get('admin_id')}")
+                # Ensure mongodb_url is present
+                if not result.get('mongodb_url') and result.get('db_url'):
+                    result['mongodb_url'] = result['db_url']
                 return result
                 
         except (ValueError, IndexError) as parse_error:

@@ -47,23 +47,23 @@ def get_clone_id_from_client(client: Client):
 async def verify_clone_admin(client: Client, user_id: int) -> tuple[bool, dict]:
     """Verify if user is clone admin"""
     try:
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        bot_token = getattr(client, 'bot_token', None)
         
-        # If this is the mother bot, return False
-        if bot_token == Config.BOT_TOKEN:
-            logger.info(f"This is mother bot, not a clone. Bot token matches Config.BOT_TOKEN")
+        # If bot_token is None or matches mother bot, this is not a clone
+        if not bot_token or bot_token == Config.BOT_TOKEN:
+            logger.info(f"This is mother bot, not a clone")
             return False, None
 
         # Get clone data
         clone_data = await get_clone_by_bot_token(bot_token)
-        logger.info(f"Clone data retrieved: {clone_data is not None}")
+        logger.info(f"Clone data retrieved for token {bot_token[:10]}...: {clone_data is not None}")
         
         if not clone_data:
             logger.warning(f"No clone data found for bot token: {bot_token[:10]}...")
             return False, None
 
-        # Check admin ID
-        admin_id = clone_data.get('admin_id')
+        # Check admin ID - support both admin_id and owner_id fields
+        admin_id = clone_data.get('admin_id') or clone_data.get('owner_id')
         logger.info(f"Checking admin: user_id={user_id}, admin_id={admin_id}")
         
         is_admin = user_id == admin_id
@@ -202,13 +202,19 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot, clone_id=None, clone_dat
 
         # Get database connection
         if clone_id and clone_data:
-            mongodb_url = clone_data.get('mongodb_url')
+            # Use mongodb_url or db_url field from clone_data
+            mongodb_url = clone_data.get('mongodb_url') or clone_data.get('db_url')
             if not mongodb_url:
-                await msg.edit("❌ Clone database URL not configured")
+                await msg.edit("❌ Clone database URL not configured.\n\nPlease ensure your clone has a valid MongoDB URL.")
+                logger.error(f"No MongoDB URL found for clone {clone_id}")
                 return
+            
+            logger.info(f"📊 Using MongoDB URL for clone {clone_id}: {mongodb_url[:20]}...")
             clone_client = AsyncIOMotorClient(mongodb_url, serverSelectionTimeoutMS=30000)
-            clone_db = clone_client[clone_data.get('db_name', f"clone_{clone_id}")]
+            db_name = clone_data.get('db_name', f"clone_{clone_id}")
+            clone_db = clone_client[db_name]
             files_collection = clone_db.files
+            logger.info(f"📊 Connected to database: {db_name}, collection: files")
         else:
             files_collection = None
 
@@ -327,25 +333,36 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot, clone_id=None, clone_dat
 async def clone_index_command(client: Client, message: Message):
     """Unified indexing command for clone bots"""
     try:
-        logger.info(f"📥 Clone index command received from user {message.from_user.id}")
+        logger.info(f"📥 Index command received from user {message.from_user.id}")
         logger.info(f"📥 Command text: {message.text}")
         logger.info(f"📥 Command args: {message.command}")
         
-        # Get bot token for debugging
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        logger.info(f"🔑 Bot token (first 10 chars): {bot_token[:10]}...")
+        # Get bot token
+        bot_token = getattr(client, 'bot_token', None)
+        
+        # Check if this is a clone bot
+        if not bot_token or bot_token == Config.BOT_TOKEN:
+            # This is the mother bot, ignore the command or show error
+            logger.info(f"Index command received on mother bot, ignoring")
+            return await message.reply_text(
+                "❌ **This command is not available on the mother bot.**\n\n"
+                "Indexing commands are only available on clone bots."
+            )
+        
+        logger.info(f"🔑 Clone bot token (first 10 chars): {bot_token[:10]}...")
 
+        # Verify admin
         is_admin, clone_data = await verify_clone_admin(client, message.from_user.id)
         logger.info(f"✅ Admin verification result: is_admin={is_admin}, clone_data={'present' if clone_data else 'None'}")
 
         if not is_admin:
             logger.warning(f"⛔ User {message.from_user.id} is not authorized for clone indexing")
             
-            # Provide detailed error message for debugging
+            # Provide detailed error message
             if clone_data:
-                admin_id = clone_data.get('admin_id')
+                admin_id = clone_data.get('admin_id') or clone_data.get('owner_id')
                 error_msg = f"❌ **Access Denied**\n\n"
-                error_msg += f"This command is only available to clone administrators.\n\n"
+                error_msg += f"This command is only available to the clone bot administrator.\n\n"
                 error_msg += f"👤 Your ID: `{message.from_user.id}`\n"
                 error_msg += f"👑 Admin ID: `{admin_id}`\n\n"
                 error_msg += f"Please contact the bot owner if you believe this is an error."
@@ -361,24 +378,31 @@ async def clone_index_command(client: Client, message: Message):
         return await message.reply_text(f"❌ Error: {str(e)}")
 
     if len(message.command) < 2:
+        db_name = clone_data.get('db_name', f'clone_{clone_id}')
+        mongodb_url = clone_data.get('mongodb_url') or clone_data.get('db_url', 'Not configured')
+        
         help_text = (
-            "📚 **Clone Indexing System**\n\n"
+            "📚 **Clone Bot Indexing System**\n\n"
             "**Available Commands:**\n"
             "• `/index <channel_link>` - Index from channel link\n"
             "• `/index <username>` - Index from channel username\n"
-            "• `/bulkindex <channels>` - Bulk index multiple channels\n\n"
+            "• `/index <channel_id>` - Index from channel ID\n\n"
 
             "**Supported Formats:**\n"
             "• `https://t.me/channel/123`\n"
+            "• `https://t.me/c/1234567890/1`\n"
             "• `@channelname`\n"
             "• Channel ID: `-1001234567890`\n\n"
 
             "**Features:**\n"
             "✅ Auto-duplicate detection\n"
             "✅ Progress tracking\n"
-            "✅ Error recovery\n\n"
+            "✅ Error recovery\n"
+            "✅ Uses clone's own database\n\n"
 
-            f"**Clone Database:** `{clone_data.get('db_name', f'clone_{clone_id}')}`"
+            f"**Clone Database:** `{db_name}`\n"
+            f"**MongoDB URL:** `{mongodb_url[:30]}...`\n\n"
+            "**Note:** Only the clone administrator can use indexing commands."
         )
         return await message.reply_text(help_text)
 
