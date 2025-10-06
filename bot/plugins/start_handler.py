@@ -510,7 +510,7 @@ async def debug_command(client: Client, message: Message):
         text += f"👤 User ID: `{user_id}`\n"
         text += f"🕐 Time: {message.date}\n"
         text += f"📨 Message ID: {message.id}"
-        
+
         await message.reply_text(text)
         logger.info(f"Debug command successful for user {user_id}")
     except Exception as e:
@@ -520,54 +520,6 @@ async def debug_command(client: Client, message: Message):
         except Exception:
             pass
 
-@Client.on_message(filters.text & filters.private, group=99)
-async def catch_all_handler(client: Client, message: Message):
-    """Catch-all handler to log unhandled messages"""
-    try:
-        if message.text and message.text.startswith('/'):
-            # Only log truly unhandled commands (not /start)
-            if not message.text.lower().startswith("/start"):
-                logger.warning(f"Unhandled command: {message.text} from user {message.from_user.id}")
-        else:
-            # Handle non-command text only if it's short and not empty
-            if message.text and len(message.text) < 20 and message.text.strip():
-                await message.reply_text(
-                    f"📝 You sent: `{message.text}`\n\n"
-                    f"Use /start to begin or /debug to test."
-                )
-    except Exception as e:
-        logger.error(f"Error in catch-all handler: {e}")
-    text += f"• `https://teraboxlinks.com/`\n"
-    text += f"• `https://short.io/`\n"
-    text += f"• `https://tinyurl.com/`\n\n"
-    text += f"Send 'cancel' to abort."
-
-    await query.edit_message_text(text)
-
-    # Set waiting state (you can implement this with a session manager)
-    user_settings[user_id]['waiting_for'] = 'shortener_url'
-
-@Client.on_callback_query(filters.regex("^change_api_key$"), group=5)
-async def change_api_key_callback(client: Client, query: CallbackQuery):
-    """Handle API key change"""
-    await query.answer()
-    user_id = query.from_user.id
-
-    if not await is_clone_admin(client, user_id):
-        await query.edit_message_text("❌ Only clone admin can access settings.")
-        return
-
-    text = f"🔑 **Change API Key**\n\n"
-    text += f"Send your new API key:\n\n"
-    text += f"**Note:** Your API key will be stored securely.\n\n"
-    text += f"Send 'cancel' to abort."
-
-    await query.edit_message_text(text)
-
-    # Set waiting state
-    user_settings[user_id]['waiting_for'] = 'api_key'
-
-# Handle text input for URL/API changes - Specific to settings
 @Client.on_message(filters.text & filters.private, group=6)
 async def handle_settings_input(client: Client, message: Message):
     """Handle text input for settings changes"""
@@ -1058,4 +1010,42 @@ async def check_db_command(client: Client, message: Message):
 
 
 # Handle search queries and other text
-        return
+@Client.on_message(filters.private & filters.incoming, group=999)
+async def catch_all_handler(client: Client, message: Message):
+    """Catch-all handler for unhandled messages - runs last"""
+    try:
+        # Skip if message is a command that should be handled elsewhere
+        if message.text and message.text.startswith('/'):
+            command = message.text.split()[0].lower()
+            # Skip indexing commands - they have their own handlers
+            indexing_commands = ['/index', '/indexing', '/cloneindex', '/bulkindex', '/setskip']
+            if any(cmd in command for cmd in indexing_commands):
+                return
+            logger.warning(f"Unhandled command: {command} from user {message.from_user.id}")
+            return
+
+        # Check if this is a clone bot
+        is_clone, bot_token = await is_clone_bot_instance_async(client)
+        if is_clone:
+            # For clone bots, only respond to specific commands or known messages
+            # Log or ignore other text to prevent clutter
+            if message.text and len(message.text) < 20 and message.text.strip():
+                await message.reply_text(
+                    f"📝 You sent: `{message.text}`\n\n"
+                    f"Use /start to access the menu or /help for available commands."
+                )
+            return
+        else:
+            # For mother bot, provide a generic response for unhandled text
+            if message.text and len(message.text) < 20 and message.text.strip():
+                await message.reply_text(
+                    f"📝 You sent: `{message.text}`\n\n"
+                    f"This is the Mother Bot. Use /start to navigate or /help for assistance."
+                )
+    except Exception as e:
+        logger.error(f"Error in catch-all handler: {e}")
+        # Attempt to reply with an error message if possible
+        try:
+            await message.reply_text("An unexpected error occurred while processing your message.")
+        except Exception:
+            pass # Ignore if even replying fails

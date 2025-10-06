@@ -291,14 +291,18 @@ async def index_files_to_db(lst_msg_id, chat, msg, bot, clone_id=None, clone_dat
 
 # ===================== CLONE BOT INDEXING =====================
 
-@Client.on_message(filters.command(['index', 'indexing', 'cloneindex']) & filters.private)
+@Client.on_message(filters.command(['index', 'indexing', 'cloneindex']) & filters.private, group=1)
 async def clone_index_command(client: Client, message: Message):
     """Unified indexing command for clone bots"""
-    is_admin, clone_data = await verify_clone_admin(client, message.from_user.id)
-    if not is_admin:
-        return await message.reply_text("❌ **Access Denied**\n\nThis command is only available to clone administrators.")
-    
-    clone_id = get_clone_id_from_client(client)
+    try:
+        is_admin, clone_data = await verify_clone_admin(client, message.from_user.id)
+        if not is_admin:
+            return await message.reply_text("❌ **Access Denied**\n\nThis command is only available to clone administrators.")
+        
+        clone_id = get_clone_id_from_client(client)
+    except Exception as e:
+        logger.error(f"Error in clone_index_command: {e}")
+        return await message.reply_text(f"❌ Error: {str(e)}")
     
     if len(message.command) < 2:
         help_text = (
@@ -383,7 +387,7 @@ async def process_clone_index_request(client: Client, message: Message, input_te
         await message.reply_text(f"❌ Error: {str(e)}")
 
 
-@Client.on_callback_query(filters.regex("^start_clone_index:"))
+@Client.on_callback_query(filters.regex("^start_clone_index:"), group=1)
 async def start_clone_index_callback(client: Client, query: CallbackQuery):
     """Start clone indexing"""
     try:
@@ -392,6 +396,26 @@ async def start_clone_index_callback(client: Client, query: CallbackQuery):
         last_msg_id = int(last_msg_id)
         
         is_admin, clone_data = await verify_clone_admin(client, query.from_user.id)
+        
+        if not is_admin:
+            return await query.answer("❌ Access Denied", show_alert=True)
+        
+        await query.answer("Starting indexing...")
+        
+        await query.message.edit_text(
+            "📥 **Indexing Started**\n\n"
+            "Please wait while files are being indexed...",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("❌ Cancel", callback_data="index_cancel")]
+            ])
+        )
+        
+        # Start indexing
+        await index_files_to_db(last_msg_id, channel_id, query.message, client, clone_id, clone_data)
+        
+    except Exception as e:
+        logger.error(f"Error in start_clone_index_callback: {e}")
+        await query.answer(f"❌ Error: {str(e)}", show_alert=True)
         if not is_admin:
             return await query.answer("❌ Only clone admin can start indexing.", show_alert=True)
         

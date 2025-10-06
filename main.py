@@ -122,6 +122,7 @@ async def start_mother_bot():
                 root="bot.plugins",
                 include=[
                     "start_handler",
+                    "indexing_unified",
                     "clone_admin_settings",
                     "clone_database_commands",
                     "clone_index",
