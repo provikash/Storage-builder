@@ -3,6 +3,13 @@
 Callback safety utilities
 Import from unified error_handler
 """
+import functools
+from pyrogram import Client
+from pyrogram.types import CallbackQuery
+from bot.logging import LOGGER
+
+logger = LOGGER(__name__)
+
 from bot.utils.error_handler import safe_callback_handler
 
 # Re-export for backward compatibility
