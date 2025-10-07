@@ -116,7 +116,7 @@ async def create_clone_directly(user_id: int, data: dict):
         logger.error(f"❌ Error in create_clone_directly for user {user_id}: {e}")
         return False, str(e)
 
-@Client.on_callback_query(filters.regex("^start_clone_creation$"), group=1)
+@Client.on_callback_query(filters.regex("^start_clone_creation$"))
 async def start_clone_creation_callback(client: Client, query: CallbackQuery):
     """Start the clone creation process"""
     user_id = query.from_user.id
@@ -216,7 +216,7 @@ async def creation_help_callback(client, query):
 
     await query.edit_message_text(text, reply_markup=buttons)
 
-@Client.on_callback_query(filters.regex("^begin_step1_plan$"), group=1)
+@Client.on_callback_query(filters.regex("^begin_step1_plan$"))
 async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
     """Handle begin step 1 - plan selection"""
     await query.answer()
@@ -251,7 +251,7 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
-@Client.on_callback_query(filters.regex("^select_plan:"), group=1)
+@Client.on_callback_query(filters.regex("^select_plan:"))
 async def select_plan_callback(client: Client, query: CallbackQuery):
     """Handle plan selection"""
     await query.answer()

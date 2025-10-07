@@ -65,6 +65,7 @@ class Config(object):
 
     # Channel Configuration with defaults for missing vars  
     INDEX_CHANNEL_ID = int(os.environ.get("INDEX_CHANNEL_ID", "0"))
+    CHANNEL_ID = int(os.environ.get("CHANNEL_ID", os.environ.get("INDEX_CHANNEL_ID", "0")))  # Fallback to INDEX_CHANNEL_ID
     OWNER_ID = int(os.environ.get("OWNER_ID", "0"))
 
     # Update ADMINS to include OWNER_ID if it's set
