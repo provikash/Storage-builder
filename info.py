@@ -31,10 +31,6 @@ class Config(object):
     # Admin Configuration - REQUIRED
     ADMINS = [int(x) for x in os.environ.get("ADMINS", "").split() if x.isdigit()]
 
-    # Optional Configurations
-    CHANNEL_ID = int(os.environ.get("CHANNEL_ID", "0"))
-    FORCE_SUB_CHANNELS = [int(x) for x in os.environ.get("FORCE_SUB_CHANNELS", "").split() if x.isdigit()]
-
     # Security Settings
     MAX_CLONE_REQUESTS_PER_DAY = int(os.environ.get("MAX_CLONE_REQUESTS_PER_DAY", "5"))
     CLONE_REQUEST_COOLDOWN_HOURS = int(os.environ.get("CLONE_REQUEST_COOLDOWN_HOURS", "24"))
@@ -63,11 +59,6 @@ class Config(object):
     STORAGE_PATH = os.environ.get("STORAGE_PATH", "/tmp")
     TEMP_PATH = os.environ.get("TEMP_PATH", "/tmp")
 
-    # Additional Configuration - moved inside Config class
-    WEB_MODE = os.environ.get("WEB_MODE", "False").lower() in ("true", "1", "yes")
-    PORT = int(os.environ.get("PORT", "5000"))
-    HOST = os.environ.get("HOST", "0.0.0.0")
-
     # Web Configuration
     WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET", "")
     WEB_HOST = os.environ.get("WEB_HOST", "0.0.0.0")
@@ -92,22 +83,10 @@ class Config(object):
                 else:
                     FORCE_SUB_CHANNEL.append(ch)
 
-    # Request channels
-    REQUEST_CHANNEL_RAW = os.environ.get("REQUEST_CHANNEL", "").strip()
-    REQUEST_CHANNEL = []
-    if REQUEST_CHANNEL_RAW:
-        for ch in REQUEST_CHANNEL_RAW.split():
-            ch = ch.strip()
-            if ch and ch != "...":
-                if ch.lstrip('-').isdigit():
-                    REQUEST_CHANNEL.append(int(ch))
-                else:
-                    REQUEST_CHANNEL.append(ch)
-
     # Messages
     START_PIC = os.environ.get("START_PIC", "")
-    START_MSG = os.environ.get("START_MESSAGE", "👋 Hello {mention},\n\nThis bot helps you store private files in a secure channel and generate special access links for sharing. 🔐📁\n\n Only admins can upload files and generate links. Just send the file here to get started.")
-    FORCE_MSG = os.environ.get("FORCE_SUB_MESSAGE", "👋 Hello {mention}, \n\n <b>You need to join our updates channel before using this bot.</b>\n\n 📢 Please join the required channel, then try again.")
+    START_MESSAGE = os.environ.get("START_MESSAGE", "👋 Hello {mention},\n\nThis bot helps you store private files in a secure channel and generate special access links for sharing. 🔐📁\n\n Only admins can upload files and generate links. Just send the file here to get started.")
+    FORCE_SUB_MESSAGE = os.environ.get("FORCE_SUB_MESSAGE", "👋 Hello {mention}, \n\n <b>You need to join our updates channel before using this bot.</b>\n\n 📢 Please join the required channel, then try again.")
     CUSTOM_CAPTION = os.environ.get("CUSTOM_CAPTION", None)
 
     # Security Configuration
@@ -168,10 +147,6 @@ class Config(object):
 
         return True
 
-    # Additional config variables that might be missing
-    FORCE_SUB_MESSAGE = os.environ.get("FORCE_SUB_MESSAGE", "Please join our channel to use this bot.")
-    START_MESSAGE = os.environ.get("START_MESSAGE", "Welcome! I'm your file sharing bot.")
-    
     # File size limits
     MAX_FILE_SIZE = int(os.environ.get("MAX_FILE_SIZE", "2147483648"))  # 2GB default
 
