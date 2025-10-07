@@ -496,27 +496,7 @@ async def handle_start_menu_callbacks(client: Client, query: CallbackQuery):
                 ])
             )
 
-        elif callback_data in ["help_menu", "help"]:
-            await query.edit_message_text(
-                "❓ **Help & Support**\n\n"
-                "🤖 **Bot Commands:**\n"
-                "• /start - Main menu\n"
-                "• /createclone - Create new clone bot\n"
-                "• /myclones - Manage your bots\n"
-                "• /help - Show this help\n\n"
-                "📞 **Support:**\n"
-                "• Documentation: Available in bot\n"
-                "• Support group: @support\n"
-                "• Contact admin: @admin",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
-                ])
-            )
-
-    except Exception as e:
-        logger.error(f"Error in start menu callback {callback_data}: {e}")
-        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
-
+    
 # =====================================================
 # CLONE SPECIFIC HANDLERS
 # =====================================================
