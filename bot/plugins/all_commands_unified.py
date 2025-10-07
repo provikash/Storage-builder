@@ -28,28 +28,8 @@ clone_admin_sessions = {}
 # HELPER FUNCTIONS
 # =====================================================
 
-def is_clone_admin(client: Client, user_id: int) -> bool:
-    """Check if user is admin of the current clone bot"""
-    try:
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        if bot_token == Config.BOT_TOKEN:
-            return False
-        if hasattr(client, 'clone_admin_id'):
-            return user_id == client.clone_admin_id
-        return False
-    except Exception as e:
-        logger.error(f"Error checking clone admin: {e}")
-        return False
-
-def get_clone_id_from_client(client: Client):
-    """Get clone ID from client"""
-    try:
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        if bot_token == Config.BOT_TOKEN:
-            return None
-        return bot_token.split(':')[0]
-    except:
-        return None
+# Import unified clone detection utilities
+from bot.utils.clone_detection import is_clone_admin, get_clone_id_from_client
 
 def get_readable_file_size(size_bytes):
     """Convert bytes to readable format"""

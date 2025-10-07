@@ -38,15 +38,8 @@ async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     logger.info(f"Clone settings panel callback from user {user_id}")
 
-    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
-
-    if not is_clone_bot:
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
+    from bot.utils.clone_detection import is_clone_bot_instance
+    is_clone_bot, bot_token = await is_clone_bot_instance(client)
 
     if not is_clone_bot or bot_token == Config.BOT_TOKEN:
         await query.answer("❌ Not available in this bot.", show_alert=True)

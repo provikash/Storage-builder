@@ -146,37 +146,11 @@ def update_user_setting(user_id, key, value):
         get_user_settings(user_id)  # Initialize defaults
     user_settings[user_id][key] = value
 
-async def is_clone_bot_instance_async(client):
-    """Detect if this is a clone bot instance"""
-    try:
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        is_clone = hasattr(client, 'is_clone') and client.is_clone
+# Import unified clone detection utilities
+from bot.utils.clone_detection import is_clone_bot_instance, is_clone_admin, get_clone_id_from_client
 
-        if not is_clone:
-            is_clone = (
-                bot_token != Config.BOT_TOKEN or
-                hasattr(client, 'clone_config') and client.clone_config or
-                hasattr(client, 'clone_data')
-            )
-
-        return is_clone, bot_token
-    except:
-        return False, Config.BOT_TOKEN
-
-async def is_clone_admin(client: Client, user_id: int) -> bool:
-    """Check if user is admin of the current clone bot"""
-    try:
-        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-        if bot_token == Config.BOT_TOKEN:
-            return False
-
-        clone_data = await get_clone_by_bot_token(bot_token)
-        if clone_data:
-            return user_id == clone_data.get('admin_id')
-        return False
-    except Exception as e:
-        logger.error(f"Error checking clone admin: {e}")
-        return False
+# Alias for backward compatibility
+is_clone_bot_instance_async = is_clone_bot_instance
 
 @Client.on_message(filters.command(["start"]) & filters.private, group=1)
 async def start_command(client: Client, message: Message):

@@ -3,6 +3,8 @@ from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, 
 from info import Config
 from bot.database.balance_db import *
 from bot.logging import LOGGER
+from bot.utils.session_manager import get_session, clear_session, session_expired
+from bot.utils.clone_detection import is_clone_bot_instance
 
 logger = LOGGER(__name__)
 
@@ -10,10 +12,10 @@ logger = LOGGER(__name__)
 async def show_balance_options(client: Client, query: CallbackQuery):
     """Show balance addition options"""
     await query.answer()
-    
+
     user_id = query.from_user.id
     current_balance = await get_user_balance(user_id)
-    
+
     text = f"💳 **Add Balance**\n\n"
     text += f"💰 **Current Balance:** ${current_balance:.2f}\n\n"
     text += f"💵 **Quick Add Options:**\n\n"
@@ -22,7 +24,7 @@ async def show_balance_options(client: Client, query: CallbackQuery):
     text += f"• Instant credit after payment\n"
     text += f"• Secure payment processing\n\n"
     text += f"💡 **Minimum clone cost:** $3.00"
-    
+
     buttons = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("💵 $5", callback_data="add_balance_5"),
@@ -38,7 +40,7 @@ async def show_balance_options(client: Client, query: CallbackQuery):
         ],
         [InlineKeyboardButton("🔙 Back", callback_data="back_to_start")]
     ])
-    
+
     await query.edit_message_text(text, reply_markup=buttons)
 
 @Client.on_message(filters.command("balance") & filters.private)
@@ -48,15 +50,8 @@ async def check_balance_command(client: Client, message: Message):
 
     # Check if this is a clone bot
     bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
-    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
-    
-    if not is_clone_bot:
-        is_clone_bot = (
-            bot_token != Config.BOT_TOKEN or 
-            hasattr(client, 'clone_config') and client.clone_config or
-            hasattr(client, 'clone_data')
-        )
-    
+    is_clone_bot = await is_clone_bot_instance(client)
+
     if is_clone_bot or bot_token != Config.BOT_TOKEN:
         return await message.reply_text(
             "💳 **Balance Feature Not Available**\n\n"
