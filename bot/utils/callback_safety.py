@@ -15,44 +15,6 @@ from bot.utils.error_handler import safe_callback_handler
 # Re-export for backward compatibility
 __all__ = ['safe_callback_handler']
 
-def _safe_callback_handler(func):
-    """Decorator to safely handle callbacks and prevent task exceptions"""
-    @functools.wraps(func)
-    async def wrapper(client: Client, query: CallbackQuery):
-        try:
-            # Ensure query is answered to prevent timeout
-            try:
-                await query.answer()
-            except Exception:
-                pass  # Query might already be answered
-            
-            # Execute the actual handler
-            return await func(client, query)
-            
-        except Exception as e:
-            logger.error(f"❌ Error in callback handler {func.__name__}: {e}")
-            
-            # Try to notify user of error
-            try:
-                if not query.message:
-                    return
-                    
-                error_text = "❌ Button temporarily unresponsive. Please try again or use /start"
-                
-                try:
-                    await query.edit_message_text(error_text)
-                except Exception:
-                    # If edit fails, try answering with alert
-                    try:
-                        await query.answer(error_text, show_alert=True)
-                    except Exception:
-                        pass  # Give up gracefully
-                        
-            except Exception as notify_error:
-                logger.error(f"Failed to notify user of callback error: {notify_error}")
-    
-    return wrapper
-
 def suppress_handler_removal_errors():
     """Comprehensive handler removal error suppression"""
     
