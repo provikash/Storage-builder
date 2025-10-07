@@ -235,9 +235,8 @@ async def my_stats_command(client: Client, message: Message):
 async def activate_clone_command(client: Client, message: Message):
     """Activate a clone bot"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only Mother Bot admins can activate clones.")
 
     if len(message.command) < 2:
@@ -271,9 +270,8 @@ async def activate_clone_command(client: Client, message: Message):
 async def dashboard_command(client: Client, message: Message):
     """Show dashboard with system overview"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only Mother Bot admins can access dashboard.")
 
     try:
@@ -311,7 +309,7 @@ async def stats_command(client: Client, message: Message):
     """Handle stats command"""
     user_id = message.from_user.id
 
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ This command is only for admins.")
 
     try:
@@ -338,7 +336,7 @@ async def broadcast_command(client: Client, message: Message):
     """Handle broadcast command"""
     user_id = message.from_user.id
 
-    if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ This command is only for admins.")
 
     await message.reply_text(
@@ -359,7 +357,7 @@ async def clones_status_command(client: Client, message: Message):
 
     if bot_token == Config.BOT_TOKEN:
         # Mother bot - show all clones (admin only)
-        if user_id not in [Config.OWNER_ID] + list(Config.ADMINS):
+        if not Config.is_admin(user_id):
             return await message.reply_text("❌ Only admins can view all clone status.")
 
         all_clones = await get_all_clones()
@@ -443,7 +441,7 @@ async def set_token_verification_mode(client: Client, message: Message):
 @Client.on_message(filters.command("addglobalchannel") & filters.private)
 async def add_global_channel(client: Client, message: Message):
     """Add a global force subscription channel"""
-    if message.from_user.id not in [Config.OWNER_ID] + list(Config.ADMINS):
+    if not Config.is_admin(message.from_user.id):
         return await message.reply_text("❌ Only admins can manage global force channels.")
 
     if len(message.command) < 2:
@@ -470,9 +468,8 @@ async def add_global_channel(client: Client, message: Message):
 async def start_clone_command(client: Client, message: Message):
     """Start a clone bot"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only Mother Bot admins can start clones.")
 
     if len(message.command) < 2:
@@ -494,9 +491,8 @@ async def start_clone_command(client: Client, message: Message):
 async def stop_clone_command(client: Client, message: Message):
     """Stop a clone bot"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only Mother Bot admins can stop clones.")
 
     if len(message.command) < 2:
@@ -518,9 +514,8 @@ async def stop_clone_command(client: Client, message: Message):
 async def restart_clone_command(client: Client, message: Message):
     """Restart a clone bot"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only Mother Bot admins can restart clones.")
 
     if len(message.command) < 2:
@@ -542,9 +537,8 @@ async def restart_clone_command(client: Client, message: Message):
 async def clone_manager_status_command(client: Client, message: Message):
     """Get status of the clone manager"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only Mother Bot admins can view clone manager status.")
 
     status = clone_manager.get_status()
@@ -558,9 +552,8 @@ async def clone_manager_status_command(client: Client, message: Message):
 async def debug_command(client: Client, message: Message):
     """Enter debug mode"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only admins can use debug commands.")
 
     await message.reply_text(
@@ -574,9 +567,8 @@ async def debug_command(client: Client, message: Message):
 async def help_debug_command(client: Client, message: Message):
     """Show help for debug commands"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only admins can use debug commands.")
 
     debug_help_text = """
@@ -593,9 +585,8 @@ async def help_debug_command(client: Client, message: Message):
 async def debug_clone_command(client: Client, message: Message):
     """Debug a specific clone bot"""
     user_id = message.from_user.id
-    admin_list = [Config.OWNER_ID] + list(Config.ADMINS)
 
-    if user_id not in admin_list:
+    if not Config.is_admin(user_id):
         return await message.reply_text("❌ Only admins can use debug commands.")
 
     if len(message.command) < 2:

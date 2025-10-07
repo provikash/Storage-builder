@@ -1,5 +1,4 @@
 
-```python
 """
 Centralized Clone Detection Utilities
 Consolidates clone detection logic from multiple files
@@ -35,7 +34,7 @@ async def is_clone_admin(client, user_id: int) -> bool:
     """Check if user is admin of the current clone bot"""
     try:
         from bot.database.clone_db import get_clone_by_bot_token
-        
+
         bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
         if bot_token == Config.BOT_TOKEN:
             return False
@@ -62,4 +61,3 @@ def get_clone_id_from_client(client):
 def is_admin_user(user_id: int) -> bool:
     """Check if user is admin or owner"""
     return user_id in [Config.OWNER_ID] + list(Config.ADMINS)
-```

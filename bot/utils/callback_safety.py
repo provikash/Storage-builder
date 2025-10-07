@@ -1,13 +1,14 @@
 
-import asyncio
-import functools
-from pyrogram import Client
-from pyrogram.types import CallbackQuery
-from bot.logging import LOGGER
+"""
+Callback safety utilities
+Import from unified error_handler
+"""
+from bot.utils.error_handler import safe_callback_handler
 
-logger = LOGGER(__name__)
+# Re-export for backward compatibility
+__all__ = ['safe_callback_handler']
 
-def safe_callback_handler(func):
+def _safe_callback_handler(func):
     """Decorator to safely handle callbacks and prevent task exceptions"""
     @functools.wraps(func)
     async def wrapper(client: Client, query: CallbackQuery):

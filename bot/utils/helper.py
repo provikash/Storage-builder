@@ -50,23 +50,19 @@ def get_readable_time(seconds: int, long: bool = False) -> str:
         return " ".join(time_units)
 
 def get_readable_file_size(size_bytes: int) -> str:
-    """Convert bytes to human readable file size"""
+    """Convert bytes to human readable file size (centralized version)"""
     if size_bytes == 0:
-        return "0B"
-
-    size_names = ["B", "KB", "MB", "GB", "TB"]
-    i = 0
-    size = float(size_bytes)
+        return "0 B"
     
-    while size >= 1024 and i < len(size_names) - 1:
-        size /= 1024.0
-        i += 1
-
-    # Format without decimal for bytes, with decimal for larger units
-    if i == 0:
-        return f"{int(size)} {size_names[i]}"
-    else:
-        return f"{size:.1f} {size_names[i]}"
+    size_names = ["B", "KB", "MB", "GB", "TB"]
+    i = int(size_bytes.bit_length() // 10) if size_bytes > 0 else 0
+    if i >= len(size_names):
+        i = len(size_names) - 1
+    
+    p = 1024 ** i
+    s = round(size_bytes / p, 2)
+    
+    return f"{int(s) if i == 0 else s} {size_names[i]}"
 
 def get_collection_name(channel_id=None):
     """Get collection name for database operations"""

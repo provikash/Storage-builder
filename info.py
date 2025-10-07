@@ -157,6 +157,11 @@ class Config(object):
         """Extended validation including additional configs"""
         cls.validate()  # Run basic validation first
         return True
+    
+    @classmethod
+    def is_admin(cls, user_id: int) -> bool:
+        """Centralized admin check"""
+        return user_id in [cls.OWNER_ID] + list(cls.ADMINS)
 
 # Validate configuration on import
 if __name__ != "__main__":

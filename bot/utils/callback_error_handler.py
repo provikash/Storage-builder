@@ -1,17 +1,15 @@
 
 """
 Centralized error handling for callback queries
+Import from unified error_handler
 """
-import traceback
-from typing import Optional
-from pyrogram import Client
-from pyrogram.types import CallbackQuery
-from pyrogram.errors import MessageNotModified, QueryIdInvalid, ButtonDataInvalid
-from bot.logging import LOGGER
+from bot.utils.error_handler import handle_callback_error, safe_callback_handler
 
-logger = LOGGER(__name__)
+# Re-export for backward compatibility
+__all__ = ['handle_callback_error', 'safe_callback_handler']
 
-async def handle_callback_error(client: Client, query: CallbackQuery, error: Exception, context: str) -> bool:
+# Legacy function kept for compatibility
+async def _handle_callback_error(client, query, error: Exception, context: str) -> bool:
     """
     Handle callback query errors centrally
     
