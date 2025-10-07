@@ -116,12 +116,12 @@ async def create_clone_directly(user_id: int, data: dict):
         logger.error(f"❌ Error in create_clone_directly for user {user_id}: {e}")
         return False, str(e)
 
-@Client.on_callback_query(filters.regex("^start_clone_creation$"))
+@Client.on_callback_query(filters.regex("^start_clone_creation$"), group=2)
 async def start_clone_creation_callback(client: Client, query: CallbackQuery):
     """Start the clone creation process"""
     user_id = query.from_user.id
     logger.info(f"🚀 start_clone_creation_callback triggered by user {user_id}")
-    await query.answer()
+    await query.answer("Starting clone creation process...")
 
     user_clones = await get_user_clones(user_id)
     active_clones = [clone for clone in user_clones if clone.get('status') == 'active']
@@ -183,10 +183,10 @@ async def start_clone_creation_callback(client: Client, query: CallbackQuery):
 
     await query.edit_message_text(text, reply_markup=buttons)
 
-@Client.on_callback_query(filters.regex("^creation_help$"))
+@Client.on_callback_query(filters.regex("^creation_help$"), group=2)
 async def creation_help_callback(client, query):
     """Show creation help"""
-    await query.answer()
+    await query.answer("Loading help...")
 
     text = f"❓ **Clone Creation Help**\n\n"
     text += f"**🤖 What is a Clone?**\n"
@@ -216,10 +216,10 @@ async def creation_help_callback(client, query):
 
     await query.edit_message_text(text, reply_markup=buttons)
 
-@Client.on_callback_query(filters.regex("^begin_step1_plan$"))
+@Client.on_callback_query(filters.regex("^begin_step1_plan$"), group=2)
 async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
     """Handle begin step 1 - plan selection"""
-    await query.answer()
+    await query.answer("Loading plans...")
 
     user_id = query.from_user.id
     logger.info(f"💎 begin_step1_plan_callback triggered by user {user_id}")
@@ -251,10 +251,10 @@ async def begin_step1_plan_callback(client: Client, query: CallbackQuery):
 
     await query.edit_message_text(text, reply_markup=InlineKeyboardMarkup(buttons))
 
-@Client.on_callback_query(filters.regex("^select_plan:"))
+@Client.on_callback_query(filters.regex("^select_plan:"), group=2)
 async def select_plan_callback(client: Client, query: CallbackQuery):
     """Handle plan selection"""
-    await query.answer()
+    await query.answer("Plan selected...")
     user_id = query.from_user.id
     plan_id = query.data.split(':')[1]
     
@@ -405,6 +405,20 @@ async def handle_bot_token_input(client: Client, message: Message, bot_token: st
     except Exception as e:
         logger.error(f"Token validation error: {e}")
         await processing_msg.edit_text(f"❌ **Token Validation Failed!**\n\n{str(e)}")
+
+@Client.on_callback_query(filters.regex("^cancel_creation$"), group=2)
+async def cancel_creation_callback(client: Client, query: CallbackQuery):
+    """Cancel the clone creation process"""
+    user_id = query.from_user.id
+    await session_manager.delete_session(user_id)
+    await query.answer("Clone creation cancelled!")
+    await query.edit_message_text(
+        "❌ **Clone Creation Cancelled**\n\nYou can start again anytime by clicking the button below.",
+        reply_markup=InlineKeyboardMarkup([
+            [InlineKeyboardButton("🚀 Create Clone", callback_data="start_clone_creation")],
+            [InlineKeyboardButton("« Back to Start", callback_data="back_to_start")]
+        ])
+    )
 
 async def handle_mongodb_input(client: Client, message: Message, mongodb_url: str, session: dict):
     """Handle and validate MongoDB URL"""

@@ -848,7 +848,7 @@ async def help_callback(client: Client, query: CallbackQuery):
             InlineKeyboardButton("📚 Documentation", callback_data="documentation"),
             InlineKeyboardButton("🎥 Video Tutorials", callback_data="video_tutorials")
         ],
-        [InlineKeyboardButton("🔙 Back to Home", callback_data="back_to_start")]
+        [InlineKeyboardButton("🔙 Back to Start", callback_data="back_to_start")]
     ])
 
     await safe_edit_message(query, text, reply_markup=buttons)
@@ -1048,4 +1048,4 @@ async def catch_all_handler(client: Client, message: Message):
         try:
             await message.reply_text("An unexpected error occurred while processing your message.")
         except Exception:
-            pass # Ignore if even replying fails
+            pass

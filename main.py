@@ -121,17 +121,17 @@ async def start_mother_bot():
             plugins=dict(
                 root="bot.plugins",
                 include=[
-                    "start_handler",
+                    "callback_unified",
                     "mother_clone_handlers",
+                    "start_handler",
+                    "balance_management",
                     "indexing_unified",
                     "clone_admin_settings",
                     "clone_database_commands",
                     "clone_index",
                     "clone_auto_index",
                     "clone_forward_indexer",
-                    "clone_status_commands",
-                    "callback_unified",
-                    "balance_management"
+                    "clone_status_commands"
                 ]
             ),
             workdir=session_dir  # Use separate directory for sessions

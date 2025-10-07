@@ -1,4 +1,3 @@
-
 """
 Unified Callback Handler System
 Consolidates all callback query handlers from the entire project
@@ -496,7 +495,7 @@ async def handle_start_menu_callbacks(client: Client, query: CallbackQuery):
                 ])
             )
 
-    
+
 # =====================================================
 # CLONE SPECIFIC HANDLERS
 # =====================================================
