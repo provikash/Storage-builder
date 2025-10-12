@@ -1,3 +1,43 @@
+
+@Client.on_message(filters.command("checkadmin") & filters.private)
+async def check_admin_command(client: Client, message: Message):
+    """Debug command to check admin status"""
+    try:
+        user_id = message.from_user.id
+        bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+        
+        debug_text = f"🔍 **Admin Check Debug**\n\n"
+        debug_text += f"👤 Your User ID: `{user_id}`\n"
+        debug_text += f"📱 Username: @{message.from_user.username or 'None'}\n\n"
+        
+        if bot_token == Config.BOT_TOKEN:
+            debug_text += f"🤖 **Bot Type:** Mother Bot\n"
+            debug_text += f"👑 Mother Admins: {Config.ADMINS}\n"
+            debug_text += f"✅ You are admin: {user_id in Config.ADMINS}"
+        else:
+            debug_text += f"🤖 **Bot Type:** Clone Bot\n"
+            debug_text += f"🔑 Bot Token (first 10): `{bot_token[:10]}...`\n\n"
+            
+            from bot.database.clone_db import get_clone_by_bot_token
+            clone_data = await get_clone_by_bot_token(bot_token)
+            
+            if clone_data:
+                admin_id = clone_data.get('admin_id') or clone_data.get('owner_id')
+                debug_text += f"🆔 Clone ID: `{clone_data.get('_id')}`\n"
+                debug_text += f"👑 Clone Admin ID: `{admin_id}`\n"
+                debug_text += f"📊 Clone Status: {clone_data.get('status')}\n"
+                debug_text += f"💾 DB URL: {clone_data.get('mongodb_url', 'Not set')[:30]}...\n"
+                debug_text += f"✅ You are admin: {user_id == int(admin_id) if admin_id else False}"
+            else:
+                debug_text += f"❌ Clone data not found!"
+        
+        await message.reply_text(debug_text)
+        
+    except Exception as e:
+        logger.error(f"Error in check admin command: {e}", exc_info=True)
+        await message.reply_text(f"❌ Error: {str(e)}")
+
+
 """
 Unified Commands System - All Commands Merged
 Consolidates all command handlers from the entire project
