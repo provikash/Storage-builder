@@ -1,3 +1,4 @@
+
 """
 Unified Callback Handler System
 Consolidates all callback query handlers from the entire project
@@ -38,8 +39,15 @@ async def clone_settings_panel_callback(client: Client, query: CallbackQuery):
     user_id = query.from_user.id
     logger.info(f"Clone settings panel callback from user {user_id}")
 
-    from bot.utils.clone_detection import is_clone_bot_instance
-    is_clone_bot, bot_token = await is_clone_bot_instance(client)
+    bot_token = getattr(client, 'bot_token', Config.BOT_TOKEN)
+    is_clone_bot = hasattr(client, 'is_clone') and client.is_clone
+
+    if not is_clone_bot:
+        is_clone_bot = (
+            bot_token != Config.BOT_TOKEN or
+            hasattr(client, 'clone_config') and client.clone_config or
+            hasattr(client, 'clone_data')
+        )
 
     if not is_clone_bot or bot_token == Config.BOT_TOKEN:
         await query.answer("❌ Not available in this bot.", show_alert=True)
@@ -445,20 +453,7 @@ async def handle_start_menu_callbacks(client: Client, query: CallbackQuery):
     try:
         await query.answer()
 
-        if callback_data == "start_clone_creation":
-            await query.edit_message_text(
-                "🤖 **Clone Bot Creation**\n\n"
-                "To create your personal clone bot:\n"
-                "1. Use /createclone command\n"
-                "2. Follow the setup wizard\n"
-                "3. Customize your bot settings\n\n"
-                "💡 **Tip:** Make sure you have the required permissions!",
-                reply_markup=InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
-                ])
-            )
-
-        elif callback_data == "user_profile":
+        if callback_data == "user_profile":
             try:
                 from bot.database.users import get_user_stats
                 stats = await get_user_stats(user_id)
@@ -487,11 +482,27 @@ async def handle_start_menu_callbacks(client: Client, query: CallbackQuery):
                     [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
                 ])
             )
-    
-    except Exception as e:
-        logger.error(f"Error in start menu callback: {e}")
-        await query.answer("❌ Error processing request.", show_alert=True)
 
+        elif callback_data in ["help_menu", "help"]:
+            await query.edit_message_text(
+                "❓ **Help & Support**\n\n"
+                "🤖 **Bot Commands:**\n"
+                "• /start - Main menu\n"
+                "• /createclone - Create new clone bot\n"
+                "• /myclones - Manage your bots\n"
+                "• /help - Show this help\n\n"
+                "📞 **Support:**\n"
+                "• Documentation: Available in bot\n"
+                "• Support group: @support\n"
+                "• Contact admin: @admin",
+                reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
+                ])
+            )
+
+    except Exception as e:
+        logger.error(f"Error in start menu callback {callback_data}: {e}")
+        await query.answer("❌ An error occurred. Please try again.", show_alert=True)
 
 # =====================================================
 # CLONE SPECIFIC HANDLERS
