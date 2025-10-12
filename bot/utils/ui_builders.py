@@ -11,7 +11,6 @@ logger = LOGGER(__name__)
 # Constants for callback data
 CALLBACK_DATA = {
     'RANDOM_FILES': 'random_files',
-    'RECENT_FILES': 'recent_files', 
     'POPULAR_FILES': 'popular_files',
     'SETTINGS': 'clone_settings_panel',
     'BACK_TO_START': 'back_to_start',
@@ -77,23 +76,19 @@ def build_clone_start_menu(clone_data: Optional[Dict[str, Any]], user_id: int, u
     
     # Feature buttons based on clone settings
     show_random = clone_data.get('random_mode', True) if clone_data else True
-    show_recent = clone_data.get('recent_mode', True) if clone_data else True
     show_popular = clone_data.get('popular_mode', True) if clone_data else True
     
     file_buttons = []
     
     # File mode buttons
-    mode_row1 = []
+    mode_row = []
     if show_random:
-        mode_row1.append(InlineKeyboardButton("🎲 Random Files", callback_data=CALLBACK_DATA['RANDOM_FILES']))
-    if show_recent:
-        mode_row1.append(InlineKeyboardButton("🆕 Recent Files", callback_data=CALLBACK_DATA['RECENT_FILES']))
-    
-    if mode_row1:
-        file_buttons.append(mode_row1)
-    
+        mode_row.append(InlineKeyboardButton("🎲 Random Files", callback_data=CALLBACK_DATA['RANDOM_FILES']))
     if show_popular:
-        file_buttons.append([InlineKeyboardButton("🔥 Popular Files", callback_data=CALLBACK_DATA['POPULAR_FILES'])])
+        mode_row.append(InlineKeyboardButton("🔥 Popular Files", callback_data=CALLBACK_DATA['POPULAR_FILES']))
+    
+    if mode_row:
+        file_buttons.append(mode_row)
     
     # User actions
     file_buttons.append([

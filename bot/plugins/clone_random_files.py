@@ -73,20 +73,7 @@ async def get_clone_id_from_client(client: Client):
         logger.error(f"Error getting clone ID: {e}")
         return None
 
-async def get_trending_files(clone_id: str, limit: int = 10):
-    """Get trending files based on recent downloads and engagement"""
-    try:
-        from bot.database.index_db import get_trending_files as get_index_trending_files
-        files = await get_index_trending_files(limit=limit, clone_id=clone_id)
-        return files
-    except ImportError:
-        try:
-            from bot.database.mongo_db import get_trending_files as get_mongo_trending_files
-            files = await get_mongo_trending_files(limit=limit, clone_id=clone_id)
-            return files
-        except ImportError:
-            # Fallback to popular files
-            return await get_popular_files(limit=limit, clone_id=clone_id)
+
 
 async def get_file_stats(file_id: str, clone_id: str = None):
     """Get detailed file statistics"""
@@ -192,22 +179,14 @@ def create_file_buttons(files, current_mode="random", page=1, total_pages=1):
         if buttons:
             buttons.append([InlineKeyboardButton("─────────────────", callback_data="separator")])
 
-        # Enhanced navigation buttons
-        mode_buttons = []
-
         # Mode selection buttons with current mode indicator
         random_text = "🎲 Random ✓" if current_mode == "random" else "🎲 Random"
-        recent_text = "🕒 Recent ✓" if current_mode == "recent" else "🕒 Recent"
         popular_text = "🔥 Popular ✓" if current_mode == "popular" else "🔥 Popular"
 
-        mode_buttons.append([
+        mode_buttons = [[
             InlineKeyboardButton(random_text, callback_data="clone_random_files"),
-            InlineKeyboardButton(recent_text, callback_data="clone_recent_files")
-        ])
-        mode_buttons.append([
-            InlineKeyboardButton(popular_text, callback_data="clone_popular_files"),
-            InlineKeyboardButton("📊 Trending", callback_data="clone_trending_files")
-        ])
+            InlineKeyboardButton(popular_text, callback_data="clone_popular_files")
+        ]]
 
         buttons.extend(mode_buttons)
 
@@ -247,7 +226,7 @@ async def files_discovery_command(client: Client, message: Message):
             return
 
         text = "🎯 **File Discovery Hub**\n\n"
-        text += "🚀 **Discover amazing files in multiple ways:**\n\n"
+        text += "🚀 **Discover amazing files:**\n\n"
 
         text += "🎲 **Random** - `/random`\n"
         text += "   • Discover unexpected gems\n"
@@ -257,29 +236,18 @@ async def files_discovery_command(client: Client, message: Message):
         text += "   • Most downloaded files\n"
         text += "   • Community favorites\n\n"
 
-        text += "📊 **Trending** - `/trending` or `/hot`\n"
-        text += "   • What's hot right now\n"
-        text += "   • Based on recent activity\n\n"
-
-        text += "🕒 **Recent** - Browse latest uploads\n\n"
-
         text += "🔍 **Search** - `/search <query>`\n"
         text += "   • Find specific files\n"
         text += "   • Search by name or keywords\n\n"
 
         text += "💡 **Pro Tips:**\n"
         text += "• Like files to help others discover them\n"
-        text += "• Share files to boost their popularity\n"
-        text += "• Check trending for the hottest content"
+        text += "• Share files to boost their popularity"
 
         buttons = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton("🎲 Random", callback_data="clone_random_files"),
                 InlineKeyboardButton("🔥 Popular", callback_data="clone_popular_files")
-            ],
-            [
-                InlineKeyboardButton("📊 Trending", callback_data="clone_trending_files"),
-                InlineKeyboardButton("🕒 Recent", callback_data="clone_recent_files")
             ],
             [InlineKeyboardButton("🎯 Quick Random", callback_data="get_random_file")]
         ])
@@ -445,46 +413,7 @@ async def popular_files_command(client: Client, message: Message):
         logger.error(f"Error in popular files command: {e}")
         await message.reply_text("❌ Error retrieving popular files. Please try again.")
 
-@Client.on_message(filters.command(["trending", "hot"]) & filters.private)
-async def trending_files_command(client: Client, message: Message):
-    """Handle /trending and /hot commands for clone bots"""
-    try:
-        # Check if this is a clone and feature is enabled
-        if not await check_clone_feature_enabled(client, 'popular_button'):
-            await message.reply_text("❌ Trending files feature is not available or disabled.")
-            return
 
-        clone_id = await get_clone_id_from_client(client)
-        if not clone_id:
-            await message.reply_text("❌ This feature is only available in clone bots.")
-            return
-
-        # Get trending files
-        files = await get_trending_files(clone_id, limit=10)
-
-        if not files:
-            await message.reply_text("❌ No trending files found. Upload and share some files to see trends!")
-            return
-
-        text = "📊 **Trending Files**\n\n"
-        text += f"🚀 **What's Hot Right Now**\n"
-        text += f"⚡ Based on recent activity and engagement\n\n"
-
-        # Show trending file details
-        if files:
-            trending_file = files[0]
-            recent_activity = trending_file.get('recent_downloads', 0)
-            text += format_file_text(trending_file, include_stats=True)
-            if recent_activity > 0:
-                text += f"\n🔥 **Blazing hot** with recent activity!"
-
-        buttons = create_file_buttons(files, current_mode="trending")
-
-        await message.reply_text(text, reply_markup=buttons)
-
-    except Exception as e:
-        logger.error(f"Error in trending files command: {e}")
-        await message.reply_text("❌ Error retrieving trending files. Please try again.")
 
 async def handle_clone_random_files(client: Client, query):
     """Handle random files callback for clones"""
@@ -526,45 +455,7 @@ async def handle_clone_random_files(client: Client, query):
         logger.error(f"Error in clone random files callback: {e}")
         await query.answer("❌ Error retrieving random files.", show_alert=True)
 
-async def handle_clone_recent_files(client: Client, query):
-    """Handle recent files callback for clones"""
-    try:
-        # Check if this is a clone and feature is enabled
-        if not await check_clone_feature_enabled(client, 'recent_button'):
-            await query.edit_message_text("❌ Recent files feature is not available or disabled.")
-            return
 
-        clone_id = await get_clone_id_from_client(client)
-        if not clone_id:
-            await query.edit_message_text("❌ This feature is only available in clone bots.")
-            return
-
-        # Get recent files from clone database
-        try:
-            from bot.database.index_db import get_recent_files as get_index_recent_files
-            files = await get_index_recent_files(limit=10, clone_id=clone_id)
-        except ImportError:
-            # Fallback to mongo_db if index_db is not available
-            files = await get_recent_files(limit=10, clone_id=clone_id)
-
-        if not files:
-            await query.edit_message_text("❌ No files found in database. Index some files first.")
-            return
-
-        text = "🕒 **Recent Files**\n\n"
-        text += f"Found {len(files)} recent files:\n\n"
-
-        # Show first file details
-        if files:
-            text += format_file_text(files[0])
-
-        buttons = create_file_buttons(files)
-
-        await query.edit_message_text(text, reply_markup=buttons)
-
-    except Exception as e:
-        logger.error(f"Error in clone recent files callback: {e}")
-        await query.answer("❌ Error retrieving recent files.", show_alert=True)
 
 async def handle_clone_popular_files(client: Client, query):
     """Handle popular files callback for clones"""
@@ -863,78 +754,7 @@ async def handle_clone_popular_files_callback(client: Client, query: CallbackQue
         logger.error(f"Error in popular files callback: {e}")
         await query.edit_message_text("❌ Error loading popular files. Please try again.")
 
-@Client.on_callback_query(filters.regex("^clone_recent_files$"))
-async def handle_clone_recent_files_callback(client: Client, query: CallbackQuery):
-    """Handle recent files callback for clone bot"""
-    try:
-        await query.answer()
 
-        clone_id = await get_clone_id_from_client(client)
-        if not clone_id:
-            await query.edit_message_text("❌ This feature is only available in clone bots.")
-            return
-
-        # Check if feature is enabled
-        if not await check_clone_feature_enabled(client, 'recent_button'):
-            await query.edit_message_text("❌ Recent files feature is not available or disabled.")
-            return
-
-        # Get recent files
-        try:
-            from bot.database.index_db import get_recent_files as get_index_recent_files
-            files = await get_index_recent_files(limit=10, clone_id=clone_id)
-        except ImportError:
-            files = await get_recent_files(limit=10, clone_id=clone_id)
-
-        if not files:
-            await query.edit_message_text("❌ No recent files found. Index some files first.")
-            return
-
-        text = "🆕 **Recent Files**\n\n"
-        text += f"⏰ Latest {len(files)} files uploaded:\n\n"
-
-        # Show first file details
-        if files:
-            text += format_file_text(files[0], include_stats=True)
-
-        buttons = create_file_buttons(files, current_mode="recent")
-        await query.edit_message_text(text, reply_markup=buttons)
-
-    except Exception as e:
-        logger.error(f"Error in recent files callback: {e}")
-        await query.edit_message_text("❌ Error loading recent files. Please try again.")
-
-@Client.on_callback_query(filters.regex("^clone_trending_files$"))
-async def handle_clone_trending_files_callback(client: Client, query: CallbackQuery):
-    """Handle trending files callback for clone bot"""
-    try:
-        await query.answer()
-
-        clone_id = await get_clone_id_from_client(client)
-        if not clone_id:
-            await query.edit_message_text("❌ This feature is only available in clone bots.")
-            return
-
-        # Get trending files
-        files = await get_trending_files(clone_id, limit=10)
-
-        if not files:
-            await query.edit_message_text("❌ No trending files found right now. Check back later!")
-            return
-
-        text = "📊 **Trending Files**\n\n"
-        text += f"🔥 What's hot right now - {len(files)} files:\n\n"
-
-        # Show top trending file details
-        if files:
-            text += format_file_text(files[0], include_stats=True)
-
-        buttons = create_file_buttons(files, current_mode="trending")
-        await query.edit_message_text(text, reply_markup=buttons)
-
-    except Exception as e:
-        logger.error(f"Error in trending files callback: {e}")
-        await query.edit_message_text("❌ Error loading trending files. Please try again.")
 
 @Client.on_callback_query(filters.regex(r"^get_file:"))
 async def handle_get_file_callback(client: Client, query: CallbackQuery):

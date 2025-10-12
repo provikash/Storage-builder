@@ -115,12 +115,7 @@ class Config(object):
     PAYMENT_PHONE = os.environ.get("PAYMENT_PHONE", "+911234567890")
     ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "termuxro")
 
-    # Cryptocurrency Payment Options
-    CRYPTO_ENABLED = os.environ.get("CRYPTO_ENABLED", "True").lower() in ("true", "1", "yes")
-    BITCOIN_ADDRESS = os.environ.get("BITCOIN_ADDRESS", "")
-    ETHEREUM_ADDRESS = os.environ.get("ETHEREUM_ADDRESS", "")
-    USDT_TRC20_ADDRESS = os.environ.get("USDT_TRC20_ADDRESS", "")
-    USDT_ERC20_ADDRESS = os.environ.get("USDT_ERC20_ADDRESS", "")
+    
 
     # Validate critical configuration
     @classmethod

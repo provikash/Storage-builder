@@ -11,7 +11,7 @@ from bot.logging import LOGGER
 
 logger = LOGGER(__name__)
 
-@Client.on_callback_query(filters.regex("^(random_files|recent_files|popular_files)$"), group=4)
+@Client.on_callback_query(filters.regex("^(random_files|popular_files)$"), group=4)
 @safe_callback_handler
 async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
     """Handle file browsing callbacks with proper routing"""
@@ -46,9 +46,6 @@ async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
     if callback_data == CALLBACK_DATA['RANDOM_FILES']:
         feature_enabled = clone_data.get('random_mode', True)
         feature_display_name = "Random Files"
-    elif callback_data == CALLBACK_DATA['RECENT_FILES']:
-        feature_enabled = clone_data.get('recent_mode', True)
-        feature_display_name = "Recent Files"
     elif callback_data == CALLBACK_DATA['POPULAR_FILES']:
         feature_enabled = clone_data.get('popular_mode', True)
         feature_display_name = "Popular Files"
@@ -63,9 +60,6 @@ async def file_browsing_callback_handler(client: Client, query: CallbackQuery):
         if callback_data == CALLBACK_DATA['RANDOM_FILES']:
             from bot.plugins.clone_random_files import handle_clone_random_files
             await handle_clone_random_files(client, query)
-        elif callback_data == CALLBACK_DATA['RECENT_FILES']:
-            from bot.plugins.clone_random_files import handle_clone_recent_files
-            await handle_clone_recent_files(client, query)
         elif callback_data == CALLBACK_DATA['POPULAR_FILES']:
             from bot.plugins.clone_random_files import handle_clone_popular_files
             await handle_clone_popular_files(client, query)
