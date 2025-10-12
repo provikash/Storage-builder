@@ -487,6 +487,10 @@ async def handle_start_menu_callbacks(client: Client, query: CallbackQuery):
                     [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
                 ])
             )
+    
+    except Exception as e:
+        logger.error(f"Error in start menu callback: {e}")
+        await query.answer("❌ Error processing request.", show_alert=True)
 
 
 # =====================================================
