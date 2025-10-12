@@ -444,7 +444,7 @@ async def settings_callback(client: Client, query: CallbackQuery):
 # =====================================================
 # START MENU HANDLERS
 # =====================================================
-@Client.on_callback_query(filters.regex("^(start_clone_creation|manage_my_clone|user_profile|premium_info|help_menu|about_bot|about_water|admin_panel|bot_management)$"), group=95)
+@Client.on_callback_query(filters.regex("^(manage_my_clone|user_profile|premium_info|help_menu|about_bot|about_water|admin_panel|bot_management)$"), group=95)
 async def handle_start_menu_callbacks(client: Client, query: CallbackQuery):
     """Handle start menu button callbacks"""
     callback_data = query.data
@@ -482,6 +482,20 @@ async def handle_start_menu_callbacks(client: Client, query: CallbackQuery):
                     [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
                 ])
             )
+
+        elif callback_data == "manage_my_clone":
+            # Import and call the management handler
+            try:
+                from bot.handlers.clonebot.management import handle_manage_clones
+                await handle_manage_clones(client, query)
+            except Exception as e:
+                logger.error(f"Error loading clone management: {e}")
+                await query.edit_message_text(
+                    "❌ Error loading clone management. Please try /start",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔙 Back to Menu", callback_data="back_to_start")]
+                    ])
+                )
 
         elif callback_data in ["help_menu", "help"]:
             await query.edit_message_text(
